@@ -31,24 +31,74 @@ Open daarna:
 - API health: http://localhost:8000/health
 - API docs: http://localhost:8000/docs
 
+## Project lokaal starten
+
+Dit is de korte route om lokaal te controleren of alles werkt.
+
+1. Controleer je omgeving:
+
+```sh
+make check-env
+```
+
+2. Start Docker Compose:
+
+```sh
+cp .env.example .env
+make docker-up
+```
+
+3. Draai de database migraties:
+
+```sh
+make db-upgrade
+```
+
+4. Draai de API smoke test:
+
+```sh
+make smoke-api
+```
+
+Gebruik een andere API URL als dat nodig is:
+
+```sh
+API_BASE_URL=http://localhost:8000 make smoke-api
+```
+
+5. Draai backend tests en checks:
+
+```sh
+make backend-checks
+```
+
+6. Installeer en start de frontend:
+
+```sh
+make frontend-install
+make frontend-dev
+```
+
+De belangrijkste URLs zijn:
+
+- Frontend: http://localhost:5173
+- API health: http://localhost:8000/health
+- API docs: http://localhost:8000/docs
+
 ## Tests en checks
 
 Backend:
 
 ```sh
-cd backend
-pip install -r requirements-dev.txt
-pytest
-ruff check .
+make backend-checks
 ```
 
 Frontend:
 
 ```sh
-cd frontend
-npm install
-npm run lint
-npm run build
+make frontend-install
+npm --prefix frontend run lint
+npm --prefix frontend run build
 ```
 
 ## Connector-status

@@ -3,15 +3,26 @@
 !.env.example
 
 __pycache__/
+**/__pycache__/
 *.py[cod]
 .pytest_cache/
+**/.pytest_cache/
 .ruff_cache/
+**/.ruff_cache/
 .mypy_cache/
 .venv/
+backend/.venv/
 venv/
 
+node_modules
 node_modules/
+**/node_modules/
+dist
 dist/
+build
+build/
+**/dist/
+**/build/
 coverage/
 
 .DS_Store
