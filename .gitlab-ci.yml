@@ -1,0 +1,40 @@
+stages:
+  - lint
+  - test
+  - build
+
+backend:lint:
+  image: python:3.12-slim
+  stage: lint
+  before_script:
+    - cd backend
+    - pip install --no-cache-dir -r requirements-dev.txt
+  script:
+    - ruff check .
+
+backend:test:
+  image: python:3.12-slim
+  stage: test
+  before_script:
+    - cd backend
+    - pip install --no-cache-dir -r requirements-dev.txt
+  script:
+    - pytest
+
+frontend:lint:
+  image: node:22-alpine
+  stage: lint
+  before_script:
+    - cd frontend
+    - npm install
+  script:
+    - npm run lint
+
+frontend:build:
+  image: node:22-alpine
+  stage: build
+  before_script:
+    - cd frontend
+    - npm install
+  script:
+    - npm run build
