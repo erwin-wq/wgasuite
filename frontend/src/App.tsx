@@ -1,217 +1,431 @@
-import { Building2, ClipboardList, Plus, Save, ShieldAlert } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  Activity,
+  AlertCircle,
+  BadgeCheck,
+  Building2,
+  CheckCircle2,
+  ClipboardList,
+  Database,
+  Flag,
+  Layers3,
+  Loader2,
+  Plus,
+  ShieldAlert,
+  Target,
+  TrendingUp
+} from "lucide-react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   createAssessment,
+  createAsset,
   createFinding,
   createOrganization,
   listAssessments,
+  listAssets,
   listFindings,
   listOrganizations
 } from "./api/client";
-import type { Assessment, Finding, FindingCreate, Organization } from "./types";
+import type {
+  Assessment,
+  Asset,
+  DreadScoreCreate,
+  Finding,
+  FindingCreate,
+  Organization
+} from "./types";
 
-type DreadScoreKey =
-  | "dread_damage"
-  | "dread_reproducibility"
-  | "dread_exploitability"
-  | "dread_affected_users"
-  | "dread_discoverability";
+type DreadScoreKey = keyof DreadScoreCreate;
+type Feedback = { type: "success" | "error"; message: string } | null;
+type SavingTarget = "organization" | "assessment" | "asset" | "finding" | null;
 
-const initialFinding: FindingCreate = {
-  title: "",
-  description: "",
-  affected_asset: "",
-  status: "open",
-  mitigation: "",
-  dread_damage: 5,
-  dread_reproducibility: 5,
-  dread_exploitability: 5,
-  dread_affected_users: 5,
-  dread_discoverability: 5
+const initialDreadScore: DreadScoreCreate = {
+  damage: 5,
+  reproducibility: 5,
+  exploitability: 5,
+  affected_users: 5,
+  discoverability: 5
 };
 
-const dreadControls: Array<{ key: DreadScoreKey; label: string }> = [
-  { key: "dread_damage", label: "Damage" },
-  { key: "dread_reproducibility", label: "Reproducibility" },
-  { key: "dread_exploitability", label: "Exploitability" },
-  { key: "dread_affected_users", label: "Affected users" },
-  { key: "dread_discoverability", label: "Discoverability" }
+const dreadControls: Array<{ key: DreadScoreKey; label: string; hint: string }> = [
+  { key: "damage", label: "Damage", hint: "Impact op business of data" },
+  { key: "reproducibility", label: "Reproducibility", hint: "Hoe vaak reproduceerbaar" },
+  { key: "exploitability", label: "Exploitability", hint: "Moeite om uit te buiten" },
+  { key: "affected_users", label: "Affected users", hint: "Bereik van impact" },
+  { key: "discoverability", label: "Discoverability", hint: "Hoe makkelijk te vinden" }
 ];
+
+function riskLevelFromScore(score: number): "Low" | "Medium" | "High" | "Critical" {
+  if (score < 3) {
+    return "Low";
+  }
+  if (score < 6) {
+    return "Medium";
+  }
+  if (score < 8) {
+    return "High";
+  }
+  return "Critical";
+}
+
+function formatScore(score: number | null): string {
+  return score === null ? "-" : score.toFixed(2);
+}
 
 function App() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
   const [selectedAssessmentId, setSelectedAssessmentId] = useState("");
+  const [selectedAssetId, setSelectedAssetId] = useState("");
   const [organizationName, setOrganizationName] = useState("");
   const [organizationDescription, setOrganizationDescription] = useState("");
   const [assessmentTitle, setAssessmentTitle] = useState("");
   const [assessmentScope, setAssessmentScope] = useState("");
-  const [finding, setFinding] = useState<FindingCreate>(initialFinding);
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
+  const [assetName, setAssetName] = useState("");
+  const [assetType, setAssetType] = useState("saas");
+  const [assetIdentifier, setAssetIdentifier] = useState("");
+  const [findingTitle, setFindingTitle] = useState("");
+  const [findingDescription, setFindingDescription] = useState("");
+  const [findingMitigation, setFindingMitigation] = useState("");
+  const [dreadScore, setDreadScore] = useState<DreadScoreCreate>(initialDreadScore);
+  const [feedback, setFeedback] = useState<Feedback>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [saving, setSaving] = useState<SavingTarget>(null);
 
   const selectedOrganization = useMemo(
     () => organizations.find((organization) => organization.id === selectedOrganizationId),
     [organizations, selectedOrganizationId]
   );
+  const organizationAssessments = useMemo(
+    () => assessments.filter((assessment) => assessment.organization_id === selectedOrganizationId),
+    [assessments, selectedOrganizationId]
+  );
+  const organizationAssets = useMemo(
+    () => assets.filter((asset) => asset.organization_id === selectedOrganizationId),
+    [assets, selectedOrganizationId]
+  );
   const selectedAssessment = useMemo(
     () => assessments.find((assessment) => assessment.id === selectedAssessmentId),
     [assessments, selectedAssessmentId]
   );
+  const assessmentFindings = useMemo(
+    () => findings.filter((finding) => finding.assessment_id === selectedAssessmentId),
+    [findings, selectedAssessmentId]
+  );
+  const assetById = useMemo(
+    () => new Map(assets.map((asset) => [asset.id, asset])),
+    [assets]
+  );
 
   const previewScore = useMemo(() => {
-    const total =
-      finding.dread_damage +
-      finding.dread_reproducibility +
-      finding.dread_exploitability +
-      finding.dread_affected_users +
-      finding.dread_discoverability;
-    return (total / 5).toFixed(2);
-  }, [finding]);
+    const total = Object.values(dreadScore).reduce((sum, value) => sum + value, 0);
+    return total / 5;
+  }, [dreadScore]);
+  const previewRiskLevel = riskLevelFromScore(previewScore);
 
-  async function refreshOrganizations(preferredId?: string) {
-    const items = await listOrganizations();
-    setOrganizations(items);
-    setSelectedOrganizationId(preferredId ?? items[0]?.id ?? "");
-  }
+  const averageRiskScore = useMemo(() => {
+    if (assessmentFindings.length === 0) {
+      return null;
+    }
 
-  async function refreshAssessments(organizationId: string, preferredId?: string) {
-    const items = await listAssessments(organizationId);
-    setAssessments(items);
-    setSelectedAssessmentId(preferredId ?? items[0]?.id ?? "");
-  }
+    const total = assessmentFindings.reduce(
+      (sum, finding) => sum + finding.dread_score.total_score,
+      0
+    );
+    return total / assessmentFindings.length;
+  }, [assessmentFindings]);
 
-  async function refreshFindings(assessmentId: string) {
-    const items = await listFindings(assessmentId);
-    setFindings(items);
-  }
+  const highestFinding = useMemo(() => {
+    if (assessmentFindings.length === 0) {
+      return null;
+    }
 
-  useEffect(() => {
-    refreshOrganizations().catch((loadError: Error) => setError(loadError.message));
+    return assessmentFindings.reduce((highest, finding) =>
+      finding.dread_score.total_score > highest.dread_score.total_score ? finding : highest
+    );
+  }, [assessmentFindings]);
+
+  const canCreateAssessment = Boolean(selectedOrganizationId && assessmentTitle.trim());
+  const canCreateAsset = Boolean(selectedOrganizationId && assetName.trim());
+  const canCreateFinding = Boolean(selectedAssessmentId && findingTitle.trim());
+
+  const loadWorkspace = useCallback(
+    async (preferredOrganizationId?: string, preferredAssessmentId?: string) => {
+    setIsLoading(true);
+    try {
+      const [loadedOrganizations, loadedAssessments, loadedAssets, loadedFindings] =
+        await Promise.all([listOrganizations(), listAssessments(), listAssets(), listFindings()]);
+
+      setOrganizations(loadedOrganizations);
+      setAssessments(loadedAssessments);
+      setAssets(loadedAssets);
+      setFindings(loadedFindings);
+
+      const nextOrganizationId = preferredOrganizationId ?? loadedOrganizations[0]?.id ?? "";
+      const nextAssessmentId =
+        preferredAssessmentId ??
+        loadedAssessments.find((assessment) => assessment.organization_id === nextOrganizationId)
+          ?.id ??
+        "";
+
+      setSelectedOrganizationId(nextOrganizationId);
+      setSelectedAssessmentId(nextAssessmentId);
+    } catch (loadError) {
+      setFeedback({
+        type: "error",
+        message: `Backend data laden is mislukt: ${(loadError as Error).message}`
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (!selectedOrganizationId) {
-      setAssessments([]);
-      setSelectedAssessmentId("");
-      return;
-    }
-
-    refreshAssessments(selectedOrganizationId).catch((loadError: Error) => setError(loadError.message));
-  }, [selectedOrganizationId]);
+    loadWorkspace();
+  }, [loadWorkspace]);
 
   useEffect(() => {
-    if (!selectedAssessmentId) {
-      setFindings([]);
+    if (!selectedOrganizationId) {
+      setSelectedAssessmentId("");
+      setSelectedAssetId("");
       return;
     }
 
-    refreshFindings(selectedAssessmentId).catch((loadError: Error) => setError(loadError.message));
-  }, [selectedAssessmentId]);
+    if (!organizationAssessments.some((assessment) => assessment.id === selectedAssessmentId)) {
+      setSelectedAssessmentId(organizationAssessments[0]?.id ?? "");
+    }
+
+    if (!organizationAssets.some((asset) => asset.id === selectedAssetId)) {
+      setSelectedAssetId("");
+    }
+  }, [
+    organizationAssessments,
+    organizationAssets,
+    selectedAssessmentId,
+    selectedAssetId,
+    selectedOrganizationId
+  ]);
 
   async function handleCreateOrganization(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
-    setNotice("");
+    const name = organizationName.trim();
+    if (!name) {
+      return;
+    }
 
+    setFeedback(null);
+    setSaving("organization");
     try {
       const organization = await createOrganization({
-        name: organizationName,
-        description: organizationDescription || null
+        name,
+        description: organizationDescription.trim() || null
       });
       setOrganizationName("");
       setOrganizationDescription("");
-      setNotice("Organisatie aangemaakt.");
-      await refreshOrganizations(organization.id);
+      setSelectedOrganizationId(organization.id);
+      setFeedback({ type: "success", message: "Organisatie aangemaakt." });
+      await loadWorkspace(organization.id);
     } catch (submitError) {
-      setError((submitError as Error).message);
+      setFeedback({ type: "error", message: (submitError as Error).message });
+    } finally {
+      setSaving(null);
     }
   }
 
   async function handleCreateAssessment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
-    setNotice("");
-
-    if (!selectedOrganizationId) {
-      setError("Selecteer eerst een organisatie.");
+    if (!canCreateAssessment) {
       return;
     }
 
+    setFeedback(null);
+    setSaving("assessment");
     try {
-      const assessment = await createAssessment(selectedOrganizationId, {
-        title: assessmentTitle,
-        scope_summary: assessmentScope || null
+      const assessment = await createAssessment({
+        organization_id: selectedOrganizationId,
+        title: assessmentTitle.trim(),
+        scope_summary: assessmentScope.trim() || null
       });
       setAssessmentTitle("");
       setAssessmentScope("");
-      setNotice("Assessment gestart.");
-      await refreshAssessments(selectedOrganizationId, assessment.id);
+      setSelectedAssessmentId(assessment.id);
+      setFeedback({ type: "success", message: "Assessment aangemaakt." });
+      await loadWorkspace(selectedOrganizationId, assessment.id);
     } catch (submitError) {
-      setError((submitError as Error).message);
+      setFeedback({ type: "error", message: (submitError as Error).message });
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function handleCreateAsset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canCreateAsset) {
+      return;
+    }
+
+    setFeedback(null);
+    setSaving("asset");
+    try {
+      const asset = await createAsset({
+        organization_id: selectedOrganizationId,
+        name: assetName.trim(),
+        asset_type: assetType,
+        identifier: assetIdentifier.trim() || null,
+        description: null
+      });
+      setAssetName("");
+      setAssetIdentifier("");
+      setSelectedAssetId(asset.id);
+      setFeedback({ type: "success", message: "Asset toegevoegd." });
+      await loadWorkspace(selectedOrganizationId, selectedAssessmentId);
+      setSelectedAssetId(asset.id);
+    } catch (submitError) {
+      setFeedback({ type: "error", message: (submitError as Error).message });
+    } finally {
+      setSaving(null);
     }
   }
 
   async function handleCreateFinding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
-    setNotice("");
-
-    if (!selectedAssessmentId) {
-      setError("Selecteer eerst een assessment.");
+    if (!canCreateFinding) {
       return;
     }
 
+    const payload: FindingCreate = {
+      assessment_id: selectedAssessmentId,
+      asset_id: selectedAssetId || null,
+      title: findingTitle.trim(),
+      description: findingDescription.trim() || null,
+      status: "open",
+      mitigation: findingMitigation.trim() || null,
+      dread_score: dreadScore
+    };
+
+    setFeedback(null);
+    setSaving("finding");
     try {
-      await createFinding(selectedAssessmentId, {
-        ...finding,
-        description: finding.description || null,
-        affected_asset: finding.affected_asset || null,
-        mitigation: finding.mitigation || null
-      });
-      setFinding(initialFinding);
-      setNotice("Finding toegevoegd.");
-      await refreshFindings(selectedAssessmentId);
+      await createFinding(payload);
+      setFindingTitle("");
+      setFindingDescription("");
+      setFindingMitigation("");
+      setDreadScore(initialDreadScore);
+      setFeedback({ type: "success", message: "Finding toegevoegd en DREAD-score berekend." });
+      await loadWorkspace(selectedOrganizationId, selectedAssessmentId);
     } catch (submitError) {
-      setError((submitError as Error).message);
+      setFeedback({ type: "error", message: (submitError as Error).message });
+    } finally {
+      setSaving(null);
     }
   }
 
   function updateFindingScore(key: DreadScoreKey, value: number) {
-    setFinding((current) => ({ ...current, [key]: value }));
+    setDreadScore((current) => ({ ...current, [key]: value }));
+  }
+
+  function renderButtonLabel(target: Exclude<SavingTarget, null>, label: string) {
+    if (saving !== target) {
+      return label;
+    }
+
+    return (
+      <>
+        <Loader2 className="spin" aria-hidden="true" />
+        Opslaan
+      </>
+    );
   }
 
   return (
     <main className="app-shell">
-      <header className="topbar">
+      <header className="hero">
         <div>
-          <span className="eyebrow">MVP foundation</span>
+          <span className="eyebrow">Security risk workspace</span>
           <h1>DREAD Risk Assessment</h1>
+          <p>
+            Leg organisaties, assessments, assets en findings vast met een consistente DREAD-score.
+          </p>
         </div>
-        <div className="status-pill" aria-live="polite">
-          {selectedOrganization?.name ?? "Geen organisatie"}
+        <div className="hero-status" aria-live="polite">
+          <BadgeCheck aria-hidden="true" />
+          {isLoading ? "Data laden" : selectedOrganization?.name ?? "Geen organisatie geselecteerd"}
         </div>
       </header>
 
-      {(error || notice) && (
-        <section className={error ? "message error" : "message success"}>
-          {error || notice}
+      {feedback && (
+        <section className={`message ${feedback.type}`} aria-live="polite">
+          {feedback.type === "error" ? (
+            <AlertCircle aria-hidden="true" />
+          ) : (
+            <CheckCircle2 aria-hidden="true" />
+          )}
+          <span>{feedback.message}</span>
         </section>
       )}
 
-      <section className="workspace-grid">
-        <div className="panel">
+      <section className="summary-grid" aria-label="Assessment overzicht">
+        <article className="metric-card">
+          <Building2 aria-hidden="true" />
+          <div>
+            <span>Actieve organisatie</span>
+            <strong>{selectedOrganization?.name ?? "Niet gekozen"}</strong>
+          </div>
+        </article>
+        <article className="metric-card">
+          <ClipboardList aria-hidden="true" />
+          <div>
+            <span>Actief assessment</span>
+            <strong>{selectedAssessment?.title ?? "Niet gekozen"}</strong>
+          </div>
+        </article>
+        <article className="metric-card">
+          <Flag aria-hidden="true" />
+          <div>
+            <span>Findings</span>
+            <strong>{assessmentFindings.length}</strong>
+          </div>
+        </article>
+        <article className="metric-card">
+          <TrendingUp aria-hidden="true" />
+          <div>
+            <span>Gemiddelde score</span>
+            <strong>{formatScore(averageRiskScore)}</strong>
+          </div>
+        </article>
+        <article className="metric-card">
+          <ShieldAlert aria-hidden="true" />
+          <div>
+            <span>Hoogste risico</span>
+            <strong>
+              {highestFinding ? (
+                <span className={`risk-badge risk-${highestFinding.dread_score.risk_level.toLowerCase()}`}>
+                  {highestFinding.dread_score.risk_level}
+                </span>
+              ) : (
+                "-"
+              )}
+            </strong>
+          </div>
+        </article>
+      </section>
+
+      <section className="step-grid">
+        <article className="panel">
           <div className="panel-heading">
-            <Building2 aria-hidden="true" />
-            <h2>Organisatie</h2>
+            <span className="step-number">1</span>
+            <div>
+              <h2>Organisatie</h2>
+              <p>Kies een bestaande organisatie of maak een nieuwe aan.</p>
+            </div>
           </div>
 
           <form className="form-stack" onSubmit={handleCreateOrganization}>
             <label>
-              Naam
+              Organisatienaam
               <input
                 value={organizationName}
                 onChange={(event) => setOrganizationName(event.target.value)}
@@ -224,12 +438,13 @@ function App() {
               <textarea
                 value={organizationDescription}
                 onChange={(event) => setOrganizationDescription(event.target.value)}
+                placeholder="Interne security organisatie"
                 rows={3}
               />
             </label>
-            <button type="submit" title="Organisatie aanmaken">
+            <button type="submit" disabled={!organizationName.trim() || saving === "organization"}>
               <Plus aria-hidden="true" />
-              Aanmaken
+              {renderButtonLabel("organization", "Organisatie aanmaken")}
             </button>
           </form>
 
@@ -238,8 +453,9 @@ function App() {
             <select
               value={selectedOrganizationId}
               onChange={(event) => setSelectedOrganizationId(event.target.value)}
+              disabled={organizations.length === 0}
             >
-              <option value="">Selecteer</option>
+              <option value="">Selecteer organisatie</option>
               {organizations.map((organization) => (
                 <option key={organization.id} value={organization.id}>
                   {organization.name}
@@ -247,22 +463,33 @@ function App() {
               ))}
             </select>
           </label>
-        </div>
+        </article>
 
-        <div className="panel">
+        <article className="panel">
           <div className="panel-heading">
-            <ClipboardList aria-hidden="true" />
-            <h2>Assessment</h2>
+            <span className="step-number">2</span>
+            <div>
+              <h2>Assessment</h2>
+              <p>Start een assessment binnen de actieve organisatie.</p>
+            </div>
           </div>
+
+          {!selectedOrganizationId && (
+            <div className="helper-note">
+              <Target aria-hidden="true" />
+              Kies eerst een organisatie.
+            </div>
+          )}
 
           <form className="form-stack" onSubmit={handleCreateAssessment}>
             <label>
-              Titel
+              Assessmenttitel
               <input
                 value={assessmentTitle}
                 onChange={(event) => setAssessmentTitle(event.target.value)}
                 placeholder="Q3 identity review"
                 required
+                disabled={!selectedOrganizationId}
               />
             </label>
             <label>
@@ -270,12 +497,14 @@ function App() {
               <textarea
                 value={assessmentScope}
                 onChange={(event) => setAssessmentScope(event.target.value)}
+                placeholder="Identity, SaaS en beheeraccounts"
                 rows={3}
+                disabled={!selectedOrganizationId}
               />
             </label>
-            <button type="submit" title="Assessment starten">
-              <Save aria-hidden="true" />
-              Starten
+            <button type="submit" disabled={!canCreateAssessment || saving === "assessment"}>
+              <Plus aria-hidden="true" />
+              {renderButtonLabel("assessment", "Assessment aanmaken")}
             </button>
           </form>
 
@@ -284,112 +513,214 @@ function App() {
             <select
               value={selectedAssessmentId}
               onChange={(event) => setSelectedAssessmentId(event.target.value)}
+              disabled={organizationAssessments.length === 0}
             >
-              <option value="">Selecteer</option>
-              {assessments.map((assessment) => (
+              <option value="">Selecteer assessment</option>
+              {organizationAssessments.map((assessment) => (
                 <option key={assessment.id} value={assessment.id}>
                   {assessment.title}
                 </option>
               ))}
             </select>
           </label>
-        </div>
+        </article>
 
-        <div className="panel finding-panel">
+        <article className="panel finding-panel">
           <div className="panel-heading">
-            <ShieldAlert aria-hidden="true" />
-            <h2>Finding</h2>
+            <span className="step-number">3</span>
+            <div>
+              <h2>Finding toevoegen</h2>
+              <p>Koppel optioneel een asset en vul de DREAD-score in.</p>
+            </div>
           </div>
+
+          {!selectedAssessmentId && (
+            <div className="helper-note">
+              <ShieldAlert aria-hidden="true" />
+              Kies eerst een assessment voordat je een finding toevoegt.
+            </div>
+          )}
+
+          <form className="asset-form" onSubmit={handleCreateAsset}>
+            <div className="inline-heading">
+              <Database aria-hidden="true" />
+              <h3>Asset</h3>
+            </div>
+            <label>
+              Gekoppeld asset
+              <select
+                value={selectedAssetId}
+                onChange={(event) => setSelectedAssetId(event.target.value)}
+                disabled={!selectedOrganizationId || organizationAssets.length === 0}
+              >
+                <option value="">Geen asset gekozen</option>
+                {organizationAssets.map((asset) => (
+                  <option key={asset.id} value={asset.id}>
+                    {asset.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="asset-create-grid">
+              <label>
+                Nieuw asset
+                <input
+                  value={assetName}
+                  onChange={(event) => setAssetName(event.target.value)}
+                  placeholder="Google Workspace"
+                  disabled={!selectedOrganizationId}
+                />
+              </label>
+              <label>
+                Type
+                <select
+                  value={assetType}
+                  onChange={(event) => setAssetType(event.target.value)}
+                  disabled={!selectedOrganizationId}
+                >
+                  <option value="saas">SaaS</option>
+                  <option value="system">System</option>
+                  <option value="process">Process</option>
+                  <option value="data">Data</option>
+                </select>
+              </label>
+              <label>
+                Identifier
+                <input
+                  value={assetIdentifier}
+                  onChange={(event) => setAssetIdentifier(event.target.value)}
+                  placeholder="workspace-primary"
+                  disabled={!selectedOrganizationId}
+                />
+              </label>
+              <button type="submit" disabled={!canCreateAsset || saving === "asset"}>
+                <Plus aria-hidden="true" />
+                {renderButtonLabel("asset", "Asset toevoegen")}
+              </button>
+            </div>
+          </form>
 
           <form className="finding-form" onSubmit={handleCreateFinding}>
             <label>
-              Titel
+              Findingtitel
               <input
-                value={finding.title}
-                onChange={(event) => setFinding((current) => ({ ...current, title: event.target.value }))}
+                value={findingTitle}
+                onChange={(event) => setFindingTitle(event.target.value)}
                 placeholder="Onvoldoende MFA dekking"
                 required
+                disabled={!selectedAssessmentId}
               />
             </label>
             <label>
-              Asset
-              <input
-                value={finding.affected_asset ?? ""}
-                onChange={(event) =>
-                  setFinding((current) => ({ ...current, affected_asset: event.target.value }))
-                }
-              />
-            </label>
-            <label className="wide">
               Beschrijving
               <textarea
-                value={finding.description ?? ""}
-                onChange={(event) =>
-                  setFinding((current) => ({ ...current, description: event.target.value }))
-                }
+                value={findingDescription}
+                onChange={(event) => setFindingDescription(event.target.value)}
+                placeholder="Beschrijf het risico kort en concreet."
                 rows={3}
+                disabled={!selectedAssessmentId}
               />
             </label>
-            <label className="wide">
+            <label>
               Mitigatie
               <textarea
-                value={finding.mitigation ?? ""}
-                onChange={(event) =>
-                  setFinding((current) => ({ ...current, mitigation: event.target.value }))
-                }
+                value={findingMitigation}
+                onChange={(event) => setFindingMitigation(event.target.value)}
+                placeholder="Welke maatregel verlaagt het risico?"
                 rows={3}
+                disabled={!selectedAssessmentId}
               />
             </label>
 
-            <div className="score-grid wide">
+            <div className="score-grid">
               {dreadControls.map((control) => (
                 <label className="score-control" key={control.key}>
                   <span>
-                    {control.label}
-                    <strong>{String(finding[control.key])}</strong>
+                    <span>
+                      {control.label}
+                      <small>{control.hint}</small>
+                    </span>
+                    <strong>{dreadScore[control.key]}</strong>
                   </span>
                   <input
                     type="range"
                     min="0"
                     max="10"
-                    value={Number(finding[control.key])}
+                    value={dreadScore[control.key]}
                     onChange={(event) => updateFindingScore(control.key, Number(event.target.value))}
+                    disabled={!selectedAssessmentId}
                   />
                 </label>
               ))}
             </div>
 
-            <div className="form-footer wide">
-              <output>DREAD {previewScore}</output>
-              <button type="submit" title="Finding opslaan">
+            <div className="form-footer">
+              <output className={`score-preview risk-outline-${previewRiskLevel.toLowerCase()}`}>
+                {previewScore.toFixed(2)} {previewRiskLevel}
+              </output>
+              <button type="submit" disabled={!canCreateFinding || saving === "finding"}>
                 <Plus aria-hidden="true" />
-                Toevoegen
+                {renderButtonLabel("finding", "Finding toevoegen")}
               </button>
             </div>
           </form>
+        </article>
+      </section>
+
+      <section className="findings-section">
+        <div className="section-heading">
+          <div>
+            <span className="step-number">4</span>
+            <div>
+              <h2>Findings overzicht</h2>
+              <p>{selectedAssessment?.title ?? "Geen assessment geselecteerd"}</p>
+            </div>
+          </div>
+          <span className="count-pill">{assessmentFindings.length} totaal</span>
         </div>
 
-        <section className="findings-list">
-          <div className="list-heading">
-            <h2>{selectedAssessment?.title ?? "Findings"}</h2>
-            <span>{findings.length} totaal</span>
+        {assessmentFindings.length === 0 ? (
+          <div className="empty-state">
+            <Layers3 aria-hidden="true" />
+            <h3>Nog geen findings</h3>
+            <p>Voeg de eerste bevinding toe om de DREAD-score te berekenen.</p>
           </div>
-
-          {findings.length === 0 ? (
-            <p className="empty-state">Geen findings geregistreerd.</p>
-          ) : (
-            findings.map((item) => (
-              <article className="finding-row" key={item.id}>
-                <div>
-                  <h3>{item.title}</h3>
-                  <p>{item.affected_asset ?? "Geen asset opgegeven"}</p>
-                </div>
-                <strong>{item.risk_score.toFixed(2)}</strong>
-              </article>
-            ))
-          )}
-        </section>
+        ) : (
+          <div className="findings-table">
+            <div className="finding-table-head">
+              <span>Finding</span>
+              <span>Asset</span>
+              <span>Score</span>
+              <span>Risk</span>
+              <span>Mitigatie</span>
+            </div>
+            {assessmentFindings.map((finding) => {
+              const asset = finding.asset_id ? assetById.get(finding.asset_id) : null;
+              return (
+                <article className="finding-row" key={finding.id}>
+                  <div>
+                    <h3>{finding.title}</h3>
+                    <p>{finding.description ?? "Geen beschrijving opgegeven."}</p>
+                  </div>
+                  <span>{asset?.name ?? "Niet gekoppeld"}</span>
+                  <strong>{finding.dread_score.total_score.toFixed(2)}</strong>
+                  <span className={`risk-badge risk-${finding.dread_score.risk_level.toLowerCase()}`}>
+                    {finding.dread_score.risk_level}
+                  </span>
+                  <p>{finding.mitigation ?? "Nog geen mitigatie vastgelegd."}</p>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </section>
+
+      {isLoading && (
+        <div className="loading-overlay" aria-live="polite">
+          <Activity className="spin" aria-hidden="true" />
+          Workspace laden
+        </div>
+      )}
     </main>
   );
 }

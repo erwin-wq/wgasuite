@@ -240,3 +240,67 @@ Draai op een machine met Docker, Node en npm: `make check-env`, `make docker-up`
 Ik heb branch `chore/dev-smoke-tests` aangemaakt vanaf `feature/backend-core-crud`. De ontwikkelomgeving is reproduceerbaarder gemaakt met scripts onder `scripts/dev/`, een root `Makefile`, bijgewerkte README-instructies en strengere `.gitignore` patronen. De scripts installeren niets en maken geen secrets aan. `check_environment.sh` meldt duidelijk welke tools ontbreken. `run_backend_checks.sh` gebruikt de bestaande `backend/.venv`. `smoke_api.sh` gebruikt standaard `http://localhost:8000`, is overschrijfbaar via `API_BASE_URL`, en voert de volledige API-flow uit voor organization, assessment, asset, finding, DREAD-score, GET en PATCH.
 
 Uitgevoerde checks: scripts uitvoerbaar gemaakt, shell syntax check geslaagd, environment check faalde netjes op ontbrekende Docker/Compose/Node/npm, backend checks zijn geslaagd met 13 backend tests, en `git diff --check` is geslaagd. De API smoke test is niet tegen een draaiende backend uitgevoerd omdat Docker en de lokale backend-stack ontbreken. De commit wordt gemaakt met message `chore: add dev environment checks and api smoke test`; de definitieve commit-hash staat in het eindantwoord.
+
+## 2026-06-19 22:13 - Frontend UI polish
+
+### Opdracht
+
+Verbeter de frontend styling en UX naar een professionele security/SaaS uitstraling. Controleer eerst git, Docker, Node/npm, `make check-env` en de frontendstructuur. Maak branch `feature/frontend-ui-polish`. Gebruik de bestaande backend API, los de valse "Not Found" melding op, verbeter layout, forms, loading/success states, findings-overzicht en risk badges. Draai `npm run build`, `make smoke-api`, `make backend-checks` en `git diff --check`. Werk het logboek bij en commit met message `feat: polish frontend ui`.
+
+### Uitgevoerd
+
+De repo-afspraken, development rules, projectlogboek en README zijn gelezen. De omgeving is gecontroleerd: Docker, Docker Compose, Node en npm zijn beschikbaar en `make check-env` slaagde. De werkboom was clean op `chore/dev-smoke-tests`, met laatste commit `c4195b0 chore: add dev environment checks and api smoke test`. Daarna is branch `feature/frontend-ui-polish` aangemaakt.
+
+De frontend is bijgewerkt naar het actuele backendcontract. De oude "Not Found" melding kwam doordat de frontend nog oude nested endpoints gebruikte, zoals `/organizations/{id}/assessments` en `/assessments/{id}/findings`. De frontend gebruikt nu de bestaande top-level API endpoints voor organizations, assessments, assets en findings.
+
+De UI is opnieuw opgebouwd als security dashboard met een professionele header, overzichtskaarten, duidelijke stappen, betere formulieren, loading states, success/error feedback, disabled states en een verbeterd findings-overzicht. Risk levels hebben duidelijke badges: Low groen, Medium geel/oranje, High oranje/rood en Critical rood/donkerrood. De empty state is verbeterd en lege lijsten tonen geen foutmelding meer.
+
+### Aangepaste bestanden
+
+- `frontend/src/App.tsx`
+- `frontend/src/app.css`
+- `frontend/src/api/client.ts`
+- `frontend/src/types.ts`
+- `frontend/package-lock.json`
+- `.gitignore`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `git status --short --branch`: uitgevoerd
+- `git log --oneline --decorate -3`: uitgevoerd
+- `docker --version`: Docker 29.6.0 zichtbaar
+- `docker compose version`: Docker Compose v5.1.4 zichtbaar
+- `node --version`: v22.23.0 zichtbaar
+- `npm --version`: 10.9.8 zichtbaar
+- `make check-env`: geslaagd
+- `npm --prefix frontend install`: geslaagd na herstel van een lege root-owned `frontend/node_modules` map
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `make db-upgrade`: geslaagd
+- `make smoke-api`: geslaagd
+- `make backend-checks`: geslaagd met 13 backend tests
+- `git diff --check`: geslaagd
+- `curl -I http://localhost:5173`: geslaagd, frontend devserver bereikbaar
+
+### Resultaat
+
+Gelukt. De frontend heeft nu een professionelere dashboardlayout, gebruikt de bestaande backend API correct en toont geen rode foutmelding meer voor normale lege states. De API-smoketest en backend checks zijn groen.
+
+### Problemen / beperkingen
+
+- De bestaande `frontend/node_modules` map was leeg maar root-owned, waardoor `npm install` eerst faalde met `EACCES`. De lege map is naar `/tmp` verplaatst en daarna is `npm install` lokaal in `frontend` succesvol uitgevoerd.
+- De backend tests tonen nog dezelfde niet-blokkerende FastAPI/Starlette deprecation warning rond `TestClient`.
+- Er is geen GitLab remote ingesteld en er is niet gepusht.
+
+### Volgende aanbevolen stap
+
+Open de frontend op `http://localhost:5173` en doe een korte visuele review van de nieuwe dashboardflow met de smoke-testdata.
+
+### Volledige Codex samenvatting
+
+Ik heb branch `feature/frontend-ui-polish` aangemaakt en de frontend gepolijst naar een professionelere security/SaaS dashboardervaring. De frontend gebruikt nu de actuele backend API endpoints voor organizations, assessments, assets en findings. Daarmee is de valse "Not Found" bovenin opgelost: lege lijsten of ontbrekende selectie worden nu als normale helper/empty states getoond, niet als fout.
+
+De UI heeft nu een zakelijke header, KPI-kaarten voor actieve organisatie, assessment, aantal findings, gemiddelde score en hoogste risico, duidelijke stappen voor organisatie, assessment, finding toevoegen en findings-overzicht, betere formulieren met loading states en disabled states, success/error feedback en risk badges voor Low, Medium, High en Critical. Findings tonen titel, gekoppeld asset, score, risk level, beschrijving en mitigatie.
+
+Uitgevoerde checks: `make check-env`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `git diff --check` en een bereikbaarheidstest op `http://localhost:5173`. Alles is geslaagd. De commit wordt gemaakt met message `feat: polish frontend ui`; de definitieve commit-hash staat in het eindantwoord.

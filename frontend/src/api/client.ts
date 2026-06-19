@@ -1,6 +1,8 @@
 import type {
   Assessment,
   AssessmentCreate,
+  Asset,
+  AssetCreate,
   Finding,
   FindingCreate,
   Organization,
@@ -38,26 +40,34 @@ export function createOrganization(payload: OrganizationCreate): Promise<Organiz
   });
 }
 
-export function listAssessments(organizationId: string): Promise<Assessment[]> {
-  return request<Assessment[]>(`/api/v1/organizations/${organizationId}/assessments`);
+export function listAssessments(): Promise<Assessment[]> {
+  return request<Assessment[]>("/api/v1/assessments");
 }
 
-export function createAssessment(
-  organizationId: string,
-  payload: AssessmentCreate
-): Promise<Assessment> {
-  return request<Assessment>(`/api/v1/organizations/${organizationId}/assessments`, {
+export function createAssessment(payload: AssessmentCreate): Promise<Assessment> {
+  return request<Assessment>("/api/v1/assessments", {
     method: "POST",
     body: JSON.stringify(payload)
   });
 }
 
-export function listFindings(assessmentId: string): Promise<Finding[]> {
-  return request<Finding[]>(`/api/v1/assessments/${assessmentId}/findings`);
+export function listAssets(): Promise<Asset[]> {
+  return request<Asset[]>("/api/v1/assets");
 }
 
-export function createFinding(assessmentId: string, payload: FindingCreate): Promise<Finding> {
-  return request<Finding>(`/api/v1/assessments/${assessmentId}/findings`, {
+export function createAsset(payload: AssetCreate): Promise<Asset> {
+  return request<Asset>("/api/v1/assets", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function listFindings(): Promise<Finding[]> {
+  return request<Finding[]>("/api/v1/findings");
+}
+
+export function createFinding(payload: FindingCreate): Promise<Finding> {
+  return request<Finding>("/api/v1/findings", {
     method: "POST",
     body: JSON.stringify(payload)
   });
