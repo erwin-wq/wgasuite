@@ -400,3 +400,44 @@ Doe een korte handmatige visuele review op `http://localhost:5173` op laptopbree
 Ik heb branch `feature/frontend-usability-polish` aangemaakt vanaf `feature/frontend-modern-dashboard` en een gerichte usability/premium polish uitgevoerd. De frontend heeft nu iets grotere typografie, duidelijkere labels en inputtekst, modernere focus states, krachtigere primaire knoppen, veiligere afhandeling van lange namen, ruimere DREAD-sliderkaarten en een prominentere totaalscore/risk level presentatie. De linker workflowcards zijn rustiger en het findings-overzicht toont score en risk badges visueel sterker.
 
 Uitgevoerde checks: `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `make smoke-api`, `make backend-checks` en `git diff --check`. Alles is geslaagd. De enige beperking is de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning in de backend checks. Er is geen backend aangepast en er is niet gepusht naar GitLab. De commit wordt gemaakt met message `feat: improve frontend usability polish`; de definitieve commit-hash staat in het eindantwoord.
+
+## 2026-06-19 22:55 - GitLab remote setup en push voorbereiding
+
+### Opdracht
+
+Push de bestaande lokale DREAD repository naar GitLab zonder opnieuw te clonen, zonder force push en zonder secrets. Werk vanaf de bestaande repo, controleer dat `.env`, `node_modules` en `backend/.venv` niet tracked zijn, update het logboek, commit de logboekwijziging, maak `main` vanaf `feature/frontend-usability-polish`, push `main` en push ook `feature/frontend-usability-polish`.
+
+### Uitgevoerd
+
+De huidige branch is gecontroleerd en is `feature/frontend-usability-polish`. De werkboom was schoon voordat de logboekwijziging werd gemaakt. Er was nog geen Git remote ingesteld.
+
+De GitLab remote is voorbereid met URL `git@gitlab.com:Borged/dread-risk-assessment.git`. Er is gecontroleerd dat echte `.env`, `node_modules` en `backend/.venv` niet tracked zijn. De branches die gepusht gaan worden zijn `main` en `feature/frontend-usability-polish`.
+
+### Aangepaste bestanden
+
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `git branch --show-current`: `feature/frontend-usability-polish`
+- `git status --short --branch`: schoon voor de logboekwijziging
+- `git remote -v`: nog geen remote ingesteld
+- `git ls-files -- .env node_modules backend/.venv`: geen output
+- `git ls-files | rg '(^|/)(\\.env$|node_modules/|backend/\\.venv/)' || true`: geen output
+
+### Resultaat
+
+De repository is klaar om de GitLab remote toe te voegen, `main` aan te maken vanaf `feature/frontend-usability-polish`, en daarna `main` plus de featurebranch naar GitLab te pushen.
+
+### Problemen / beperkingen
+
+- Er is in deze logboekstap nog niet gepusht; push gebeurt direct na de logboekcommit.
+- Er wordt geen force push gebruikt.
+
+### Volgende aanbevolen stap
+
+Controleer na de push in GitLab of de repository zichtbaar is en of de visibility op Private staat.
+
+### Volledige Codex samenvatting
+
+Ik heb gecontroleerd dat de repo op branch `feature/frontend-usability-polish` staat, dat er nog geen remote is ingesteld en dat echte `.env`, `node_modules` en `backend/.venv` niet tracked zijn. Ik heb deze GitLab push-voorbereiding vastgelegd in `docs/PROJECT_LOG.md`. Na deze logboekcommit wordt `origin` ingesteld op `git@gitlab.com:Borged/dread-risk-assessment.git`, wordt `main` gemaakt vanaf `feature/frontend-usability-polish`, en worden `main` en `feature/frontend-usability-polish` zonder force push naar GitLab gepusht.
