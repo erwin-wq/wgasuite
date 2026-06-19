@@ -154,34 +154,36 @@ function App() {
 
   const loadWorkspace = useCallback(
     async (preferredOrganizationId?: string, preferredAssessmentId?: string) => {
-    setIsLoading(true);
-    try {
-      const [loadedOrganizations, loadedAssessments, loadedAssets, loadedFindings] =
-        await Promise.all([listOrganizations(), listAssessments(), listAssets(), listFindings()]);
+      setIsLoading(true);
+      try {
+        const [loadedOrganizations, loadedAssessments, loadedAssets, loadedFindings] =
+          await Promise.all([listOrganizations(), listAssessments(), listAssets(), listFindings()]);
 
-      setOrganizations(loadedOrganizations);
-      setAssessments(loadedAssessments);
-      setAssets(loadedAssets);
-      setFindings(loadedFindings);
+        setOrganizations(loadedOrganizations);
+        setAssessments(loadedAssessments);
+        setAssets(loadedAssets);
+        setFindings(loadedFindings);
 
-      const nextOrganizationId = preferredOrganizationId ?? loadedOrganizations[0]?.id ?? "";
-      const nextAssessmentId =
-        preferredAssessmentId ??
-        loadedAssessments.find((assessment) => assessment.organization_id === nextOrganizationId)
-          ?.id ??
-        "";
+        const nextOrganizationId = preferredOrganizationId ?? loadedOrganizations[0]?.id ?? "";
+        const nextAssessmentId =
+          preferredAssessmentId ??
+          loadedAssessments.find((assessment) => assessment.organization_id === nextOrganizationId)
+            ?.id ??
+          "";
 
-      setSelectedOrganizationId(nextOrganizationId);
-      setSelectedAssessmentId(nextAssessmentId);
-    } catch (loadError) {
-      setFeedback({
-        type: "error",
-        message: `Backend data laden is mislukt: ${(loadError as Error).message}`
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+        setSelectedOrganizationId(nextOrganizationId);
+        setSelectedAssessmentId(nextAssessmentId);
+      } catch (loadError) {
+        setFeedback({
+          type: "error",
+          message: `Backend data laden is mislukt: ${(loadError as Error).message}`
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     loadWorkspace();
@@ -371,36 +373,36 @@ function App() {
         <article className="metric-card">
           <Building2 aria-hidden="true" />
           <div>
-            <span>Actieve organisatie</span>
-            <strong>{selectedOrganization?.name ?? "Niet gekozen"}</strong>
+            <span className="metric-label">Actieve organisatie</span>
+            <strong className="metric-value">{selectedOrganization?.name ?? "Niet gekozen"}</strong>
           </div>
         </article>
         <article className="metric-card">
           <ClipboardList aria-hidden="true" />
           <div>
-            <span>Actief assessment</span>
-            <strong>{selectedAssessment?.title ?? "Niet gekozen"}</strong>
+            <span className="metric-label">Actief assessment</span>
+            <strong className="metric-value">{selectedAssessment?.title ?? "Niet gekozen"}</strong>
           </div>
         </article>
         <article className="metric-card">
           <Flag aria-hidden="true" />
           <div>
-            <span>Findings</span>
-            <strong>{assessmentFindings.length}</strong>
+            <span className="metric-label">Findings</span>
+            <strong className="metric-value metric-number">{assessmentFindings.length}</strong>
           </div>
         </article>
         <article className="metric-card">
           <TrendingUp aria-hidden="true" />
           <div>
-            <span>Gemiddelde score</span>
-            <strong>{formatScore(averageRiskScore)}</strong>
+            <span className="metric-label">Gemiddelde score</span>
+            <strong className="metric-value metric-number">{formatScore(averageRiskScore)}</strong>
           </div>
         </article>
         <article className="metric-card">
           <ShieldAlert aria-hidden="true" />
           <div>
-            <span>Hoogste risico</span>
-            <strong>
+            <span className="metric-label">Hoogste risico</span>
+            <strong className="metric-value">
               {highestFinding ? (
                 <span className={`risk-badge risk-${highestFinding.dread_score.risk_level.toLowerCase()}`}>
                   {highestFinding.dread_score.risk_level}
@@ -413,8 +415,9 @@ function App() {
         </article>
       </section>
 
-      <section className="step-grid">
-        <article className="panel">
+      <section className="workflow-layout">
+        <div className="setup-column">
+        <article className="panel compact-panel">
           <div className="panel-heading">
             <span className="step-number">1</span>
             <div>
@@ -465,7 +468,7 @@ function App() {
           </label>
         </article>
 
-        <article className="panel">
+        <article className="panel compact-panel">
           <div className="panel-heading">
             <span className="step-number">2</span>
             <div>
@@ -524,8 +527,9 @@ function App() {
             </select>
           </label>
         </article>
+        </div>
 
-        <article className="panel finding-panel">
+        <article className="panel finding-panel composer-panel">
           <div className="panel-heading">
             <span className="step-number">3</span>
             <div>
@@ -640,7 +644,7 @@ function App() {
                       {control.label}
                       <small>{control.hint}</small>
                     </span>
-                    <strong>{dreadScore[control.key]}</strong>
+                    <strong className="score-value">{dreadScore[control.key]}</strong>
                   </span>
                   <input
                     type="range"
@@ -655,9 +659,11 @@ function App() {
             </div>
 
             <div className="form-footer">
-              <output className={`score-preview risk-outline-${previewRiskLevel.toLowerCase()}`}>
-                {previewScore.toFixed(2)} {previewRiskLevel}
-              </output>
+              <div className={`score-summary risk-outline-${previewRiskLevel.toLowerCase()}`}>
+                <span>Totale DREAD-score</span>
+                <strong>{previewScore.toFixed(2)}</strong>
+                <em>{previewRiskLevel}</em>
+              </div>
               <button type="submit" disabled={!canCreateFinding || saving === "finding"}>
                 <Plus aria-hidden="true" />
                 {renderButtonLabel("finding", "Finding toevoegen")}
@@ -702,12 +708,12 @@ function App() {
                     <h3>{finding.title}</h3>
                     <p>{finding.description ?? "Geen beschrijving opgegeven."}</p>
                   </div>
-                  <span>{asset?.name ?? "Niet gekoppeld"}</span>
-                  <strong>{finding.dread_score.total_score.toFixed(2)}</strong>
+                  <span className="asset-name">{asset?.name ?? "Niet gekoppeld"}</span>
+                  <strong className="finding-score">{finding.dread_score.total_score.toFixed(2)}</strong>
                   <span className={`risk-badge risk-${finding.dread_score.risk_level.toLowerCase()}`}>
                     {finding.dread_score.risk_level}
                   </span>
-                  <p>{finding.mitigation ?? "Nog geen mitigatie vastgelegd."}</p>
+                  <p className="mitigation-text">{finding.mitigation ?? "Nog geen mitigatie vastgelegd."}</p>
                 </article>
               );
             })}

@@ -304,3 +304,51 @@ Ik heb branch `feature/frontend-ui-polish` aangemaakt en de frontend gepolijst n
 De UI heeft nu een zakelijke header, KPI-kaarten voor actieve organisatie, assessment, aantal findings, gemiddelde score en hoogste risico, duidelijke stappen voor organisatie, assessment, finding toevoegen en findings-overzicht, betere formulieren met loading states en disabled states, success/error feedback en risk badges voor Low, Medium, High en Critical. Findings tonen titel, gekoppeld asset, score, risk level, beschrijving en mitigatie.
 
 Uitgevoerde checks: `make check-env`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `git diff --check` en een bereikbaarheidstest op `http://localhost:5173`. Alles is geslaagd. De commit wordt gemaakt met message `feat: polish frontend ui`; de definitieve commit-hash staat in het eindantwoord.
+
+## 2026-06-19 22:27 - Frontend modern dashboard
+
+### Opdracht
+
+Doe een tweede visuele designronde voor de frontend. Werk verder vanaf `feature/frontend-ui-polish`, maak branch `feature/frontend-modern-dashboard`, en maak de app moderner, ruimer en minder formulierachtig. Gebruik gewone React, TypeScript en CSS, geen zwaar UI-framework. Houd de bestaande workflow werkend en draai frontend build/lint, API smoke test, backend checks en `git diff --check`. Werk het logboek bij en commit met message `feat: modernize frontend dashboard`.
+
+### Uitgevoerd
+
+De repo-afspraken, development rules, projectlogboek en README zijn opnieuw gelezen. De branch `feature/frontend-modern-dashboard` is aangemaakt vanaf `feature/frontend-ui-polish`.
+
+De frontendlayout is opnieuw aangescherpt als moderne security cockpit. De setup voor organisatie en assessment staat nu compacter links, terwijl de finding composer meer ruimte krijgt. De KPI-cards hebben duidelijkere label/value-hiërarchie gekregen. De DREAD-score sectie heeft ruimere sliderkaarten, duidelijkere scorewaarden en een prominente totaalscore met risk level. Het findings-overzicht is visueel rustiger gemaakt als moderne lijst/tabel met sterkere score- en risk-badge presentatie.
+
+De CSS is herschreven met duidelijke design tokens voor kleuren, spacing, radius, shadows en font sizes. Harde borders zijn teruggedrongen ten gunste van zachtere vlakken, ruimere padding en subtiele schaduwen. Responsiveness is behouden met duidelijke breakpoints voor laptop/desktop en smallere schermen.
+
+### Aangepaste bestanden
+
+- `frontend/src/App.tsx`
+- `frontend/src/app.css`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `make smoke-api`: geslaagd
+- `make backend-checks`: geslaagd met 13 backend tests
+- `git diff --check`: geslaagd
+- `docker compose ps`: uitgevoerd, services draaiden en PostgreSQL was healthy
+
+### Resultaat
+
+Gelukt. De app voelt ruimer en moderner, met sterkere dashboard-hiërarchie, betere DREAD-score presentatie en een rustiger findings-overzicht. De bestaande workflow blijft werken.
+
+### Problemen / beperkingen
+
+- De backend tests tonen nog dezelfde niet-blokkerende FastAPI/Starlette deprecation warning rond `TestClient`.
+- Er is geen GitLab remote ingesteld en er is niet gepusht.
+
+### Volgende aanbevolen stap
+
+Doe een korte handmatige visuele review op `http://localhost:5173` op laptopbreedte en een smaller venster, en maak daarna eventueel een kleine accessibility pass op focus states en contrast.
+
+### Volledige Codex samenvatting
+
+Ik heb branch `feature/frontend-modern-dashboard` aangemaakt vanaf `feature/frontend-ui-polish` en een tweede visuele designronde uitgevoerd. De frontend heeft nu een moderner SaaS/security-dashboard gevoel met design tokens, zachtere schaduwen, minder harde borders, ruimere typografie en meer witruimte. De workflow is minder formulierachtig: organisatie en assessment staan compacter links, finding toevoegen krijgt meer ruimte, de DREAD-sliders zijn rustiger en de totaalscore/risk level zijn prominenter. Het findings-overzicht is aangescherpt met moderne rijen, sterkere scoreweergave en duidelijke risk badges.
+
+Uitgevoerde checks: `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `make smoke-api`, `make backend-checks` en `git diff --check`. Alles is geslaagd. De bekende niet-blokkerende `TestClient` warning blijft zichtbaar in backend tests. De commit wordt gemaakt met message `feat: modernize frontend dashboard`; de definitieve commit-hash staat in het eindantwoord.
