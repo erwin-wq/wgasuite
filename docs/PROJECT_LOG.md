@@ -352,3 +352,51 @@ Doe een korte handmatige visuele review op `http://localhost:5173` op laptopbree
 Ik heb branch `feature/frontend-modern-dashboard` aangemaakt vanaf `feature/frontend-ui-polish` en een tweede visuele designronde uitgevoerd. De frontend heeft nu een moderner SaaS/security-dashboard gevoel met design tokens, zachtere schaduwen, minder harde borders, ruimere typografie en meer witruimte. De workflow is minder formulierachtig: organisatie en assessment staan compacter links, finding toevoegen krijgt meer ruimte, de DREAD-sliders zijn rustiger en de totaalscore/risk level zijn prominenter. Het findings-overzicht is aangescherpt met moderne rijen, sterkere scoreweergave en duidelijke risk badges.
 
 Uitgevoerde checks: `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `make smoke-api`, `make backend-checks` en `git diff --check`. Alles is geslaagd. De bekende niet-blokkerende `TestClient` warning blijft zichtbaar in backend tests. De commit wordt gemaakt met message `feat: modernize frontend dashboard`; de definitieve commit-hash staat in het eindantwoord.
+
+## 2026-06-19 22:37 - Frontend usability polish
+
+### Opdracht
+
+Voer een gerichte usability/premium polish uit vanaf `feature/frontend-modern-dashboard`. Maak branch `feature/frontend-usability-polish`. Pas geen backend aan, voeg geen zwaar UI-framework toe, behoud de bestaande workflow, update het projectlogboek en commit met message `feat: improve frontend usability polish`.
+
+### Uitgevoerd
+
+Branch `feature/frontend-usability-polish` is aangemaakt vanaf `feature/frontend-modern-dashboard`. De polish is bewust klein gehouden en richt zich op leesbaarheid, premium gevoel en betere usability.
+
+De frontend-typografie, labels, inputs en algemene schaal zijn iets vergroot zodat de app minder uitgezoomd voelt. Primaire knoppen hebben een duidelijkere actieve accentkleur, betere hover/focus states en disabled knoppen blijven alleen grijs wanneer ze echt disabled zijn. Lange organisatie-, assessment-, asset- en findingnamen krijgen nu veiligere ellipsis/wrapping met `title` tekst waar dat nuttig is.
+
+De DREAD-score sectie is rustiger gemaakt met ruimere sliderkaarten, modernere range styling en een duidelijkere totaalscore/risk level samenvatting. Formulieren hebben meer veldruimte en betere focus states. De linker workflowcards ogen rustiger en het findings-overzicht toont score en risk badges sterker en leesbaarder.
+
+### Aangepaste bestanden
+
+- `frontend/src/App.tsx`
+- `frontend/src/app.css`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `make smoke-api`: geslaagd
+- `make backend-checks`: geslaagd met 13 backend tests
+- `git diff --check`: geslaagd
+
+### Resultaat
+
+Gelukt. De frontend is beter leesbaar, rustiger en iets premiumer zonder de bestaande workflow of backend aan te passen.
+
+### Problemen / beperkingen
+
+- De backend checks tonen nog de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning.
+- Er is geen browser-screenshot of handmatige visuele review uitgevoerd in deze stap.
+- Er is niet gepusht naar GitLab.
+
+### Volgende aanbevolen stap
+
+Doe een korte handmatige visuele review op `http://localhost:5173` op laptopbreedte en een smaller venster.
+
+### Volledige Codex samenvatting
+
+Ik heb branch `feature/frontend-usability-polish` aangemaakt vanaf `feature/frontend-modern-dashboard` en een gerichte usability/premium polish uitgevoerd. De frontend heeft nu iets grotere typografie, duidelijkere labels en inputtekst, modernere focus states, krachtigere primaire knoppen, veiligere afhandeling van lange namen, ruimere DREAD-sliderkaarten en een prominentere totaalscore/risk level presentatie. De linker workflowcards zijn rustiger en het findings-overzicht toont score en risk badges visueel sterker.
+
+Uitgevoerde checks: `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `make smoke-api`, `make backend-checks` en `git diff --check`. Alles is geslaagd. De enige beperking is de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning in de backend checks. Er is geen backend aangepast en er is niet gepusht naar GitLab. De commit wordt gemaakt met message `feat: improve frontend usability polish`; de definitieve commit-hash staat in het eindantwoord.

@@ -342,6 +342,10 @@ function App() {
     );
   }
 
+  const activeOrganizationLabel = isLoading
+    ? "Data laden"
+    : selectedOrganization?.name ?? "Geen organisatie geselecteerd";
+
   return (
     <main className="app-shell">
       <header className="hero">
@@ -354,7 +358,9 @@ function App() {
         </div>
         <div className="hero-status" aria-live="polite">
           <BadgeCheck aria-hidden="true" />
-          {isLoading ? "Data laden" : selectedOrganization?.name ?? "Geen organisatie geselecteerd"}
+          <span className="hero-status-name" title={activeOrganizationLabel}>
+            {activeOrganizationLabel}
+          </span>
         </div>
       </header>
 
@@ -372,35 +378,39 @@ function App() {
       <section className="summary-grid" aria-label="Assessment overzicht">
         <article className="metric-card">
           <Building2 aria-hidden="true" />
-          <div>
+          <div className="metric-content">
             <span className="metric-label">Actieve organisatie</span>
-            <strong className="metric-value">{selectedOrganization?.name ?? "Niet gekozen"}</strong>
+            <strong className="metric-value" title={selectedOrganization?.name ?? "Niet gekozen"}>
+              {selectedOrganization?.name ?? "Niet gekozen"}
+            </strong>
           </div>
         </article>
         <article className="metric-card">
           <ClipboardList aria-hidden="true" />
-          <div>
+          <div className="metric-content">
             <span className="metric-label">Actief assessment</span>
-            <strong className="metric-value">{selectedAssessment?.title ?? "Niet gekozen"}</strong>
+            <strong className="metric-value" title={selectedAssessment?.title ?? "Niet gekozen"}>
+              {selectedAssessment?.title ?? "Niet gekozen"}
+            </strong>
           </div>
         </article>
         <article className="metric-card">
           <Flag aria-hidden="true" />
-          <div>
+          <div className="metric-content">
             <span className="metric-label">Findings</span>
             <strong className="metric-value metric-number">{assessmentFindings.length}</strong>
           </div>
         </article>
         <article className="metric-card">
           <TrendingUp aria-hidden="true" />
-          <div>
+          <div className="metric-content">
             <span className="metric-label">Gemiddelde score</span>
             <strong className="metric-value metric-number">{formatScore(averageRiskScore)}</strong>
           </div>
         </article>
         <article className="metric-card">
           <ShieldAlert aria-hidden="true" />
-          <div>
+          <div className="metric-content">
             <span className="metric-label">Hoogste risico</span>
             <strong className="metric-value">
               {highestFinding ? (
@@ -417,116 +427,116 @@ function App() {
 
       <section className="workflow-layout">
         <div className="setup-column">
-        <article className="panel compact-panel">
-          <div className="panel-heading">
-            <span className="step-number">1</span>
-            <div>
-              <h2>Organisatie</h2>
-              <p>Kies een bestaande organisatie of maak een nieuwe aan.</p>
+          <article className="panel compact-panel">
+            <div className="panel-heading">
+              <span className="step-number">1</span>
+              <div>
+                <h2>Organisatie</h2>
+                <p>Kies een bestaande organisatie of maak een nieuwe aan.</p>
+              </div>
             </div>
-          </div>
 
-          <form className="form-stack" onSubmit={handleCreateOrganization}>
-            <label>
-              Organisatienaam
-              <input
-                value={organizationName}
-                onChange={(event) => setOrganizationName(event.target.value)}
-                placeholder="Acme Security"
-                required
-              />
+            <form className="form-stack" onSubmit={handleCreateOrganization}>
+              <label>
+                Organisatienaam
+                <input
+                  value={organizationName}
+                  onChange={(event) => setOrganizationName(event.target.value)}
+                  placeholder="Acme Security"
+                  required
+                />
+              </label>
+              <label>
+                Beschrijving
+                <textarea
+                  value={organizationDescription}
+                  onChange={(event) => setOrganizationDescription(event.target.value)}
+                  placeholder="Interne security organisatie"
+                  rows={3}
+                />
+              </label>
+              <button type="submit" disabled={!organizationName.trim() || saving === "organization"}>
+                <Plus aria-hidden="true" />
+                {renderButtonLabel("organization", "Organisatie aanmaken")}
+              </button>
+            </form>
+
+            <label className="selector">
+              Actieve organisatie
+              <select
+                value={selectedOrganizationId}
+                onChange={(event) => setSelectedOrganizationId(event.target.value)}
+                disabled={organizations.length === 0}
+              >
+                <option value="">Selecteer organisatie</option>
+                {organizations.map((organization) => (
+                  <option key={organization.id} value={organization.id}>
+                    {organization.name}
+                  </option>
+                ))}
+              </select>
             </label>
-            <label>
-              Beschrijving
-              <textarea
-                value={organizationDescription}
-                onChange={(event) => setOrganizationDescription(event.target.value)}
-                placeholder="Interne security organisatie"
-                rows={3}
-              />
-            </label>
-            <button type="submit" disabled={!organizationName.trim() || saving === "organization"}>
-              <Plus aria-hidden="true" />
-              {renderButtonLabel("organization", "Organisatie aanmaken")}
-            </button>
-          </form>
+          </article>
 
-          <label className="selector">
-            Actieve organisatie
-            <select
-              value={selectedOrganizationId}
-              onChange={(event) => setSelectedOrganizationId(event.target.value)}
-              disabled={organizations.length === 0}
-            >
-              <option value="">Selecteer organisatie</option>
-              {organizations.map((organization) => (
-                <option key={organization.id} value={organization.id}>
-                  {organization.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </article>
-
-        <article className="panel compact-panel">
-          <div className="panel-heading">
-            <span className="step-number">2</span>
-            <div>
-              <h2>Assessment</h2>
-              <p>Start een assessment binnen de actieve organisatie.</p>
+          <article className="panel compact-panel">
+            <div className="panel-heading">
+              <span className="step-number">2</span>
+              <div>
+                <h2>Assessment</h2>
+                <p>Start een assessment binnen de actieve organisatie.</p>
+              </div>
             </div>
-          </div>
 
-          {!selectedOrganizationId && (
-            <div className="helper-note">
-              <Target aria-hidden="true" />
-              Kies eerst een organisatie.
-            </div>
-          )}
+            {!selectedOrganizationId && (
+              <div className="helper-note">
+                <Target aria-hidden="true" />
+                Kies eerst een organisatie.
+              </div>
+            )}
 
-          <form className="form-stack" onSubmit={handleCreateAssessment}>
-            <label>
-              Assessmenttitel
-              <input
-                value={assessmentTitle}
-                onChange={(event) => setAssessmentTitle(event.target.value)}
-                placeholder="Q3 identity review"
-                required
-                disabled={!selectedOrganizationId}
-              />
+            <form className="form-stack" onSubmit={handleCreateAssessment}>
+              <label>
+                Assessmenttitel
+                <input
+                  value={assessmentTitle}
+                  onChange={(event) => setAssessmentTitle(event.target.value)}
+                  placeholder="Q3 identity review"
+                  required
+                  disabled={!selectedOrganizationId}
+                />
+              </label>
+              <label>
+                Scope
+                <textarea
+                  value={assessmentScope}
+                  onChange={(event) => setAssessmentScope(event.target.value)}
+                  placeholder="Identity, SaaS en beheeraccounts"
+                  rows={3}
+                  disabled={!selectedOrganizationId}
+                />
+              </label>
+              <button type="submit" disabled={!canCreateAssessment || saving === "assessment"}>
+                <Plus aria-hidden="true" />
+                {renderButtonLabel("assessment", "Assessment aanmaken")}
+              </button>
+            </form>
+
+            <label className="selector">
+              Actief assessment
+              <select
+                value={selectedAssessmentId}
+                onChange={(event) => setSelectedAssessmentId(event.target.value)}
+                disabled={organizationAssessments.length === 0}
+              >
+                <option value="">Selecteer assessment</option>
+                {organizationAssessments.map((assessment) => (
+                  <option key={assessment.id} value={assessment.id}>
+                    {assessment.title}
+                  </option>
+                ))}
+              </select>
             </label>
-            <label>
-              Scope
-              <textarea
-                value={assessmentScope}
-                onChange={(event) => setAssessmentScope(event.target.value)}
-                placeholder="Identity, SaaS en beheeraccounts"
-                rows={3}
-                disabled={!selectedOrganizationId}
-              />
-            </label>
-            <button type="submit" disabled={!canCreateAssessment || saving === "assessment"}>
-              <Plus aria-hidden="true" />
-              {renderButtonLabel("assessment", "Assessment aanmaken")}
-            </button>
-          </form>
-
-          <label className="selector">
-            Actief assessment
-            <select
-              value={selectedAssessmentId}
-              onChange={(event) => setSelectedAssessmentId(event.target.value)}
-              disabled={organizationAssessments.length === 0}
-            >
-              <option value="">Selecteer assessment</option>
-              {organizationAssessments.map((assessment) => (
-                <option key={assessment.id} value={assessment.id}>
-                  {assessment.title}
-                </option>
-              ))}
-            </select>
-          </label>
-        </article>
+          </article>
         </div>
 
         <article className="panel finding-panel composer-panel">
@@ -679,7 +689,9 @@ function App() {
             <span className="step-number">4</span>
             <div>
               <h2>Findings overzicht</h2>
-              <p>{selectedAssessment?.title ?? "Geen assessment geselecteerd"}</p>
+              <p className="section-current-name" title={selectedAssessment?.title ?? "Geen assessment geselecteerd"}>
+                {selectedAssessment?.title ?? "Geen assessment geselecteerd"}
+              </p>
             </div>
           </div>
           <span className="count-pill">{assessmentFindings.length} totaal</span>
@@ -704,11 +716,13 @@ function App() {
               const asset = finding.asset_id ? assetById.get(finding.asset_id) : null;
               return (
                 <article className="finding-row" key={finding.id}>
-                  <div>
-                    <h3>{finding.title}</h3>
+                  <div className="finding-main">
+                    <h3 title={finding.title}>{finding.title}</h3>
                     <p>{finding.description ?? "Geen beschrijving opgegeven."}</p>
                   </div>
-                  <span className="asset-name">{asset?.name ?? "Niet gekoppeld"}</span>
+                  <span className="asset-name" title={asset?.name ?? "Niet gekoppeld"}>
+                    {asset?.name ?? "Niet gekoppeld"}
+                  </span>
                   <strong className="finding-score">{finding.dread_score.total_score.toFixed(2)}</strong>
                   <span className={`risk-badge risk-${finding.dread_score.risk_level.toLowerCase()}`}>
                     {finding.dread_score.risk_level}
