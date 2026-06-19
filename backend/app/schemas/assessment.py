@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class AssessmentCreate(BaseModel):
+    organization_id: uuid.UUID
     title: str = Field(..., min_length=1, max_length=255)
     scope_summary: str | None = None
 

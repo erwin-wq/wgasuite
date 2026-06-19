@@ -3,29 +3,38 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.dread_score import DreadScoreCreate, DreadScoreRead, DreadScoreUpdate
 
-class FindingBase(BaseModel):
+
+class FindingCreate(BaseModel):
+    assessment_id: uuid.UUID
+    asset_id: uuid.UUID | None = None
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
-    affected_asset: str | None = Field(default=None, max_length=255)
     status: str = Field(default="open", max_length=40)
     mitigation: str | None = None
-    dread_damage: int = Field(..., ge=0, le=10)
-    dread_reproducibility: int = Field(..., ge=0, le=10)
-    dread_exploitability: int = Field(..., ge=0, le=10)
-    dread_affected_users: int = Field(..., ge=0, le=10)
-    dread_discoverability: int = Field(..., ge=0, le=10)
+    dread_score: DreadScoreCreate
 
 
-class FindingCreate(FindingBase):
-    pass
+class FindingUpdate(BaseModel):
+    asset_id: uuid.UUID | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+    status: str | None = Field(default=None, max_length=40)
+    mitigation: str | None = None
+    dread_score: DreadScoreUpdate | None = None
 
 
-class FindingRead(FindingBase):
+class FindingRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     assessment_id: uuid.UUID
-    risk_score: float
+    asset_id: uuid.UUID | None
+    title: str
+    description: str | None
+    status: str
+    mitigation: str | None
+    dread_score: DreadScoreRead
     created_at: datetime
     updated_at: datetime

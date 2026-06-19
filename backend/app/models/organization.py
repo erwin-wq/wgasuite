@@ -9,6 +9,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.assessment import Assessment
+    from app.models.asset import Asset
     from app.models.connector_account import ConnectorAccount
 
 
@@ -19,6 +20,10 @@ class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     assessments: Mapped[list["Assessment"]] = relationship(
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    assets: Mapped[list["Asset"]] = relationship(
         back_populates="organization",
         cascade="all, delete-orphan",
     )

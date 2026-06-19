@@ -24,20 +24,29 @@ De applicatie bestaat uit een FastAPI backend, PostgreSQL database en React/Vite
 
 - `organizations`
 - `assessments`
+- `assets`
 - `findings`
+- `dread_scores`
 - `connector_accounts`
 
-Findings bevatten vijf DREAD-factoren: damage, reproducibility, exploitability, affected users en discoverability. De API berekent `risk_score` als gemiddelde van deze vijf waarden.
+Findings hebben een optionele koppeling naar een asset. De DREAD-score staat in een aparte `dread_scores` tabel met de velden damage, reproducibility, exploitability, affected users en discoverability. De API berekent `total_score` als gemiddelde van deze vijf waarden en bepaalt automatisch `risk_level`.
 
 ## API-vorm
 
 - `GET /health`
-- `GET /api/v1/organizations`
 - `POST /api/v1/organizations`
-- `GET /api/v1/organizations/{organization_id}/assessments`
-- `POST /api/v1/organizations/{organization_id}/assessments`
-- `GET /api/v1/assessments/{assessment_id}/findings`
-- `POST /api/v1/assessments/{assessment_id}/findings`
+- `GET /api/v1/organizations`
+- `GET /api/v1/organizations/{organization_id}`
+- `POST /api/v1/assessments`
+- `GET /api/v1/assessments`
+- `GET /api/v1/assessments/{assessment_id}`
+- `POST /api/v1/assets`
+- `GET /api/v1/assets`
+- `GET /api/v1/assets/{asset_id}`
+- `POST /api/v1/findings`
+- `GET /api/v1/findings`
+- `GET /api/v1/findings/{finding_id}`
+- `PATCH /api/v1/findings/{finding_id}`
 
 ## Connector boundary
 

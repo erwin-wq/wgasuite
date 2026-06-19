@@ -3,12 +3,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.db.session import get_db
-from app.models import Assessment, Finding, Organization
+from app.models import Assessment, Asset, DreadScore, Finding, Organization
 from app.schemas.assessment import AssessmentCreate, AssessmentRead
-from app.schemas.finding import FindingCreate, FindingRead
+from app.schemas.asset import AssetCreate, AssetRead
+from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
 from app.schemas.organization import OrganizationCreate, OrganizationRead
 from app.services.dread import calculate_dread_score
 
@@ -16,10 +17,80 @@ api_router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
 
 
-@api_router.get("/organizations", response_model=list[OrganizationRead], tags=["organizations"])
-def list_organizations(db: DbSession) -> list[Organization]:
-    statement = select(Organization).order_by(Organization.created_at.desc())
-    return list(db.scalars(statement).all())
+def get_organization_or_404(db: Session, organization_id: UUID) -> Organization:
+    organization = db.get(Organization, organization_id)
+    if organization is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found.",
+        )
+    return organization
+
+
+def get_assessment_or_404(db: Session, assessment_id: UUID) -> Assessment:
+    assessment = db.get(Assessment, assessment_id)
+    if assessment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assessment not found.",
+        )
+    return assessment
+
+
+def get_asset_or_404(db: Session, asset_id: UUID) -> Asset:
+    asset = db.get(Asset, asset_id)
+    if asset is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Asset not found.",
+        )
+    return asset
+
+
+def get_finding_or_404(db: Session, finding_id: UUID) -> Finding:
+    statement = (
+        select(Finding).where(Finding.id == finding_id).options(selectinload(Finding.dread_score))
+    )
+    finding = db.scalar(statement)
+    if finding is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Finding not found.",
+        )
+    return finding
+
+
+def validate_asset_scope(
+    db: Session,
+    asset_id: UUID | None,
+    assessment: Assessment,
+) -> Asset | None:
+    if asset_id is None:
+        return None
+
+    asset = get_asset_or_404(db, asset_id)
+    if asset.organization_id != assessment.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Asset must belong to the same organization as the assessment.",
+        )
+    return asset
+
+
+def apply_dread_score(score: DreadScore, values: dict[str, int]) -> None:
+    for field, value in values.items():
+        setattr(score, field, value)
+
+    current_values = {
+        "damage": score.damage,
+        "reproducibility": score.reproducibility,
+        "exploitability": score.exploitability,
+        "affected_users": score.affected_users,
+        "discoverability": score.discoverability,
+    }
+    total_score, risk_level = calculate_dread_score(current_values)
+    score.total_score = total_score
+    score.risk_level = risk_level
 
 
 @api_router.post(
@@ -46,90 +117,168 @@ def create_organization(
     return organization
 
 
+@api_router.get("/organizations", response_model=list[OrganizationRead], tags=["organizations"])
+def list_organizations(db: DbSession) -> list[Organization]:
+    statement = select(Organization).order_by(Organization.created_at.desc())
+    return list(db.scalars(statement).all())
+
+
+@api_router.get(
+    "/organizations/{organization_id}",
+    response_model=OrganizationRead,
+    tags=["organizations"],
+)
+def get_organization(organization_id: UUID, db: DbSession) -> Organization:
+    return get_organization_or_404(db, organization_id)
+
+
 @api_router.post(
-    "/organizations/{organization_id}/assessments",
+    "/assessments",
     response_model=AssessmentRead,
     status_code=status.HTTP_201_CREATED,
     tags=["assessments"],
 )
 def create_assessment(
-    organization_id: UUID,
     payload: AssessmentCreate,
     db: DbSession,
 ) -> Assessment:
-    organization = db.get(Organization, organization_id)
-    if organization is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found.",
-        )
+    get_organization_or_404(db, payload.organization_id)
 
-    assessment = Assessment(organization_id=organization.id, **payload.model_dump())
+    assessment = Assessment(**payload.model_dump())
     db.add(assessment)
     db.commit()
     db.refresh(assessment)
     return assessment
 
 
-@api_router.get(
-    "/organizations/{organization_id}/assessments",
-    response_model=list[AssessmentRead],
-    tags=["assessments"],
-)
-def list_assessments(
-    organization_id: UUID,
-    db: DbSession,
-) -> list[Assessment]:
-    statement = (
-        select(Assessment)
-        .where(Assessment.organization_id == organization_id)
-        .order_by(Assessment.created_at.desc())
-    )
+@api_router.get("/assessments", response_model=list[AssessmentRead], tags=["assessments"])
+def list_assessments(db: DbSession) -> list[Assessment]:
+    statement = select(Assessment).order_by(Assessment.created_at.desc())
     return list(db.scalars(statement).all())
 
 
+@api_router.get(
+    "/assessments/{assessment_id}",
+    response_model=AssessmentRead,
+    tags=["assessments"],
+)
+def get_assessment(assessment_id: UUID, db: DbSession) -> Assessment:
+    return get_assessment_or_404(db, assessment_id)
+
+
 @api_router.post(
-    "/assessments/{assessment_id}/findings",
+    "/assets",
+    response_model=AssetRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["assets"],
+)
+def create_asset(
+    payload: AssetCreate,
+    db: DbSession,
+) -> Asset:
+    get_organization_or_404(db, payload.organization_id)
+
+    duplicate = db.scalar(
+        select(Asset).where(
+            Asset.organization_id == payload.organization_id,
+            Asset.name == payload.name,
+        )
+    )
+    if duplicate:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Asset with this name already exists for this organization.",
+        )
+
+    asset = Asset(**payload.model_dump())
+    db.add(asset)
+    db.commit()
+    db.refresh(asset)
+    return asset
+
+
+@api_router.get("/assets", response_model=list[AssetRead], tags=["assets"])
+def list_assets(db: DbSession) -> list[Asset]:
+    statement = select(Asset).order_by(Asset.created_at.desc())
+    return list(db.scalars(statement).all())
+
+
+@api_router.get("/assets/{asset_id}", response_model=AssetRead, tags=["assets"])
+def get_asset(asset_id: UUID, db: DbSession) -> Asset:
+    return get_asset_or_404(db, asset_id)
+
+
+@api_router.post(
+    "/findings",
     response_model=FindingRead,
     status_code=status.HTTP_201_CREATED,
     tags=["findings"],
 )
 def create_finding(
-    assessment_id: UUID,
     payload: FindingCreate,
     db: DbSession,
 ) -> Finding:
-    assessment = db.get(Assessment, assessment_id)
-    if assessment is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Assessment not found.",
-        )
+    assessment = get_assessment_or_404(db, payload.assessment_id)
+    validate_asset_scope(db, payload.asset_id, assessment)
 
-    payload_data = payload.model_dump()
+    score_values = payload.dread_score.model_dump()
+    total_score, risk_level = calculate_dread_score(score_values)
     finding = Finding(
-        assessment_id=assessment.id,
-        risk_score=calculate_dread_score(payload_data),
-        **payload_data,
+        assessment_id=payload.assessment_id,
+        asset_id=payload.asset_id,
+        title=payload.title,
+        description=payload.description,
+        status=payload.status,
+        mitigation=payload.mitigation,
+        dread_score=DreadScore(
+            **score_values,
+            total_score=total_score,
+            risk_level=risk_level,
+        ),
     )
     db.add(finding)
     db.commit()
     db.refresh(finding)
-    return finding
+    return get_finding_or_404(db, finding.id)
 
 
-@api_router.get(
-    "/assessments/{assessment_id}/findings",
-    response_model=list[FindingRead],
-    tags=["findings"],
-)
-def list_findings(
-    assessment_id: UUID,
-    db: DbSession,
-) -> list[Finding]:
+@api_router.get("/findings", response_model=list[FindingRead], tags=["findings"])
+def list_findings(db: DbSession) -> list[Finding]:
     statement = (
         select(Finding)
-        .where(Finding.assessment_id == assessment_id)
+        .options(selectinload(Finding.dread_score))
         .order_by(Finding.created_at.desc())
     )
     return list(db.scalars(statement).all())
+
+
+@api_router.get("/findings/{finding_id}", response_model=FindingRead, tags=["findings"])
+def get_finding(finding_id: UUID, db: DbSession) -> Finding:
+    return get_finding_or_404(db, finding_id)
+
+
+@api_router.patch("/findings/{finding_id}", response_model=FindingRead, tags=["findings"])
+def update_finding(
+    finding_id: UUID,
+    payload: FindingUpdate,
+    db: DbSession,
+) -> Finding:
+    finding = get_finding_or_404(db, finding_id)
+    assessment = get_assessment_or_404(db, finding.assessment_id)
+    update_data = payload.model_dump(exclude_unset=True)
+
+    if "asset_id" in update_data:
+        validate_asset_scope(db, update_data["asset_id"], assessment)
+        finding.asset_id = update_data["asset_id"]
+
+    for field in ("title", "description", "status", "mitigation"):
+        if field in update_data:
+            setattr(finding, field, update_data[field])
+
+    if "dread_score" in update_data and update_data["dread_score"] is not None:
+        apply_dread_score(finding.dread_score, update_data["dread_score"])
+
+    db.add(finding)
+    db.commit()
+    db.refresh(finding)
+    return get_finding_or_404(db, finding.id)
