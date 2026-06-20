@@ -39,6 +39,7 @@ import {
   listAssets,
   listCustomers,
   listFindings,
+  listGoogleWorkspaceChecks,
   listOrganizations,
   login,
   runMockGoogleWorkspaceScan,
@@ -52,6 +53,7 @@ import type {
   DreadScoreCreate,
   Finding,
   FindingCreate,
+  GoogleWorkspaceCheck,
   Organization,
   ScanRun,
   User
@@ -114,6 +116,10 @@ function buildExecutiveSummary(report: AssessmentReport): string {
   )}.`;
 }
 
+function averageDreadScore(score: DreadScoreCreate): number {
+  return Object.values(score).reduce((sum, value) => sum + value, 0) / 5;
+}
+
 function App() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -121,6 +127,7 @@ function App() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [scanRuns, setScanRuns] = useState<ScanRun[]>([]);
+  const [googleWorkspaceChecks, setGoogleWorkspaceChecks] = useState<GoogleWorkspaceCheck[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
   const [selectedAssessmentId, setSelectedAssessmentId] = useState("");
@@ -152,6 +159,7 @@ function App() {
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [isScanLoading, setIsScanLoading] = useState(false);
   const [isScanRunning, setIsScanRunning] = useState(false);
+  const [showGoogleWorkspaceChecks, setShowGoogleWorkspaceChecks] = useState(false);
   const [saving, setSaving] = useState<SavingTarget>(null);
   const [activeView, setActiveView] = useState<ActiveView>("workspace");
   const [report, setReport] = useState<AssessmentReport | null>(null);
@@ -249,6 +257,7 @@ function App() {
     setAssets([]);
     setFindings([]);
     setScanRuns([]);
+    setGoogleWorkspaceChecks([]);
     setSelectedCustomerId("");
     setSelectedOrganizationId("");
     setSelectedAssessmentId("");
@@ -304,13 +313,15 @@ function App() {
           loadedOrganizations,
           loadedAssessments,
           loadedAssets,
-          loadedFindings
+          loadedFindings,
+          loadedGoogleWorkspaceChecks
         ] = await Promise.all([
           listCustomers(),
           listOrganizations(),
           listAssessments(),
           listAssets(),
-          listFindings()
+          listFindings(),
+          listGoogleWorkspaceChecks()
         ]);
 
         setCustomers(loadedCustomers);
@@ -318,6 +329,7 @@ function App() {
         setAssessments(loadedAssessments);
         setAssets(loadedAssets);
         setFindings(loadedFindings);
+        setGoogleWorkspaceChecks(loadedGoogleWorkspaceChecks);
 
         const nextCustomerId = preferredCustomerId ?? selectedCustomerId;
         const organizationOptions = nextCustomerId
@@ -1366,6 +1378,57 @@ function App() {
                 )}
                 {isScanRunning ? "Mock scan uitvoeren" : "Run mock Google Workspace scan"}
               </button>
+
+              <div className="check-catalog-panel">
+                <div className="check-catalog-toolbar">
+                  <div>
+                    <strong>Check library</strong>
+                    <span>
+                      Deze checks zijn nu mock/demo. De echte Google API-koppeling wordt later per
+                      check toegevoegd.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setShowGoogleWorkspaceChecks((current) => !current)}
+                  >
+                    {showGoogleWorkspaceChecks ? "Verberg checks" : "Bekijk checks"}
+                  </button>
+                </div>
+
+                {showGoogleWorkspaceChecks && (
+                  <div className="check-catalog-list">
+                    {googleWorkspaceChecks.map((check) => (
+                      <article className="check-catalog-item" key={check.check_id}>
+                        <div className="check-catalog-title">
+                          <span>{check.check_id}</span>
+                          <h4>{check.title}</h4>
+                          <em>Mock only</em>
+                        </div>
+                        <p>{check.risk_statement}</p>
+                        <div className="check-catalog-meta">
+                          <span>{check.category}</span>
+                          <span>
+                            DREAD {averageDreadScore(check.default_dread_score).toFixed(1)} ·{" "}
+                            {check.default_risk_level}
+                          </span>
+                        </div>
+                        <dl>
+                          <div>
+                            <dt>Finding</dt>
+                            <dd>{check.maps_to_finding_title}</dd>
+                          </div>
+                          <div>
+                            <dt>Later databron/API</dt>
+                            <dd>{check.future_google_api_hint}</dd>
+                          </div>
+                        </dl>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div className="scan-run-list" aria-label="Recente scan runs">
                 <div className="scan-run-list-heading">

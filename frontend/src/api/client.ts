@@ -8,6 +8,7 @@ import type {
   CustomerCreate,
   Finding,
   FindingCreate,
+  GoogleWorkspaceCheck,
   LoginRequest,
   ScanRun,
   TokenResponse,
@@ -120,6 +121,10 @@ export function runMockGoogleWorkspaceScan(assessmentId: string): Promise<ScanRu
 
 export function listAssessmentScanRuns(assessmentId: string): Promise<ScanRun[]> {
   return request<ScanRun[]>(`/api/v1/assessments/${assessmentId}/scan-runs`);
+}
+
+export function listGoogleWorkspaceChecks(): Promise<GoogleWorkspaceCheck[]> {
+  return request<GoogleWorkspaceCheck[]>("/api/v1/connectors/google-workspace/checks");
 }
 
 export function listAssets(): Promise<Asset[]> {

@@ -2,6 +2,8 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
+from app.connectors.google_workspace_checks import list_google_workspace_checks
+
 
 def create_organization(
     client: TestClient,
@@ -81,8 +83,11 @@ def test_mock_scan_with_token_creates_completed_scan_run_and_findings(
     assert scan_run["connector_type"] == "google_workspace_mock"
     assert scan_run["status"] == "completed"
     assert scan_run["completed_at"] is not None
-    assert scan_run["findings_created"] >= 7
+    assert scan_run["findings_created"] == 7
     assert "demo findings" in scan_run["summary"]
+    raw_check_ids = [finding["check_id"] for finding in scan_run["raw_result_json"]["findings"]]
+    catalog_check_ids = [check.check_id for check in list_google_workspace_checks()]
+    assert raw_check_ids == catalog_check_ids
 
     findings_response = client.get("/api/v1/findings", headers=auth_headers)
     assert findings_response.status_code == 200

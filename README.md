@@ -123,6 +123,25 @@ Deze mock scan is bedoeld om de volledige flow te testen: assessment kiezen, sca
 laten aanmaken, DREAD-scores bekijken en het rapport opnieuw openen. Een echte Google Workspace
 integratie komt later.
 
+## Google Workspace check catalog
+
+De backend bevat een centrale Google Workspace check catalog. De mock scan gebruikt deze catalog,
+zodat duidelijk is welke checks nu demo-only bestaan en welke echte databron/API later per check
+nodig kan zijn.
+
+Huidige checks:
+
+- `GW-MFA-001`: MFA not enforced for all users
+- `GW-ADMIN-001`: Too many super admins
+- `GW-SHARING-001`: External sharing enabled
+- `GW-USERS-001`: Inactive users detected
+- `GW-AUTH-001`: Weak password policy
+- `GW-LEGACY-001`: Legacy IMAP/POP access enabled
+- `GW-OAUTH-001`: Third-party OAuth apps not reviewed
+
+De app toont deze checks in de Google Workspace scan sectie. Elke check is nu `mock_only`; echte
+API-integratie wordt later per check gebouwd.
+
 ## Tests en checks
 
 Backend:

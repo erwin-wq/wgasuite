@@ -108,6 +108,21 @@ export interface ScanRun {
   raw_result_json: Record<string, unknown> | null;
 }
 
+export interface GoogleWorkspaceCheck {
+  check_id: string;
+  title: string;
+  category: string;
+  risk_statement: string;
+  description: string;
+  recommendation: string;
+  mock_status: "mock_only" | string;
+  data_source_hint: string;
+  future_google_api_hint: string;
+  default_dread_score: DreadScoreCreate;
+  default_risk_level: DreadScore["risk_level"] | string;
+  maps_to_finding_title: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;

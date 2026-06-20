@@ -150,6 +150,24 @@ if float(value) <= minimum:
 PY
 }
 
+assert_json_array_length() {
+  expected="$1"
+  python3 - "$expected" "$response_body" <<'PY'
+import json
+import sys
+
+expected = int(sys.argv[1])
+file_path = sys.argv[2]
+
+with open(file_path, encoding="utf-8") as handle:
+    value = json.load(handle)
+
+actual = len(value)
+if actual != expected:
+    raise SystemExit(f"Assertion failed for array length: expected {expected}, got {actual}")
+PY
+}
+
 assert_report_has_mock_finding() {
   python3 - "$response_body" <<'PY'
 import json
@@ -184,9 +202,14 @@ if [ -z "$AUTH_TOKEN" ]; then
 fi
 printf "   authenticated=%s\n" "$SMOKE_API_EMAIL"
 
+printf "3. Checking Google Workspace check catalog...\n"
+request_json "GET" "/api/v1/connectors/google-workspace/checks"
+assert_json_array_length "7"
+printf "   checks=7\n"
+
 timestamp="$(date +%Y%m%d%H%M%S)-$$"
 
-printf "3. Creating customer...\n"
+printf "4. Creating customer...\n"
 request_json "POST" "/api/v1/customers" "{
   \"name\": \"Smoke Customer $timestamp\",
   \"slug\": \"smoke-customer-$timestamp\",
@@ -198,7 +221,7 @@ request_json "POST" "/api/v1/customers" "{
 customer_id=$(json_get "id")
 printf "   customer_id=%s\n" "$customer_id"
 
-printf "4. Creating organization...\n"
+printf "5. Creating organization...\n"
 request_json "POST" "/api/v1/organizations" "{
   \"name\": \"Smoke Test Org $timestamp\",
   \"description\": \"Created by scripts/dev/smoke_api.sh\",
@@ -208,7 +231,7 @@ organization_id=$(json_get "id")
 assert_json_value "customer_id" "$customer_id"
 printf "   organization_id=%s\n" "$organization_id"
 
-printf "5. Creating assessment...\n"
+printf "6. Creating assessment...\n"
 request_json "POST" "/api/v1/assessments" "{
   \"organization_id\": \"$organization_id\",
   \"title\": \"Smoke assessment $timestamp\",
@@ -217,7 +240,7 @@ request_json "POST" "/api/v1/assessments" "{
 assessment_id=$(json_get "id")
 printf "   assessment_id=%s\n" "$assessment_id"
 
-printf "6. Creating asset...\n"
+printf "7. Creating asset...\n"
 request_json "POST" "/api/v1/assets" "{
   \"organization_id\": \"$organization_id\",
   \"name\": \"Smoke asset $timestamp\",
@@ -228,7 +251,7 @@ request_json "POST" "/api/v1/assets" "{
 asset_id=$(json_get "id")
 printf "   asset_id=%s\n" "$asset_id"
 
-printf "7. Creating finding with DREAD score...\n"
+printf "8. Creating finding with DREAD score...\n"
 request_json "POST" "/api/v1/findings" "{
   \"assessment_id\": \"$assessment_id\",
   \"asset_id\": \"$asset_id\",
@@ -249,12 +272,12 @@ assert_json_value "dread_score.total_score" "8.0"
 assert_json_value "dread_score.risk_level" "Critical"
 printf "   finding_id=%s total_score=8.0 risk_level=Critical\n" "$finding_id"
 
-printf "8. Getting finding...\n"
+printf "9. Getting finding...\n"
 request_json "GET" "/api/v1/findings/$finding_id"
 assert_json_value "id" "$finding_id"
 assert_json_value "dread_score.risk_level" "Critical"
 
-printf "9. Patching DREAD score...\n"
+printf "10. Patching DREAD score...\n"
 request_json "PATCH" "/api/v1/findings/$finding_id" "{
   \"dread_score\": {
     \"damage\": 6,
@@ -267,14 +290,14 @@ request_json "PATCH" "/api/v1/findings/$finding_id" "{
 assert_json_value "dread_score.total_score" "6.0"
 assert_json_value "dread_score.risk_level" "High"
 
-printf "10. Running mock Google Workspace scan...\n"
+printf "11. Running mock Google Workspace scan...\n"
 request_json "POST" "/api/v1/assessments/$assessment_id/scan-runs/google-workspace-mock"
 scan_run_id=$(json_get "id")
 assert_json_value "status" "completed"
 assert_json_number_greater_than "findings_created" "0"
 printf "   scan_run_id=%s findings_created=%s\n" "$scan_run_id" "$(json_get "findings_created")"
 
-printf "11. Checking report contains mock scan findings...\n"
+printf "12. Checking report contains mock scan findings...\n"
 request_json "GET" "/api/v1/assessments/$assessment_id/report"
 assert_json_number_greater_than "total_findings" "1"
 assert_report_has_mock_finding

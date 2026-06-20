@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
-from app.connectors import MockGoogleWorkspaceConnector
+from app.connectors import MockGoogleWorkspaceConnector, list_google_workspace_checks
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import Assessment, Asset, Customer, DreadScore, Finding, Organization, ScanRun, User
@@ -16,6 +16,7 @@ from app.schemas.asset import AssetCreate, AssetRead
 from app.schemas.auth import LoginRequest, TokenResponse, UserRead
 from app.schemas.customer import CustomerCreate, CustomerRead, CustomerUpdate
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
+from app.schemas.google_workspace_check import GoogleWorkspaceCheckRead
 from app.schemas.organization import OrganizationCreate, OrganizationRead
 from app.schemas.report import AssessmentReportRead, RiskLevelCounts
 from app.schemas.scan_run import ScanRunRead
@@ -172,6 +173,16 @@ def login(payload: LoginRequest, db: DbSession) -> TokenResponse:
 @api_router.get("/auth/me", response_model=UserRead, tags=["auth"])
 def get_me(current_user: CurrentUser) -> User:
     return current_user
+
+
+@api_router.get(
+    "/connectors/google-workspace/checks",
+    response_model=list[GoogleWorkspaceCheckRead],
+    tags=["connectors"],
+    dependencies=[Depends(get_current_user)],
+)
+def list_google_workspace_check_catalog() -> list[dict[str, object]]:
+    return [check.as_dict() for check in list_google_workspace_checks()]
 
 
 @api_router.post(
@@ -470,6 +481,7 @@ def run_mock_google_workspace_scan(assessment_id: UUID, db: DbSession) -> ScanRu
             "asset_name": asset.name,
             "findings": [
                 {
+                    "check_id": finding.check_id,
                     "title": finding.title,
                     "category": finding.category,
                     "impact": finding.impact,

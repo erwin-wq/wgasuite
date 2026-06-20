@@ -6,6 +6,7 @@ from typing import Protocol
 
 @dataclass(frozen=True)
 class ConnectorFinding:
+    check_id: str
     title: str
     description: str
     impact: str

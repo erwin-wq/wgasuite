@@ -846,3 +846,90 @@ De connector-map bevat nu een kleine base/interface en `MockGoogleWorkspaceConne
 De frontend heeft in de assessment card een compacte `Google Workspace scan` sectie met mock-uitleg, run-knop, loading state, success/error feedback en recente scan runs. Na een scan worden findings en scan runs ververst, zodat het findings overzicht en rapport de nieuwe data tonen. README en smoke test zijn bijgewerkt; de smoke test controleert nu ook `findings_created > 0` en dat het rapport mock scan findings bevat.
 
 Uitgevoerde checks: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `git diff --check`, `docker compose ps`, bereikbaarheid van `http://localhost:5173` en `http://localhost:8000/docs`. Alles is geslaagd na een kleine ruff-fix voor import/lengte. Backend tests: 35 passed met de bekende niet-blokkerende `TestClient` warning. Containers draaien: backend, frontend en postgres. Er is niet gecommit en niet gepusht.
+
+## 2026-06-20 21:36 - Google Workspace check catalog
+
+### Opdracht
+
+Bouw een Scan Catalog / Google Workspace Check Library voor de DREAD Risk Assessment Tool. Start vanaf `main`, maak branch `feature/google-workspace-check-catalog`, centraliseer de bestaande mock Google Workspace checks in een backend catalog, laat de mock connector deze catalog gebruiken, voeg een protected catalog endpoint toe, toon de checks in de frontend, werk README en projectlogboek bij, valideer lokaal met Docker en stop zonder commit of push.
+
+### Uitgevoerd
+
+Branch `feature/google-workspace-check-catalog` is aangemaakt vanaf up-to-date `main`. De bestaande connector, mock scan, scan run endpoints, frontend scan UI, report endpoint, smoke test en backend tests zijn geïnspecteerd.
+
+Backend: er is een centrale module `backend/app/connectors/google_workspace_checks.py` toegevoegd met 7 gestructureerde check definitions. Elke check bevat een technisch `check_id`, titel, categorie, risicotekst, beschrijving, aanbeveling, mock status, databron/API-hints, standaard DREAD-score, standaard risk level en de findingtitel waar de check naar mapt.
+
+Connector: `MockGoogleWorkspaceConnector` gebruikt nu de centrale catalog in plaats van dubbele hardcoded checks. De mock scan blijft dezelfde 7 demo findings aanmaken en neemt `check_id` mee in `raw_result_json`, zodat scanresultaten herleidbaar zijn naar de catalog.
+
+API: er is een protected endpoint toegevoegd: `GET /api/v1/connectors/google-workspace/checks`. Dit endpoint geeft de catalog terug met de velden die de frontend nodig heeft.
+
+Frontend: de Google Workspace scan sectie heeft nu een compacte check library met knop `Bekijk checks`. De UI toont check ID, titel, categorie, standaard DREAD-score/risk level, korte risicotekst, finding mapping, toekomstige API-hint en een `Mock only` badge. De tekst maakt duidelijk dat dit nu mock/demo is en dat echte Google API-koppeling later per check volgt.
+
+Smoke test: `scripts/dev/smoke_api.sh` controleert nu ook dat `GET /api/v1/connectors/google-workspace/checks` 7 checks teruggeeft.
+
+README: de Google Workspace check catalog is beschreven met alle 7 check IDs en de uitleg dat echte API-integratie later per check wordt gebouwd.
+
+### Aangepaste bestanden
+
+- `README.md`
+- `backend/app/api/v1/router.py`
+- `backend/app/connectors/__init__.py`
+- `backend/app/connectors/base.py`
+- `backend/app/connectors/google_workspace_checks.py`
+- `backend/app/connectors/mock_google_workspace.py`
+- `backend/app/schemas/google_workspace_check.py`
+- `backend/tests/test_google_workspace_check_catalog.py`
+- `backend/tests/test_mock_google_workspace_scan.py`
+- `frontend/src/App.tsx`
+- `frontend/src/api/client.ts`
+- `frontend/src/app.css`
+- `frontend/src/types.ts`
+- `scripts/dev/smoke_api.sh`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `git status --short --branch`: uitgevoerd, startstatus was schoon op `main`
+- `git branch --show-current`: uitgevoerd
+- `git remote -v`: uitgevoerd, GitLab origin bestaat
+- `git log --oneline --decorate -5`: uitgevoerd
+- `make check-env`: geslaagd
+- `git switch main`: geslaagd
+- `git pull --ff-only origin main`: geslaagd, al up-to-date
+- `git switch -c feature/google-workspace-check-catalog`: geslaagd
+- `make backend-checks`: geslaagd met 39 backend tests
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `make docker-up`: geslaagd, backend en frontend images gebouwd en containers gestart
+- `make db-upgrade`: geslaagd, migraties staan op head
+- `make smoke-api`: geslaagd met catalog `checks=7` en mock scan `findings_created=7`
+- `git diff --check`: geslaagd
+- `docker compose ps`: uitgevoerd, backend/frontend/postgres draaien
+- `curl http://localhost:5173`: HTTP 200
+- `curl http://localhost:8000/docs`: HTTP 200
+
+### Resultaat
+
+Gelukt. De app heeft nu een duidelijke Google Workspace check catalog die door de mock scan wordt gebruikt en in de frontend zichtbaar is.
+
+### Problemen / beperkingen
+
+- De checks zijn nog `mock_only`; er is geen echte Google API koppeling toegevoegd.
+- Er zijn geen OAuth scopes, tokens, API keys of secrets toegevoegd.
+- De toekomstige API-hints zijn richtinggevend en nog geen geïmplementeerde integratie.
+- Backend tests tonen nog de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning.
+- Er is niet gecommit en niet gepusht, volgens opdracht.
+
+### Volgende aanbevolen stap
+
+Review de check catalog handmatig in de browser: log in, selecteer een assessment, open `Bekijk checks` in de Google Workspace scan sectie en controleer daarna dat een mock scan nog steeds 7 findings aanmaakt.
+
+### Volledige Codex samenvatting
+
+Ik heb branch `feature/google-workspace-check-catalog` aangemaakt vanaf `main` en een centrale Google Workspace check catalog gebouwd. De nieuwe module `backend/app/connectors/google_workspace_checks.py` bevat 7 gestructureerde checks: `GW-MFA-001`, `GW-ADMIN-001`, `GW-SHARING-001`, `GW-USERS-001`, `GW-AUTH-001`, `GW-LEGACY-001` en `GW-OAUTH-001`. Elke check bevat risico, beschrijving, aanbeveling, mock status, databron/API-hints, standaard DREAD-score en mapping naar een findingtitel.
+
+De mock connector gebruikt nu deze catalog in plaats van dubbele hardcoded checks. De mock scan maakt nog steeds 7 `[Mock Google Workspace]` findings aan en zet `check_id` in `raw_result_json`. Er is een nieuw protected endpoint toegevoegd: `GET /api/v1/connectors/google-workspace/checks`.
+
+De frontend toont de catalog in de bestaande Google Workspace scan sectie via `Bekijk checks`, met check ID, titel, categorie, DREAD-score/risk level, risicotekst, finding mapping, toekomstige API-hint en `Mock only` badge. README en smoke test zijn bijgewerkt; de smoke test controleert nu dat het catalog endpoint 7 checks teruggeeft.
+
+Uitgevoerde checks: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `git diff --check`, `docker compose ps`, bereikbaarheid van `http://localhost:5173` en `http://localhost:8000/docs`. Alles is geslaagd. Backend tests: 39 passed met de bekende niet-blokkerende `TestClient` warning. De smoke test bevestigde `checks=7` en `findings_created=7`. Containers draaien: backend, frontend en postgres. Er is niet gecommit en niet gepusht.
