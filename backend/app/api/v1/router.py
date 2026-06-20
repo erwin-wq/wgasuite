@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -11,6 +12,7 @@ from app.schemas.assessment import AssessmentCreate, AssessmentRead
 from app.schemas.asset import AssetCreate, AssetRead
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
 from app.schemas.organization import OrganizationCreate, OrganizationRead
+from app.schemas.report import AssessmentReportRead, RiskLevelCounts
 from app.services.dread import calculate_dread_score
 
 api_router = APIRouter()
@@ -164,6 +166,68 @@ def list_assessments(db: DbSession) -> list[Assessment]:
 )
 def get_assessment(assessment_id: UUID, db: DbSession) -> Assessment:
     return get_assessment_or_404(db, assessment_id)
+
+
+@api_router.get(
+    "/assessments/{assessment_id}/report",
+    response_model=AssessmentReportRead,
+    tags=["assessments"],
+)
+def get_assessment_report(assessment_id: UUID, db: DbSession) -> AssessmentReportRead:
+    assessment_statement = (
+        select(Assessment)
+        .where(Assessment.id == assessment_id)
+        .options(selectinload(Assessment.organization))
+    )
+    assessment = db.scalar(assessment_statement)
+    if assessment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assessment not found.",
+        )
+
+    findings_statement = (
+        select(Finding)
+        .where(Finding.assessment_id == assessment_id)
+        .options(
+            selectinload(Finding.asset),
+            selectinload(Finding.dread_score),
+        )
+        .order_by(Finding.created_at.asc(), Finding.title.asc())
+    )
+    findings = list(db.scalars(findings_statement).all())
+
+    assets_by_id = {
+        finding.asset.id: finding.asset
+        for finding in findings
+        if finding.asset is not None
+    }
+
+    risk_counts = RiskLevelCounts()
+    scores = [finding.dread_score.total_score for finding in findings]
+    for finding in findings:
+        risk_level = finding.dread_score.risk_level.lower()
+        current_count = getattr(risk_counts, risk_level)
+        setattr(risk_counts, risk_level, current_count + 1)
+
+    highest_finding = max(
+        findings,
+        key=lambda finding: finding.dread_score.total_score,
+        default=None,
+    )
+
+    return AssessmentReportRead(
+        generated_at=datetime.now(UTC),
+        assessment=assessment,
+        organization=assessment.organization,
+        assets=list(assets_by_id.values()),
+        findings=findings,
+        total_findings=len(findings),
+        findings_per_risk_level=risk_counts,
+        average_score=round(sum(scores) / len(scores), 2) if scores else None,
+        highest_score=highest_finding.dread_score.total_score if highest_finding else None,
+        highest_risk_level=highest_finding.dread_score.risk_level if highest_finding else None,
+    )
 
 
 @api_router.post(

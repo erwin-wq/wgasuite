@@ -441,3 +441,65 @@ Controleer na de push in GitLab of de repository zichtbaar is en of de visibilit
 ### Volledige Codex samenvatting
 
 Ik heb gecontroleerd dat de repo op branch `feature/frontend-usability-polish` staat, dat er nog geen remote is ingesteld en dat echte `.env`, `node_modules` en `backend/.venv` niet tracked zijn. Ik heb deze GitLab push-voorbereiding vastgelegd in `docs/PROJECT_LOG.md`. Na deze logboekcommit wordt `origin` ingesteld op `git@gitlab.com:Borged/dread-risk-assessment.git`, wordt `main` gemaakt vanaf `feature/frontend-usability-polish`, en worden `main` en `feature/frontend-usability-polish` zonder force push naar GitLab gepusht.
+
+## 2026-06-20 08:26 - Assessment report export
+
+### Opdracht
+
+Bouw een eerste rapportage/export feature voor de DREAD Risk Assessment Tool. Start vanaf `main`, maak branch `feature/assessment-report-export`, voeg een JSON report endpoint toe, maak backend tests, voeg een printvriendelijke HTML rapportpagina toe in de frontend, update het projectlogboek en commit met `feat: add assessment report export`. Voeg geen PDF-generator toe en push niet.
+
+### Uitgevoerd
+
+`main` is gecontroleerd, fast-forward bijgewerkt vanaf `origin/main`, en branch `feature/assessment-report-export` is aangemaakt. De bestaande backendmodellen, schemas, router, API client, frontend App en tests zijn geïnspecteerd.
+
+Backend: er is een nieuw endpoint toegevoegd: `GET /api/v1/assessments/{assessment_id}/report`. Dit endpoint geeft JSON terug met assessment, organization, relevante assets, findings, DREAD-scores, total score, risk level, aantallen per risk level, gemiddelde score, hoogste score, hoogste risk level en `generated_at`. Niet-bestaande assessments geven 404. Assessments zonder findings leveren een geldig leeg rapport op.
+
+Frontend: er is een knop `Open rapport` toegevoegd bij het actieve assessment. De rapportweergave toont metadata, executive summary, risk overview, findings tabel en detailkaarten per finding. Er zijn knoppen toegevoegd voor `Terug naar assessment` en `Print / opslaan als PDF`. De CSS bevat printregels met witte achtergrond, verborgen knoppen/overlays en printvriendelijke tabellen/cards.
+
+### Aangepaste bestanden
+
+- `backend/app/api/v1/router.py`
+- `backend/app/schemas/report.py`
+- `backend/tests/test_assessment_report.py`
+- `frontend/src/App.tsx`
+- `frontend/src/api/client.ts`
+- `frontend/src/types.ts`
+- `frontend/src/app.css`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `git status --short --branch`: uitgevoerd
+- `git switch main`: uitgevoerd
+- `git pull --ff-only origin main`: geslaagd, al up-to-date
+- `git log --oneline --decorate -5`: uitgevoerd
+- `make check-env`: geslaagd
+- `backend/.venv/bin/pytest backend/tests/test_assessment_report.py`: geslaagd met 4 tests
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `make smoke-api`: geslaagd
+- `make backend-checks`: geslaagd met 17 backend tests
+- `git diff --check`: geslaagd
+
+### Resultaat
+
+Gelukt. Er is een eerste onderhoudbare rapportage/export feature gebouwd zonder PDF-generator. De backend levert rapportdata als JSON en de frontend toont een printvriendelijke HTML rapportpagina die via de browser als PDF opgeslagen kan worden.
+
+### Problemen / beperkingen
+
+- `make backend-checks` faalde eerst op een te lange regel in de nieuwe testfile; dit is direct opgelost en de check is daarna geslaagd.
+- De backend tests tonen nog de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning.
+- Er is geen echte PDF-generator toegevoegd; export loopt bewust via browser print/save-as-pdf.
+- Er is niet gepusht.
+
+### Volgende aanbevolen stap
+
+Doe een handmatige browserreview van de rapportpagina met een assessment met meerdere risk levels en controleer de browser print preview.
+
+### Volledige Codex samenvatting
+
+Ik heb branch `feature/assessment-report-export` aangemaakt vanaf up-to-date `main` en de eerste rapportage/export feature gebouwd. Backend endpoint `GET /api/v1/assessments/{assessment_id}/report` geeft nu een compleet JSON rapport terug met assessment, organization, relevante assets, findings, DREAD-scores, total/highest/average score, risk level counts, highest risk level en `generated_at`. Er zijn backend tests toegevoegd voor rapportdata met meerdere findings, risk counts, average score, highest score, lege assessments en 404 voor onbekende assessments.
+
+In de frontend is bij het actieve assessment een knop `Open rapport` toegevoegd. De nieuwe rapportweergave toont metadata, executive summary, risk overview, findings tabel en detailkaarten per finding. Er is een knop `Terug naar assessment` en een knop `Print / opslaan als PDF`. De CSS bevat `@media print` regels zodat knoppen en overlays verdwijnen, de achtergrond wit wordt en tabellen/cards beter printen. Er is geen PDF-generator toegevoegd.
+
+Uitgevoerde checks: `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `make smoke-api`, `make backend-checks` en `git diff --check`. Alles is geslaagd na een kleine lintfix in de nieuwe testfile. De bekende niet-blokkerende FastAPI/Starlette `TestClient` warning blijft zichtbaar. De commit wordt gemaakt met message `feat: add assessment report export`; de definitieve commit-hash staat in het eindantwoord.

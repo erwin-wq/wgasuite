@@ -1,6 +1,7 @@
 import type {
   Assessment,
   AssessmentCreate,
+  AssessmentReport,
   Asset,
   AssetCreate,
   Finding,
@@ -49,6 +50,10 @@ export function createAssessment(payload: AssessmentCreate): Promise<Assessment>
     method: "POST",
     body: JSON.stringify(payload)
   });
+}
+
+export function getAssessmentReport(assessmentId: string): Promise<AssessmentReport> {
+  return request<AssessmentReport>(`/api/v1/assessments/${assessmentId}/report`);
 }
 
 export function listAssets(): Promise<Asset[]> {

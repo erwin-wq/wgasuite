@@ -54,6 +54,26 @@ export interface Finding {
   updated_at: string;
 }
 
+export interface RiskLevelCounts {
+  low: number;
+  medium: number;
+  high: number;
+  critical: number;
+}
+
+export interface AssessmentReport {
+  generated_at: string;
+  assessment: Assessment;
+  organization: Organization;
+  assets: Asset[];
+  findings: Finding[];
+  total_findings: number;
+  findings_per_risk_level: RiskLevelCounts;
+  average_score: number | null;
+  highest_score: number | null;
+  highest_risk_level: DreadScore["risk_level"] | null;
+}
+
 export type OrganizationCreate = Pick<Organization, "name" | "description">;
 
 export interface AssessmentCreate {

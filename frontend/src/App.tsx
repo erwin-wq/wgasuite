@@ -1,15 +1,18 @@
 import {
   Activity,
   AlertCircle,
+  ArrowLeft,
   BadgeCheck,
   Building2,
   CheckCircle2,
   ClipboardList,
   Database,
+  FileText,
   Flag,
   Layers3,
   Loader2,
   Plus,
+  Printer,
   ShieldAlert,
   Target,
   TrendingUp
@@ -21,6 +24,7 @@ import {
   createAsset,
   createFinding,
   createOrganization,
+  getAssessmentReport,
   listAssessments,
   listAssets,
   listFindings,
@@ -28,6 +32,7 @@ import {
 } from "./api/client";
 import type {
   Assessment,
+  AssessmentReport,
   Asset,
   DreadScoreCreate,
   Finding,
@@ -38,6 +43,7 @@ import type {
 type DreadScoreKey = keyof DreadScoreCreate;
 type Feedback = { type: "success" | "error"; message: string } | null;
 type SavingTarget = "organization" | "assessment" | "asset" | "finding" | null;
+type ActiveView = "workspace" | "report";
 
 const initialDreadScore: DreadScoreCreate = {
   damage: 5,
@@ -72,6 +78,25 @@ function formatScore(score: number | null): string {
   return score === null ? "-" : score.toFixed(2);
 }
 
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat("nl-NL", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(value));
+}
+
+function buildExecutiveSummary(report: AssessmentReport): string {
+  if (report.total_findings === 0) {
+    return "Dit assessment heeft nog geen findings. Voeg findings toe om risico's en DREAD-scores zichtbaar te maken.";
+  }
+
+  return `Dit assessment bevat ${report.total_findings} finding${
+    report.total_findings === 1 ? "" : "s"
+  }. Het hoogste risico is ${report.highest_risk_level ?? "onbekend"} en de gemiddelde DREAD-score is ${formatScore(
+    report.average_score
+  )}.`;
+}
+
 function App() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
@@ -93,7 +118,10 @@ function App() {
   const [dreadScore, setDreadScore] = useState<DreadScoreCreate>(initialDreadScore);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isReportLoading, setIsReportLoading] = useState(false);
   const [saving, setSaving] = useState<SavingTarget>(null);
+  const [activeView, setActiveView] = useState<ActiveView>("workspace");
+  const [report, setReport] = useState<AssessmentReport | null>(null);
 
   const selectedOrganization = useMemo(
     () => organizations.find((organization) => organization.id === selectedOrganizationId),
@@ -118,6 +146,10 @@ function App() {
   const assetById = useMemo(
     () => new Map(assets.map((asset) => [asset.id, asset])),
     [assets]
+  );
+  const reportAssetById = useMemo(
+    () => new Map((report?.assets ?? []).map((asset) => [asset.id, asset])),
+    [report]
   );
 
   const previewScore = useMemo(() => {
@@ -342,9 +374,264 @@ function App() {
     );
   }
 
+  async function handleOpenReport() {
+    if (!selectedAssessmentId) {
+      return;
+    }
+
+    setFeedback(null);
+    setIsReportLoading(true);
+    try {
+      const loadedReport = await getAssessmentReport(selectedAssessmentId);
+      setReport(loadedReport);
+      setActiveView("report");
+    } catch (reportError) {
+      setFeedback({ type: "error", message: (reportError as Error).message });
+    } finally {
+      setIsReportLoading(false);
+    }
+  }
+
+  function handleBackToWorkspace() {
+    setActiveView("workspace");
+  }
+
+  function handlePrintReport() {
+    window.print();
+  }
+
   const activeOrganizationLabel = isLoading
     ? "Data laden"
     : selectedOrganization?.name ?? "Geen organisatie geselecteerd";
+
+  if (activeView === "report") {
+    return (
+      <main className="app-shell report-shell">
+        <section className="report-page">
+          <div className="report-toolbar no-print">
+            <button type="button" className="secondary-button" onClick={handleBackToWorkspace}>
+              <ArrowLeft aria-hidden="true" />
+              Terug naar assessment
+            </button>
+            <button type="button" onClick={handlePrintReport} disabled={!report}>
+              <Printer aria-hidden="true" />
+              Print / opslaan als PDF
+            </button>
+          </div>
+
+          {!report ? (
+            <div className="empty-state">
+              <FileText aria-hidden="true" />
+              <h3>Rapport laden</h3>
+            </div>
+          ) : (
+            <>
+              <header className="report-header">
+                <div>
+                  <span className="eyebrow">Assessment export</span>
+                  <h1>DREAD Risk Assessment Report</h1>
+                  <p>{buildExecutiveSummary(report)}</p>
+                </div>
+                {report.highest_risk_level ? (
+                  <span className={`risk-badge risk-${report.highest_risk_level.toLowerCase()}`}>
+                    {report.highest_risk_level}
+                  </span>
+                ) : (
+                  <span className="risk-badge risk-neutral">Geen findings</span>
+                )}
+              </header>
+
+              <section className="report-meta-grid" aria-label="Rapport metadata">
+                <article>
+                  <span>Organization</span>
+                  <strong>{report.organization.name}</strong>
+                </article>
+                <article>
+                  <span>Assessment naam</span>
+                  <strong>{report.assessment.title}</strong>
+                </article>
+                <article>
+                  <span>Status</span>
+                  <strong>{report.assessment.status}</strong>
+                </article>
+                <article>
+                  <span>Datum</span>
+                  <strong>{formatDateTime(report.generated_at)}</strong>
+                </article>
+              </section>
+
+              <section className="report-section">
+                <div className="report-section-heading">
+                  <h2>Executive summary</h2>
+                  <p>{buildExecutiveSummary(report)}</p>
+                </div>
+                <div className="report-summary-grid">
+                  <article>
+                    <span>Aantal findings</span>
+                    <strong>{report.total_findings}</strong>
+                  </article>
+                  <article>
+                    <span>Hoogste risico</span>
+                    <strong>{report.highest_risk_level ?? "-"}</strong>
+                  </article>
+                  <article>
+                    <span>Gemiddelde score</span>
+                    <strong>{formatScore(report.average_score)}</strong>
+                  </article>
+                </div>
+              </section>
+
+              <section className="report-section">
+                <div className="report-section-heading">
+                  <h2>Risk overview</h2>
+                  <p>Verdeling van findings per DREAD risk level.</p>
+                </div>
+                <div className="risk-overview-grid">
+                  <article>
+                    <span className="risk-badge risk-low">Low</span>
+                    <strong>{report.findings_per_risk_level.low}</strong>
+                  </article>
+                  <article>
+                    <span className="risk-badge risk-medium">Medium</span>
+                    <strong>{report.findings_per_risk_level.medium}</strong>
+                  </article>
+                  <article>
+                    <span className="risk-badge risk-high">High</span>
+                    <strong>{report.findings_per_risk_level.high}</strong>
+                  </article>
+                  <article>
+                    <span className="risk-badge risk-critical">Critical</span>
+                    <strong>{report.findings_per_risk_level.critical}</strong>
+                  </article>
+                  <article>
+                    <span>Gemiddelde score</span>
+                    <strong>{formatScore(report.average_score)}</strong>
+                  </article>
+                  <article>
+                    <span>Hoogste score</span>
+                    <strong>{formatScore(report.highest_score)}</strong>
+                  </article>
+                </div>
+              </section>
+
+              <section className="report-section">
+                <div className="report-section-heading">
+                  <h2>Findings tabel</h2>
+                  <p>{report.assessment.title}</p>
+                </div>
+                {report.findings.length === 0 ? (
+                  <div className="report-empty-state">
+                    <Layers3 aria-hidden="true" />
+                    <h3>Nog geen findings in dit assessment.</h3>
+                  </div>
+                ) : (
+                  <div className="report-table-wrap">
+                    <table className="report-table">
+                      <thead>
+                        <tr>
+                          <th>Titel</th>
+                          <th>Asset</th>
+                          <th>Risk level</th>
+                          <th>Total score</th>
+                          <th>Damage</th>
+                          <th>Reproducibility</th>
+                          <th>Exploitability</th>
+                          <th>Affected users</th>
+                          <th>Discoverability</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {report.findings.map((finding) => {
+                          const asset = finding.asset_id ? reportAssetById.get(finding.asset_id) : null;
+                          return (
+                            <tr key={finding.id}>
+                              <td>{finding.title}</td>
+                              <td>{asset?.name ?? "Niet gekoppeld"}</td>
+                              <td>
+                                <span className={`risk-badge risk-${finding.dread_score.risk_level.toLowerCase()}`}>
+                                  {finding.dread_score.risk_level}
+                                </span>
+                              </td>
+                              <td>{finding.dread_score.total_score.toFixed(2)}</td>
+                              <td>{finding.dread_score.damage}</td>
+                              <td>{finding.dread_score.reproducibility}</td>
+                              <td>{finding.dread_score.exploitability}</td>
+                              <td>{finding.dread_score.affected_users}</td>
+                              <td>{finding.dread_score.discoverability}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+
+              {report.findings.length > 0 && (
+                <section className="report-section">
+                  <div className="report-section-heading">
+                    <h2>Finding details</h2>
+                    <p>Beschrijving, impact en aanbevolen mitigatie per finding.</p>
+                  </div>
+                  <div className="finding-detail-list">
+                    {report.findings.map((finding) => {
+                      const asset = finding.asset_id ? reportAssetById.get(finding.asset_id) : null;
+                      return (
+                        <article className="finding-detail-card" key={finding.id}>
+                          <div className="finding-detail-heading">
+                            <div>
+                              <h3>{finding.title}</h3>
+                              <p>{asset?.name ?? "Geen asset gekoppeld"}</p>
+                            </div>
+                            <span className={`risk-badge risk-${finding.dread_score.risk_level.toLowerCase()}`}>
+                              {finding.dread_score.risk_level}
+                            </span>
+                          </div>
+                          <dl>
+                            <div>
+                              <dt>Beschrijving</dt>
+                              <dd>{finding.description ?? "Geen beschrijving opgegeven."}</dd>
+                            </div>
+                            <div>
+                              <dt>Impact</dt>
+                              <dd>Damage score {finding.dread_score.damage}/10</dd>
+                            </div>
+                            <div>
+                              <dt>Recommendation / mitigation</dt>
+                              <dd>{finding.mitigation ?? "Nog geen mitigatie vastgelegd."}</dd>
+                            </div>
+                          </dl>
+                          <div className="dread-breakdown">
+                            {dreadControls.map((control) => (
+                              <span key={control.key}>
+                                {control.label}
+                                <strong>{finding.dread_score[control.key]}</strong>
+                              </span>
+                            ))}
+                            <span>
+                              Total
+                              <strong>{finding.dread_score.total_score.toFixed(2)}</strong>
+                            </span>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+        </section>
+
+        {isReportLoading && (
+          <div className="loading-overlay no-print" aria-live="polite">
+            <Activity className="spin" aria-hidden="true" />
+            Rapport laden
+          </div>
+        )}
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">
@@ -536,6 +823,16 @@ function App() {
                 ))}
               </select>
             </label>
+            <div className="assessment-actions">
+              <button type="button" onClick={handleOpenReport} disabled={!selectedAssessmentId || isReportLoading}>
+                {isReportLoading ? (
+                  <Loader2 className="spin" aria-hidden="true" />
+                ) : (
+                  <FileText aria-hidden="true" />
+                )}
+                Open rapport
+              </button>
+            </div>
           </article>
         </div>
 
