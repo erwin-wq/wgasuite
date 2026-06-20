@@ -31,6 +31,7 @@ Werkafspraken voor Codex in deze repository.
 
 ## Automatische validatie na features
 
+- Codex mag code aanpassen voor de gevraagde feature of frontend/backend wijziging.
 - Na elke feature of frontend/backend wijziging probeert Codex zelf de lokale Docker build en smoke checks uit te voeren.
 - Codex mag deze checks uitvoeren omdat Docker, Node en npm beschikbaar zijn in de juiste VS Code omgeving.
 - Codex mag geen software installeren zonder expliciete toestemming.
@@ -46,4 +47,14 @@ Werkafspraken voor Codex in deze repository.
   8. `git diff --check`
 - Als iets faalt, stop dan en vat de fout duidelijk samen.
 - Als containers opnieuw gebouwd zijn, meld duidelijk welke containers draaien, of migraties gelukt zijn, of de smoke test gelukt is, of de frontend bereikbaar is op `http://localhost:5173`, en of de backend docs bereikbaar zijn op `http://localhost:8000/docs`.
+- Meld na de checks ook wat de gebruiker handmatig in de browser moet controleren.
 - De gebruiker moet zo min mogelijk losse terminalcommando's hoeven plakken.
+
+## Committen en pushen
+
+- Codex mag na een feature niet automatisch committen.
+- Codex werkt `docs/PROJECT_LOG.md` wel bij tijdens de feature, maar laat deze wijziging uncommitted totdat de gebruiker expliciet om een commit vraagt.
+- Codex stopt na een feature met een duidelijke clean/dirty git status en een samenvatting.
+- Committen gebeurt alleen via een aparte expliciete commit-opdracht.
+- Codex mag nooit automatisch pushen na een feature.
+- Pushen gebeurt alleen via een aparte expliciete push-opdracht.

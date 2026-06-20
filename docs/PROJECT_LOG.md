@@ -545,3 +545,48 @@ Pas deze nieuwe validatiewerkwijze toe bij de eerstvolgende feature of frontend/
 Ik heb `AGENTS.md` en `docs/DEVELOPMENT_RULES.md` bijgewerkt met de nieuwe vaste werkwijze: na elke feature of frontend/backend wijziging probeert Codex zelf `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint` en `git diff --check` uit te voeren. Ook is vastgelegd dat Codex geen software installeert zonder toestemming, stopt bij falende checks en na container rebuilds duidelijk rapporteert welke containers draaien, of migraties en smoke tests gelukt zijn, en of de frontend en backend docs bereikbaar zijn.
 
 Dit was een documentatie-only wijziging; er is geen functionele code aangepast en er is niet gepusht. `docs/PROJECT_LOG.md` is bijgewerkt met deze afspraak. De commit wordt gemaakt met message `chore: document automatic docker validation workflow`; de definitieve commit-hash staat in het eindantwoord.
+
+## 2026-06-20 08:49 - Feature workflow zonder automatische commit
+
+### Opdracht
+
+Pas de projectregels aan. Leg vast dat Codex features mag bouwen en lokaal automatisch mag valideren, maar na een feature niet automatisch mag committen of pushen. Werk alleen `AGENTS.md`, `docs/DEVELOPMENT_RULES.md` en `docs/PROJECT_LOG.md` bij. Commit niet en push niet.
+
+### Uitgevoerd
+
+`AGENTS.md` en `docs/DEVELOPMENT_RULES.md` zijn aangepast naar de nieuwe vaste werkwijze. Codex mag code aanpassen voor gevraagde features en moet daarna proberen de vaste lokale validatie uit te voeren: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint` en `git diff --check`.
+
+Ook is vastgelegd dat Codex na de checks meldt welke containers draaien, of migraties en smoke tests gelukt zijn, of `http://localhost:5173` en `http://localhost:8000/docs` bereikbaar zijn, en wat de gebruiker handmatig in de browser moet controleren.
+
+De regels voor committen en pushen zijn aangepast: Codex mag na een feature niet automatisch committen, `docs/PROJECT_LOG.md` blijft uncommitted totdat de gebruiker expliciet om een commit vraagt, en pushen gebeurt alleen via een aparte expliciete push-opdracht.
+
+### Aangepaste bestanden
+
+- `AGENTS.md`
+- `docs/DEVELOPMENT_RULES.md`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `git diff --check`: wordt uitgevoerd na deze wijziging
+- `git status --short --branch`: wordt uitgevoerd na deze wijziging
+
+### Resultaat
+
+Gelukt. De projectregels leggen nu vast dat bouwen en lokaal testen automatisch mag, maar committen en pushen los gebeuren op expliciete opdracht.
+
+### Problemen / beperkingen
+
+- Er is niet gecommit, volgens opdracht.
+- Er is niet gepusht, volgens opdracht.
+- Er zijn geen Docker- of smoke checks uitgevoerd, omdat deze opdracht alleen documentatie/projectregels aanpast en geen feature of frontend/backend code wijzigt.
+
+### Volgende aanbevolen stap
+
+Geef een aparte commit-opdracht als deze documentatiewijziging vastgelegd moet worden.
+
+### Volledige Codex samenvatting
+
+Ik heb `AGENTS.md` en `docs/DEVELOPMENT_RULES.md` aangepast zodat Codex voortaan features mag bouwen en daarna zelf de lokale validatie probeert uit te voeren, inclusief Docker build, migraties, smoke test, backend checks, frontend build/lint en `git diff --check`. Codex moet daarna containers, migraties, smoke test, frontend/backend docs bereikbaarheid en handmatige browserchecks rapporteren.
+
+Ik heb ook vastgelegd dat Codex na een feature niet automatisch commit en nooit automatisch pusht. `docs/PROJECT_LOG.md` wordt tijdens de feature wel bijgewerkt, maar blijft uncommitted totdat de gebruiker expliciet vraagt om te committen. Deze wijziging is bewust niet gecommit en niet gepusht.

@@ -36,9 +36,9 @@
 - Commit alleen `.env.example` met veilige voorbeeldwaarden.
 - Codex mag geen software installeren zonder expliciete toestemming.
 
-## Validatie na features
+## Feature workflow
 
-Na elke feature of frontend/backend wijziging voert Codex zelf de lokale Docker build en smoke checks uit waar mogelijk. De vaste volgorde is:
+Codex mag code aanpassen voor de gevraagde feature of frontend/backend wijziging. Na elke feature voert Codex zelf de lokale Docker build en smoke checks uit waar mogelijk. De vaste volgorde is:
 
 1. `make check-env`
 2. `make docker-up`
@@ -59,7 +59,18 @@ Regels:
 - Codex meldt of de API smoke test gelukt is.
 - Codex controleert en meldt of de frontend bereikbaar is op `http://localhost:5173`.
 - Codex controleert en meldt of de backend docs bereikbaar zijn op `http://localhost:8000/docs`.
+- Codex meldt wat de gebruiker handmatig in de browser moet controleren.
 - De gebruiker hoeft zo min mogelijk losse terminalcommando's te plakken.
+
+## Committen en pushen
+
+- Codex mag na een feature niet automatisch committen.
+- Codex werkt `docs/PROJECT_LOG.md` wel bij tijdens de feature.
+- De logboekwijziging blijft uncommitted totdat de gebruiker expliciet vraagt om te committen.
+- Codex stopt na een feature met een duidelijke clean/dirty git status en een samenvatting.
+- Committen gebeurt alleen via een aparte expliciete commit-opdracht.
+- Codex mag nooit automatisch pushen na een feature.
+- Pushen gebeurt alleen via een aparte expliciete push-opdracht.
 
 ## Connectoren
 
