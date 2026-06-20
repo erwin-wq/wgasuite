@@ -148,15 +148,29 @@ printf "   authenticated=%s\n" "$SMOKE_API_EMAIL"
 
 timestamp="$(date +%Y%m%d%H%M%S)-$$"
 
-printf "3. Creating organization...\n"
+printf "3. Creating customer...\n"
+request_json "POST" "/api/v1/customers" "{
+  \"name\": \"Smoke Customer $timestamp\",
+  \"slug\": \"smoke-customer-$timestamp\",
+  \"contact_name\": \"Smoke Tester\",
+  \"contact_email\": \"smoke@example.local\",
+  \"status\": \"active\",
+  \"notes\": \"Created by scripts/dev/smoke_api.sh\"
+}"
+customer_id=$(json_get "id")
+printf "   customer_id=%s\n" "$customer_id"
+
+printf "4. Creating organization...\n"
 request_json "POST" "/api/v1/organizations" "{
   \"name\": \"Smoke Test Org $timestamp\",
-  \"description\": \"Created by scripts/dev/smoke_api.sh\"
+  \"description\": \"Created by scripts/dev/smoke_api.sh\",
+  \"customer_id\": \"$customer_id\"
 }"
 organization_id=$(json_get "id")
+assert_json_value "customer_id" "$customer_id"
 printf "   organization_id=%s\n" "$organization_id"
 
-printf "4. Creating assessment...\n"
+printf "5. Creating assessment...\n"
 request_json "POST" "/api/v1/assessments" "{
   \"organization_id\": \"$organization_id\",
   \"title\": \"Smoke assessment $timestamp\",
@@ -165,7 +179,7 @@ request_json "POST" "/api/v1/assessments" "{
 assessment_id=$(json_get "id")
 printf "   assessment_id=%s\n" "$assessment_id"
 
-printf "5. Creating asset...\n"
+printf "6. Creating asset...\n"
 request_json "POST" "/api/v1/assets" "{
   \"organization_id\": \"$organization_id\",
   \"name\": \"Smoke asset $timestamp\",
@@ -176,7 +190,7 @@ request_json "POST" "/api/v1/assets" "{
 asset_id=$(json_get "id")
 printf "   asset_id=%s\n" "$asset_id"
 
-printf "6. Creating finding with DREAD score...\n"
+printf "7. Creating finding with DREAD score...\n"
 request_json "POST" "/api/v1/findings" "{
   \"assessment_id\": \"$assessment_id\",
   \"asset_id\": \"$asset_id\",
@@ -197,12 +211,12 @@ assert_json_value "dread_score.total_score" "8.0"
 assert_json_value "dread_score.risk_level" "Critical"
 printf "   finding_id=%s total_score=8.0 risk_level=Critical\n" "$finding_id"
 
-printf "7. Getting finding...\n"
+printf "8. Getting finding...\n"
 request_json "GET" "/api/v1/findings/$finding_id"
 assert_json_value "id" "$finding_id"
 assert_json_value "dread_score.risk_level" "Critical"
 
-printf "8. Patching DREAD score...\n"
+printf "9. Patching DREAD score...\n"
 request_json "PATCH" "/api/v1/findings/$finding_id" "{
   \"dread_score\": {
     \"damage\": 6,

@@ -4,6 +4,8 @@ import type {
   AssessmentReport,
   Asset,
   AssetCreate,
+  Customer,
+  CustomerCreate,
   Finding,
   FindingCreate,
   LoginRequest,
@@ -70,6 +72,17 @@ export function login(payload: LoginRequest): Promise<TokenResponse> {
 
 export function getCurrentUser(): Promise<User> {
   return request<User>("/api/v1/auth/me");
+}
+
+export function listCustomers(): Promise<Customer[]> {
+  return request<Customer[]>("/api/v1/customers");
+}
+
+export function createCustomer(payload: CustomerCreate): Promise<Customer> {
+  return request<Customer>("/api/v1/customers", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }
 
 export function listOrganizations(): Promise<Organization[]> {

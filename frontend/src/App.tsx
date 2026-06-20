@@ -10,6 +10,7 @@ import {
   FileText,
   Flag,
   Layers3,
+  Link2,
   LockKeyhole,
   LogOut,
   Loader2,
@@ -17,7 +18,8 @@ import {
   Printer,
   ShieldAlert,
   Target,
-  TrendingUp
+  TrendingUp,
+  Users
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -26,6 +28,7 @@ import {
   clearStoredAuthToken,
   createAssessment,
   createAsset,
+  createCustomer,
   createFinding,
   createOrganization,
   getAssessmentReport,
@@ -33,6 +36,7 @@ import {
   getStoredAuthToken,
   listAssessments,
   listAssets,
+  listCustomers,
   listFindings,
   listOrganizations,
   login,
@@ -42,6 +46,7 @@ import type {
   Assessment,
   AssessmentReport,
   Asset,
+  Customer,
   DreadScoreCreate,
   Finding,
   FindingCreate,
@@ -51,7 +56,7 @@ import type {
 
 type DreadScoreKey = keyof DreadScoreCreate;
 type Feedback = { type: "success" | "error"; message: string } | null;
-type SavingTarget = "organization" | "assessment" | "asset" | "finding" | null;
+type SavingTarget = "customer" | "organization" | "assessment" | "asset" | "finding" | null;
 type ActiveView = "workspace" | "report";
 
 const initialDreadScore: DreadScoreCreate = {
@@ -107,13 +112,21 @@ function buildExecutiveSummary(report: AssessmentReport): string {
 }
 
 function App() {
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
   const [selectedAssessmentId, setSelectedAssessmentId] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerSlug, setCustomerSlug] = useState("");
+  const [customerContactName, setCustomerContactName] = useState("");
+  const [customerContactEmail, setCustomerContactEmail] = useState("");
+  const [customerStatus, setCustomerStatus] = useState("active");
+  const [customerNotes, setCustomerNotes] = useState("");
   const [organizationName, setOrganizationName] = useState("");
   const [organizationDescription, setOrganizationDescription] = useState("");
   const [assessmentTitle, setAssessmentTitle] = useState("");
@@ -137,9 +150,29 @@ function App() {
   const [activeView, setActiveView] = useState<ActiveView>("workspace");
   const [report, setReport] = useState<AssessmentReport | null>(null);
 
+  const customerById = useMemo(
+    () => new Map(customers.map((customer) => [customer.id, customer])),
+    [customers]
+  );
+  const selectedCustomer = useMemo(
+    () => customers.find((customer) => customer.id === selectedCustomerId),
+    [customers, selectedCustomerId]
+  );
+  const visibleOrganizations = useMemo(
+    () =>
+      selectedCustomerId
+        ? organizations.filter((organization) => organization.customer_id === selectedCustomerId)
+        : organizations,
+    [organizations, selectedCustomerId]
+  );
   const selectedOrganization = useMemo(
     () => organizations.find((organization) => organization.id === selectedOrganizationId),
     [organizations, selectedOrganizationId]
+  );
+  const selectedOrganizationCustomer = useMemo(
+    () =>
+      selectedOrganization?.customer_id ? customerById.get(selectedOrganization.customer_id) : null,
+    [customerById, selectedOrganization]
   );
   const organizationAssessments = useMemo(
     () => assessments.filter((assessment) => assessment.organization_id === selectedOrganizationId),
@@ -194,6 +227,7 @@ function App() {
     );
   }, [assessmentFindings]);
 
+  const canCreateCustomer = Boolean(customerName.trim() && customerSlug.trim());
   const canCreateAssessment = Boolean(selectedOrganizationId && assessmentTitle.trim());
   const canCreateAsset = Boolean(selectedOrganizationId && assetName.trim());
   const canCreateFinding = Boolean(selectedAssessmentId && findingTitle.trim());
@@ -203,10 +237,12 @@ function App() {
     setCurrentUser(null);
     setReport(null);
     setActiveView("workspace");
+    setCustomers([]);
     setOrganizations([]);
     setAssessments([]);
     setAssets([]);
     setFindings([]);
+    setSelectedCustomerId("");
     setSelectedOrganizationId("");
     setSelectedAssessmentId("");
     setSelectedAssetId("");
@@ -229,24 +265,55 @@ function App() {
   );
 
   const loadWorkspace = useCallback(
-    async (preferredOrganizationId?: string, preferredAssessmentId?: string) => {
+    async (
+      preferredCustomerId?: string,
+      preferredOrganizationId?: string,
+      preferredAssessmentId?: string
+    ) => {
       setIsLoading(true);
       try {
-        const [loadedOrganizations, loadedAssessments, loadedAssets, loadedFindings] =
-          await Promise.all([listOrganizations(), listAssessments(), listAssets(), listFindings()]);
+        const [
+          loadedCustomers,
+          loadedOrganizations,
+          loadedAssessments,
+          loadedAssets,
+          loadedFindings
+        ] = await Promise.all([
+          listCustomers(),
+          listOrganizations(),
+          listAssessments(),
+          listAssets(),
+          listFindings()
+        ]);
 
+        setCustomers(loadedCustomers);
         setOrganizations(loadedOrganizations);
         setAssessments(loadedAssessments);
         setAssets(loadedAssets);
         setFindings(loadedFindings);
 
-        const nextOrganizationId = preferredOrganizationId ?? loadedOrganizations[0]?.id ?? "";
+        const nextCustomerId = preferredCustomerId ?? selectedCustomerId;
+        const organizationOptions = nextCustomerId
+          ? loadedOrganizations.filter((organization) => organization.customer_id === nextCustomerId)
+          : loadedOrganizations;
+        const preferredOrganization = preferredOrganizationId
+          ? loadedOrganizations.find((organization) => organization.id === preferredOrganizationId)
+          : null;
+        const canUsePreferredOrganization =
+          preferredOrganization &&
+          (!nextCustomerId || preferredOrganization.customer_id === nextCustomerId);
+        const nextOrganizationId =
+          (canUsePreferredOrganization ? preferredOrganization.id : null) ??
+          organizationOptions[0]?.id ??
+          loadedOrganizations[0]?.id ??
+          "";
         const nextAssessmentId =
           preferredAssessmentId ??
           loadedAssessments.find((assessment) => assessment.organization_id === nextOrganizationId)
             ?.id ??
           "";
 
+        setSelectedCustomerId(nextCustomerId);
         setSelectedOrganizationId(nextOrganizationId);
         setSelectedAssessmentId(nextAssessmentId);
       } catch (loadError) {
@@ -255,7 +322,7 @@ function App() {
         setIsLoading(false);
       }
     },
-    [handleRequestError]
+    [handleRequestError, selectedCustomerId]
   );
 
   useEffect(() => {
@@ -282,6 +349,16 @@ function App() {
   }, [handleRequestError, loadWorkspace]);
 
   useEffect(() => {
+    if (!selectedCustomerId) {
+      return;
+    }
+
+    if (!visibleOrganizations.some((organization) => organization.id === selectedOrganizationId)) {
+      setSelectedOrganizationId(visibleOrganizations[0]?.id ?? "");
+    }
+  }, [selectedCustomerId, selectedOrganizationId, visibleOrganizations]);
+
+  useEffect(() => {
     if (!selectedOrganizationId) {
       setSelectedAssessmentId("");
       setSelectedAssetId("");
@@ -303,6 +380,39 @@ function App() {
     selectedOrganizationId
   ]);
 
+  async function handleCreateCustomer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canCreateCustomer) {
+      return;
+    }
+
+    setFeedback(null);
+    setSaving("customer");
+    try {
+      const customer = await createCustomer({
+        name: customerName.trim(),
+        slug: customerSlug.trim(),
+        contact_name: customerContactName.trim() || null,
+        contact_email: customerContactEmail.trim() || null,
+        status: customerStatus,
+        notes: customerNotes.trim() || null
+      });
+      setCustomerName("");
+      setCustomerSlug("");
+      setCustomerContactName("");
+      setCustomerContactEmail("");
+      setCustomerStatus("active");
+      setCustomerNotes("");
+      setSelectedCustomerId(customer.id);
+      setFeedback({ type: "success", message: "Customer aangemaakt." });
+      await loadWorkspace(customer.id);
+    } catch (submitError) {
+      handleRequestError(submitError);
+    } finally {
+      setSaving(null);
+    }
+  }
+
   async function handleCreateOrganization(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = organizationName.trim();
@@ -315,13 +425,14 @@ function App() {
     try {
       const organization = await createOrganization({
         name,
-        description: organizationDescription.trim() || null
+        description: organizationDescription.trim() || null,
+        customer_id: selectedCustomerId || null
       });
       setOrganizationName("");
       setOrganizationDescription("");
       setSelectedOrganizationId(organization.id);
       setFeedback({ type: "success", message: "Organisatie aangemaakt." });
-      await loadWorkspace(organization.id);
+      await loadWorkspace(selectedCustomerId, organization.id);
     } catch (submitError) {
       handleRequestError(submitError);
     } finally {
@@ -347,7 +458,7 @@ function App() {
       setAssessmentScope("");
       setSelectedAssessmentId(assessment.id);
       setFeedback({ type: "success", message: "Assessment aangemaakt." });
-      await loadWorkspace(selectedOrganizationId, assessment.id);
+      await loadWorkspace(selectedCustomerId, selectedOrganizationId, assessment.id);
     } catch (submitError) {
       handleRequestError(submitError);
     } finally {
@@ -375,7 +486,7 @@ function App() {
       setAssetIdentifier("");
       setSelectedAssetId(asset.id);
       setFeedback({ type: "success", message: "Asset toegevoegd." });
-      await loadWorkspace(selectedOrganizationId, selectedAssessmentId);
+      await loadWorkspace(selectedCustomerId, selectedOrganizationId, selectedAssessmentId);
       setSelectedAssetId(asset.id);
     } catch (submitError) {
       handleRequestError(submitError);
@@ -409,7 +520,7 @@ function App() {
       setFindingMitigation("");
       setDreadScore(initialDreadScore);
       setFeedback({ type: "success", message: "Finding toegevoegd en DREAD-score berekend." });
-      await loadWorkspace(selectedOrganizationId, selectedAssessmentId);
+      await loadWorkspace(selectedCustomerId, selectedOrganizationId, selectedAssessmentId);
     } catch (submitError) {
       handleRequestError(submitError);
     } finally {
@@ -494,6 +605,9 @@ function App() {
   const activeOrganizationLabel = isLoading
     ? "Data laden"
     : selectedOrganization?.name ?? "Geen organisatie geselecteerd";
+  const activeCustomerLabel = isLoading
+    ? "Data laden"
+    : selectedCustomer?.name ?? selectedOrganizationCustomer?.name ?? "Geen customer geselecteerd";
 
   if (isAuthLoading) {
     return (
@@ -850,6 +964,15 @@ function App() {
 
       <section className="summary-grid" aria-label="Assessment overzicht">
         <article className="metric-card">
+          <Users aria-hidden="true" />
+          <div className="metric-content">
+            <span className="metric-label">Actieve customer</span>
+            <strong className="metric-value" title={activeCustomerLabel}>
+              {activeCustomerLabel}
+            </strong>
+          </div>
+        </article>
+        <article className="metric-card">
           <Building2 aria-hidden="true" />
           <div className="metric-content">
             <span className="metric-label">Actieve organisatie</span>
@@ -900,6 +1023,117 @@ function App() {
 
       <section className="workflow-layout">
         <div className="setup-column">
+          <article className="panel compact-panel customer-panel">
+            <div className="panel-heading">
+              <span className="step-number">A</span>
+              <div>
+                <h2>Klantbeheer</h2>
+                <p>Customer hangt boven organizations en is alvast voorbereid voor klantbeheer.</p>
+              </div>
+            </div>
+
+            <form className="form-stack" onSubmit={handleCreateCustomer}>
+              <label>
+                Customernaam
+                <input
+                  value={customerName}
+                  onChange={(event) => setCustomerName(event.target.value)}
+                  placeholder="Demo Customer"
+                  required
+                />
+              </label>
+              <label>
+                Slug
+                <input
+                  value={customerSlug}
+                  onChange={(event) => setCustomerSlug(event.target.value)}
+                  placeholder="demo-customer"
+                  required
+                />
+              </label>
+              <div className="two-column-fields">
+                <label>
+                  Contactpersoon
+                  <input
+                    value={customerContactName}
+                    onChange={(event) => setCustomerContactName(event.target.value)}
+                    placeholder="Alex Admin"
+                  />
+                </label>
+                <label>
+                  Contact e-mail
+                  <input
+                    type="email"
+                    value={customerContactEmail}
+                    onChange={(event) => setCustomerContactEmail(event.target.value)}
+                    placeholder="alex@example.local"
+                  />
+                </label>
+              </div>
+              <label>
+                Status
+                <select
+                  value={customerStatus}
+                  onChange={(event) => setCustomerStatus(event.target.value)}
+                >
+                  <option value="active">Active</option>
+                  <option value="prospect">Prospect</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+              <label>
+                Notes
+                <textarea
+                  value={customerNotes}
+                  onChange={(event) => setCustomerNotes(event.target.value)}
+                  placeholder="Korte interne notitie"
+                  rows={3}
+                />
+              </label>
+              <button type="submit" disabled={!canCreateCustomer || saving === "customer"}>
+                <Plus aria-hidden="true" />
+                {renderButtonLabel("customer", "Customer aanmaken")}
+              </button>
+            </form>
+
+            <label className="selector">
+              Actieve customer
+              <select
+                value={selectedCustomerId}
+                onChange={(event) => setSelectedCustomerId(event.target.value)}
+                disabled={customers.length === 0}
+              >
+                <option value="">Geen actieve customer</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {customers.length === 0 ? (
+              <div className="mini-empty-state">Nog geen customers. Maak de eerste customer aan.</div>
+            ) : (
+              <div className="customer-list" aria-label="Customer overzicht">
+                {customers.map((customer) => (
+                  <article
+                    className={`customer-list-item ${
+                      customer.id === selectedCustomerId ? "active" : ""
+                    }`}
+                    key={customer.id}
+                  >
+                    <div>
+                      <strong title={customer.name}>{customer.name}</strong>
+                      <span>{customer.slug}</span>
+                    </div>
+                    <em>{customer.status}</em>
+                  </article>
+                ))}
+              </div>
+            )}
+          </article>
+
           <article className="panel compact-panel">
             <div className="panel-heading">
               <span className="step-number">1</span>
@@ -908,6 +1142,13 @@ function App() {
                 <p>Kies een bestaande organisatie of maak een nieuwe aan.</p>
               </div>
             </div>
+
+            {selectedCustomer && (
+              <div className="helper-note">
+                <Link2 aria-hidden="true" />
+                Nieuwe organisaties worden gekoppeld aan {selectedCustomer.name}.
+              </div>
+            )}
 
             <form className="form-stack" onSubmit={handleCreateOrganization}>
               <label>
@@ -939,16 +1180,32 @@ function App() {
               <select
                 value={selectedOrganizationId}
                 onChange={(event) => setSelectedOrganizationId(event.target.value)}
-                disabled={organizations.length === 0}
+                disabled={visibleOrganizations.length === 0}
               >
                 <option value="">Selecteer organisatie</option>
-                {organizations.map((organization) => (
+                {visibleOrganizations.map((organization) => (
                   <option key={organization.id} value={organization.id}>
                     {organization.name}
                   </option>
                 ))}
               </select>
             </label>
+
+            {selectedCustomerId && visibleOrganizations.length === 0 && (
+              <div className="mini-empty-state">
+                Deze customer heeft nog geen gekoppelde organizations.
+              </div>
+            )}
+
+            {selectedOrganization && (
+              <div className="linked-customer-note">
+                <Link2 aria-hidden="true" />
+                <span>
+                  Gekoppelde customer:{" "}
+                  <strong>{selectedOrganizationCustomer?.name ?? "geen customer gekoppeld"}</strong>
+                </span>
+              </div>
+            )}
           </article>
 
           <article className="panel compact-panel">

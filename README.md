@@ -99,6 +99,19 @@ De belangrijkste URLs zijn:
 
 Log lokaal in met de development login hierboven.
 
+## Customer foundation
+
+Een Customer is de bovenliggende klantlaag voor toekomstig klantbeheer. Organizations kunnen
+optioneel aan een Customer gekoppeld worden. Na `make db-upgrade` bestaat lokaal ook een demo
+customer:
+
+- Name: `Demo Customer`
+- Slug: `demo-customer`
+- Status: `active`
+
+Dit is alleen een eerste foundation. Het is nog geen volledige tenant-isolatie, billing,
+abonnementenbeheer of productieklantbeheer.
+
 ## Tests en checks
 
 Backend:

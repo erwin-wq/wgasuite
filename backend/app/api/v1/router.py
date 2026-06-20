@@ -9,10 +9,11 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.models import Assessment, Asset, DreadScore, Finding, Organization, User
+from app.models import Assessment, Asset, Customer, DreadScore, Finding, Organization, User
 from app.schemas.assessment import AssessmentCreate, AssessmentRead
 from app.schemas.asset import AssetCreate, AssetRead
 from app.schemas.auth import LoginRequest, TokenResponse, UserRead
+from app.schemas.customer import CustomerCreate, CustomerRead, CustomerUpdate
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
 from app.schemas.organization import OrganizationCreate, OrganizationRead
 from app.schemas.report import AssessmentReportRead, RiskLevelCounts
@@ -23,6 +24,16 @@ from app.services.tokens import encode_access_token
 api_router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def get_customer_or_404(db: Session, customer_id: UUID) -> Customer:
+    customer = db.get(Customer, customer_id)
+    if customer is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer not found.",
+        )
+    return customer
 
 
 def get_organization_or_404(db: Session, organization_id: UUID) -> Organization:
@@ -131,6 +142,83 @@ def get_me(current_user: CurrentUser) -> User:
 
 
 @api_router.post(
+    "/customers",
+    response_model=CustomerRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["customers"],
+    dependencies=[Depends(get_current_user)],
+)
+def create_customer(
+    payload: CustomerCreate,
+    db: DbSession,
+) -> Customer:
+    existing = db.scalar(select(Customer).where(Customer.slug == payload.slug))
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Customer with this slug already exists.",
+        )
+
+    customer = Customer(**payload.model_dump())
+    db.add(customer)
+    db.commit()
+    db.refresh(customer)
+    return customer
+
+
+@api_router.get(
+    "/customers",
+    response_model=list[CustomerRead],
+    tags=["customers"],
+    dependencies=[Depends(get_current_user)],
+)
+def list_customers(db: DbSession) -> list[Customer]:
+    statement = select(Customer).order_by(Customer.created_at.desc())
+    return list(db.scalars(statement).all())
+
+
+@api_router.get(
+    "/customers/{customer_id}",
+    response_model=CustomerRead,
+    tags=["customers"],
+    dependencies=[Depends(get_current_user)],
+)
+def get_customer(customer_id: UUID, db: DbSession) -> Customer:
+    return get_customer_or_404(db, customer_id)
+
+
+@api_router.patch(
+    "/customers/{customer_id}",
+    response_model=CustomerRead,
+    tags=["customers"],
+    dependencies=[Depends(get_current_user)],
+)
+def update_customer(
+    customer_id: UUID,
+    payload: CustomerUpdate,
+    db: DbSession,
+) -> Customer:
+    customer = get_customer_or_404(db, customer_id)
+    update_data = payload.model_dump(exclude_unset=True)
+
+    if "slug" in update_data and update_data["slug"] != customer.slug:
+        existing = db.scalar(select(Customer).where(Customer.slug == update_data["slug"]))
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Customer with this slug already exists.",
+            )
+
+    for field, value in update_data.items():
+        setattr(customer, field, value)
+
+    db.add(customer)
+    db.commit()
+    db.refresh(customer)
+    return customer
+
+
+@api_router.post(
     "/organizations",
     response_model=OrganizationRead,
     status_code=status.HTTP_201_CREATED,
@@ -141,6 +229,9 @@ def create_organization(
     payload: OrganizationCreate,
     db: DbSession,
 ) -> Organization:
+    if payload.customer_id is not None:
+        get_customer_or_404(db, payload.customer_id)
+
     existing = db.scalar(select(Organization).where(Organization.name == payload.name))
     if existing:
         raise HTTPException(

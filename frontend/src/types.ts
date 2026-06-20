@@ -1,7 +1,20 @@
 export interface Organization {
   id: string;
+  customer_id: string | null;
   name: string;
   description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  slug: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  status: "active" | "inactive" | "prospect" | string;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -93,7 +106,12 @@ export interface TokenResponse {
   token_type: "bearer";
 }
 
-export type OrganizationCreate = Pick<Organization, "name" | "description">;
+export type OrganizationCreate = Pick<Organization, "name" | "description" | "customer_id">;
+
+export type CustomerCreate = Pick<
+  Customer,
+  "name" | "slug" | "contact_name" | "contact_email" | "status" | "notes"
+>;
 
 export interface AssessmentCreate {
   organization_id: string;

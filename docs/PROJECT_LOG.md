@@ -673,3 +673,86 @@ Ik heb branch `feature/auth-foundation` aangemaakt vanaf `main` en een eerste au
 De frontend heeft nu een development login scherm, tokenopslag in `localStorage`, Authorization headers in de API client, sessie-herstel via `/auth/me`, logout, terugval naar login bij 401 en weergave van de ingelogde gebruiker in de header. De smoke test logt nu eerst in en gebruikt daarna de bearer token. README documenteert de demo login en vermeldt dat dit MVP/dev auth is en productie hardening later nodig heeft.
 
 Uitgevoerde checks: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `git diff --check`, `docker compose ps`, `curl -I http://localhost:5173` en `curl -I http://localhost:8000/docs`. Alles is geslaagd. Backend tests: 23 passed met de bekende niet-blokkerende `TestClient` warning. Er is niet gecommit en niet gepusht.
+
+## 2026-06-20 12:45 - Customer admin foundation
+
+### Opdracht
+
+Bouw een eerste Customer/Admin foundation voor de DREAD Risk Assessment Tool. Start vanaf `main`, maak branch `feature/customer-admin-foundation`, voeg een Customer model en protected customer endpoints toe, koppel organizations optioneel aan customers, voeg backend tests en een simpele frontend customer/admin UI toe, werk README en projectlogboek bij, valideer lokaal met Docker en stop zonder commit of push.
+
+### Uitgevoerd
+
+Branch `feature/customer-admin-foundation` is aangemaakt vanaf up-to-date `main`. De bestaande backend/frontend structuur, auth implementatie, migrations, tests, API client en App-opbouw zijn geïnspecteerd.
+
+Backend: er is een `Customer` model toegevoegd met naam, slug, contactgegevens, status, notes en timestamps. `Organization` heeft nu een nullable `customer_id`, zodat bestaande organisaties zonder customer blijven werken. Er zijn protected customer endpoints toegevoegd voor aanmaken, lijst, detail en patch/update. `POST /api/v1/organizations` accepteert nu optioneel `customer_id` en organization responses geven `customer_id` terug.
+
+Database: er is een Alembic migratie `0004_customer_admin_foundation` toegevoegd. Deze maakt de `customers` tabel, voegt de nullable `organizations.customer_id` foreign key toe en seedt een veilige development/demo customer `Demo Customer` met slug `demo-customer`.
+
+Frontend: de API types en client ondersteunen customers. De app heeft nu een compacte sectie `Klantbeheer` met customer aanmaken, actieve customer selectie en customer overzicht. Bij organization aanmaken wordt optioneel de actieve customer gekoppeld. De actieve organization toont welke customer gekoppeld is. De bestaande login, assessment, finding en rapportage workflow blijft intact.
+
+Smoke test: `scripts/dev/smoke_api.sh` maakt nu na login eerst een customer aan en koppelt daarna de smoke organization aan die customer.
+
+README: er is een korte uitleg toegevoegd over Customer als toekomstige klantbeheerlaag. Er staat expliciet dat dit nog geen volledige tenant-isolatie, billing of productieklantbeheer is.
+
+### Aangepaste bestanden
+
+- `README.md`
+- `backend/alembic/versions/0004_customer_admin_foundation.py`
+- `backend/app/api/v1/router.py`
+- `backend/app/db/base.py`
+- `backend/app/models/__init__.py`
+- `backend/app/models/customer.py`
+- `backend/app/models/organization.py`
+- `backend/app/schemas/customer.py`
+- `backend/app/schemas/organization.py`
+- `backend/tests/test_customer_admin.py`
+- `frontend/src/App.tsx`
+- `frontend/src/api/client.ts`
+- `frontend/src/app.css`
+- `frontend/src/types.ts`
+- `scripts/dev/smoke_api.sh`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `git status --short --branch`: uitgevoerd, startstatus was schoon op `main`
+- `git branch --show-current`: uitgevoerd
+- `git remote -v`: uitgevoerd, GitLab origin bestaat
+- `git log --oneline --decorate -5`: uitgevoerd
+- `make check-env`: geslaagd
+- `git switch main`: geslaagd
+- `git pull --ff-only origin main`: geslaagd, al up-to-date
+- `git switch -c feature/customer-admin-foundation`: geslaagd
+- `make docker-up`: geslaagd, backend en frontend images gebouwd en containers gestart
+- `make db-upgrade`: geslaagd, migratie `0004_customer_admin_foundation` toegepast
+- `make smoke-api`: geslaagd met login, customer, organization, assessment, asset, finding en DREAD patch
+- `make backend-checks`: geslaagd met 30 backend tests
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `git diff --check`: geslaagd
+- `docker compose ps`: uitgevoerd, backend/frontend/postgres draaien
+- `curl http://localhost:5173`: HTTP 200
+- `curl http://localhost:8000/docs`: HTTP 200
+
+### Resultaat
+
+Gelukt. De applicatie heeft nu een eerste customer/admin foundation met protected customer API, optionele organization-customer koppeling, backend tests, smoke test dekking en een eenvoudige customerbeheer UI.
+
+### Problemen / beperkingen
+
+- Dit is een foundation voor klantbeheer, geen volledige multi-tenant isolatie.
+- Er is nog geen billing, klantrollenmodel, tenant policy enforcement of audit logging toegevoegd.
+- Backend tests tonen nog de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning.
+- Er is niet gecommit en niet gepusht, volgens opdracht.
+
+### Volgende aanbevolen stap
+
+Review de customer workflow handmatig in de browser: log in, maak een customer aan, selecteer deze customer, maak een organization aan en controleer dat de organization de gekoppelde customer toont.
+
+### Volledige Codex samenvatting
+
+Ik heb branch `feature/customer-admin-foundation` aangemaakt vanaf `main` en een eerste Customer/Admin foundation gebouwd. Backend heeft nu een `Customer` model, schemas, protected endpoints `POST /api/v1/customers`, `GET /api/v1/customers`, `GET /api/v1/customers/{customer_id}` en `PATCH /api/v1/customers/{customer_id}`. `Organization` heeft een nullable `customer_id`, `POST /api/v1/organizations` accepteert optioneel `customer_id`, en organization responses bevatten dit veld. De Alembic migration `0004_customer_admin_foundation` maakt de customers tabel, voegt de organization foreign key toe en seedt een dev/demo customer `Demo Customer`.
+
+De frontend heeft nu een eenvoudige `Klantbeheer` sectie met customer-formulier, actieve customer selectie en customer overzicht. Bij organization aanmaken wordt de actieve customer optioneel gekoppeld en de actieve organization toont de gekoppelde customer. README beschrijft Customer als toekomstige klantbeheerlaag en vermeldt duidelijk dat dit nog geen volledige tenant-isolatie of billing is. De API smoke test maakt nu ook een customer aan en koppelt de smoke organization daaraan.
+
+Uitgevoerde checks: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `git diff --check`, `docker compose ps`, bereikbaarheid van `http://localhost:5173` en `http://localhost:8000/docs`. Alles is geslaagd. Backend tests: 30 passed met de bekende niet-blokkerende `TestClient` warning. Containers draaien: backend, frontend en postgres. Er is niet gecommit en niet gepusht.
