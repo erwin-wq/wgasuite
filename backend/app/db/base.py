@@ -1,4 +1,4 @@
-from app.models import Assessment, Asset, ConnectorAccount, DreadScore, Finding, Organization
+from app.models import Assessment, Asset, ConnectorAccount, DreadScore, Finding, Organization, User
 from app.models.base import Base
 
 __all__ = [
@@ -9,4 +9,5 @@ __all__ = [
     "DreadScore",
     "Finding",
     "Organization",
+    "User",
 ]

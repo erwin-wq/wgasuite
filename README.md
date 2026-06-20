@@ -31,6 +31,18 @@ Open daarna:
 - API health: http://localhost:8000/health
 - API docs: http://localhost:8000/docs
 
+## Development login
+
+De MVP heeft een eerste dev-only auth foundation. Na `make db-upgrade` bestaat er lokaal een demo admin gebruiker:
+
+- Email: `admin@example.local`
+- Password: `ChangeMe123!`
+- Role: `admin`
+
+Dit account is alleen bedoeld voor lokale development en demo's. Gebruik deze gegevens niet voor productie of echte klantdata. De auth foundation gebruikt een bearer token en `AUTH_SECRET_KEY` uit environment variables. `.env.example` bevat alleen een veilige placeholder; zet echte secrets nooit in git.
+
+Productie hardening volgt later, zoals secret rotation, sterker accountbeheer, password reset, rate limiting, audit logging, session policies en eventueel externe identity providers.
+
 ## Project lokaal starten
 
 Dit is de korte route om lokaal te controleren of alles werkt.
@@ -84,6 +96,8 @@ De belangrijkste URLs zijn:
 - Frontend: http://localhost:5173
 - API health: http://localhost:8000/health
 - API docs: http://localhost:8000/docs
+
+Log lokaal in met de development login hierboven.
 
 ## Tests en checks
 

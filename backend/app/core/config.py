@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     )
     backend_cors_origins: str = "http://localhost:5173"
     google_workspace_connector_enabled: bool = False
+    auth_secret_key: str = "dev-only-auth-secret-change-me"
+    auth_token_expires_minutes: int = 480
 
     @property
     def cors_origins(self) -> list[str]:

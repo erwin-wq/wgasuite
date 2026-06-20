@@ -265,6 +265,13 @@ h3 {
   padding: var(--space-5);
 }
 
+.hero-side {
+  align-self: stretch;
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
 .hero-status svg {
   background: rgba(142, 246, 221, 0.16);
   border-radius: var(--radius-sm);
@@ -282,6 +289,40 @@ h3 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.user-session {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md);
+  color: #fff;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: var(--space-5);
+}
+
+.user-session span,
+.user-session em {
+  color: #d5e1ea;
+  display: block;
+  font-size: var(--font-size-xs);
+  font-style: normal;
+  font-weight: 760;
+}
+
+.user-session strong {
+  display: block;
+  font-size: var(--font-size-md);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-session .secondary-button {
+  background: rgba(255, 255, 255, 0.95);
+  min-height: 2.8rem;
 }
 
 .message {
@@ -310,6 +351,76 @@ h3 {
 .message.success {
   background: #effdf8;
   color: #166534;
+}
+
+.login-shell {
+  align-items: center;
+  display: grid;
+  min-height: 100vh;
+}
+
+.login-panel {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: var(--space-5);
+  margin: 0 auto;
+  max-width: 34rem;
+  padding: clamp(1.75rem, 4vw, 3rem);
+  width: 100%;
+}
+
+.login-panel > svg {
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-md);
+  color: var(--color-primary);
+  height: 3.2rem;
+  padding: 0.75rem;
+  width: 3.2rem;
+}
+
+.login-panel h1 {
+  font-size: clamp(2.25rem, 5vw, 3.4rem);
+}
+
+.login-panel p {
+  color: var(--color-ink-muted);
+  font-size: var(--font-size-md);
+}
+
+.login-form {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.demo-credentials {
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-md);
+  color: var(--color-ink-muted);
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: var(--space-5);
+}
+
+.demo-credentials span {
+  font-size: var(--font-size-sm);
+  font-weight: 760;
+}
+
+.demo-credentials strong {
+  color: var(--color-ink);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.login-loading {
+  align-items: center;
+  color: var(--color-ink-muted);
+  display: inline-flex;
+  font-weight: 820;
+  gap: var(--space-3);
 }
 
 .summary-grid {
@@ -1162,6 +1273,10 @@ h3 {
   .hero-status {
     max-width: none;
     width: 100%;
+  }
+
+  .user-session {
+    grid-template-columns: 1fr;
   }
 
   .composer-panel,

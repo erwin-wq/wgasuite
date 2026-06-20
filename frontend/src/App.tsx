@@ -10,6 +10,8 @@ import {
   FileText,
   Flag,
   Layers3,
+  LockKeyhole,
+  LogOut,
   Loader2,
   Plus,
   Printer,
@@ -20,15 +22,21 @@ import {
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  ApiError,
+  clearStoredAuthToken,
   createAssessment,
   createAsset,
   createFinding,
   createOrganization,
   getAssessmentReport,
+  getCurrentUser,
+  getStoredAuthToken,
   listAssessments,
   listAssets,
   listFindings,
-  listOrganizations
+  listOrganizations,
+  login,
+  setStoredAuthToken
 } from "./api/client";
 import type {
   Assessment,
@@ -37,7 +45,8 @@ import type {
   DreadScoreCreate,
   Finding,
   FindingCreate,
-  Organization
+  Organization,
+  User
 } from "./types";
 
 type DreadScoreKey = keyof DreadScoreCreate;
@@ -116,8 +125,13 @@ function App() {
   const [findingDescription, setFindingDescription] = useState("");
   const [findingMitigation, setFindingMitigation] = useState("");
   const [dreadScore, setDreadScore] = useState<DreadScoreCreate>(initialDreadScore);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loginEmail, setLoginEmail] = useState("admin@example.local");
+  const [loginPassword, setLoginPassword] = useState("ChangeMe123!");
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isLoginSaving, setIsLoginSaving] = useState(false);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [saving, setSaving] = useState<SavingTarget>(null);
   const [activeView, setActiveView] = useState<ActiveView>("workspace");
@@ -184,6 +198,36 @@ function App() {
   const canCreateAsset = Boolean(selectedOrganizationId && assetName.trim());
   const canCreateFinding = Boolean(selectedAssessmentId && findingTitle.trim());
 
+  const resetSession = useCallback((message?: string) => {
+    clearStoredAuthToken();
+    setCurrentUser(null);
+    setReport(null);
+    setActiveView("workspace");
+    setOrganizations([]);
+    setAssessments([]);
+    setAssets([]);
+    setFindings([]);
+    setSelectedOrganizationId("");
+    setSelectedAssessmentId("");
+    setSelectedAssetId("");
+    setIsLoading(false);
+    if (message) {
+      setFeedback({ type: "error", message });
+    }
+  }, []);
+
+  const handleRequestError = useCallback(
+    (error: unknown) => {
+      if (error instanceof ApiError && error.status === 401) {
+        resetSession("Sessie verlopen of ongeldig. Log opnieuw in.");
+        return;
+      }
+
+      setFeedback({ type: "error", message: (error as Error).message });
+    },
+    [resetSession]
+  );
+
   const loadWorkspace = useCallback(
     async (preferredOrganizationId?: string, preferredAssessmentId?: string) => {
       setIsLoading(true);
@@ -206,20 +250,36 @@ function App() {
         setSelectedOrganizationId(nextOrganizationId);
         setSelectedAssessmentId(nextAssessmentId);
       } catch (loadError) {
-        setFeedback({
-          type: "error",
-          message: `Backend data laden is mislukt: ${(loadError as Error).message}`
-        });
+        handleRequestError(loadError);
       } finally {
         setIsLoading(false);
       }
     },
-    []
+    [handleRequestError]
   );
 
   useEffect(() => {
-    loadWorkspace();
-  }, [loadWorkspace]);
+    async function restoreSession() {
+      const token = getStoredAuthToken();
+      if (!token) {
+        setIsAuthLoading(false);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const user = await getCurrentUser();
+        setCurrentUser(user);
+        await loadWorkspace();
+      } catch (authError) {
+        handleRequestError(authError);
+      } finally {
+        setIsAuthLoading(false);
+      }
+    }
+
+    restoreSession();
+  }, [handleRequestError, loadWorkspace]);
 
   useEffect(() => {
     if (!selectedOrganizationId) {
@@ -263,7 +323,7 @@ function App() {
       setFeedback({ type: "success", message: "Organisatie aangemaakt." });
       await loadWorkspace(organization.id);
     } catch (submitError) {
-      setFeedback({ type: "error", message: (submitError as Error).message });
+      handleRequestError(submitError);
     } finally {
       setSaving(null);
     }
@@ -289,7 +349,7 @@ function App() {
       setFeedback({ type: "success", message: "Assessment aangemaakt." });
       await loadWorkspace(selectedOrganizationId, assessment.id);
     } catch (submitError) {
-      setFeedback({ type: "error", message: (submitError as Error).message });
+      handleRequestError(submitError);
     } finally {
       setSaving(null);
     }
@@ -318,7 +378,7 @@ function App() {
       await loadWorkspace(selectedOrganizationId, selectedAssessmentId);
       setSelectedAssetId(asset.id);
     } catch (submitError) {
-      setFeedback({ type: "error", message: (submitError as Error).message });
+      handleRequestError(submitError);
     } finally {
       setSaving(null);
     }
@@ -351,7 +411,7 @@ function App() {
       setFeedback({ type: "success", message: "Finding toegevoegd en DREAD-score berekend." });
       await loadWorkspace(selectedOrganizationId, selectedAssessmentId);
     } catch (submitError) {
-      setFeedback({ type: "error", message: (submitError as Error).message });
+      handleRequestError(submitError);
     } finally {
       setSaving(null);
     }
@@ -374,6 +434,37 @@ function App() {
     );
   }
 
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setFeedback(null);
+    setIsLoginSaving(true);
+    try {
+      const tokenResponse = await login({
+        email: loginEmail.trim(),
+        password: loginPassword
+      });
+      setStoredAuthToken(tokenResponse.access_token);
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+      setFeedback({ type: "success", message: "Ingelogd." });
+      await loadWorkspace();
+    } catch (loginError) {
+      clearStoredAuthToken();
+      setCurrentUser(null);
+      setFeedback({ type: "error", message: (loginError as Error).message });
+    } finally {
+      setIsLoginSaving(false);
+      setIsAuthLoading(false);
+    }
+  }
+
+  function handleLogout(message = "Uitgelogd.") {
+    resetSession();
+    setLoginPassword("ChangeMe123!");
+    setFeedback({ type: "success", message });
+  }
+
   async function handleOpenReport() {
     if (!selectedAssessmentId) {
       return;
@@ -386,7 +477,7 @@ function App() {
       setReport(loadedReport);
       setActiveView("report");
     } catch (reportError) {
-      setFeedback({ type: "error", message: (reportError as Error).message });
+      handleRequestError(reportError);
     } finally {
       setIsReportLoading(false);
     }
@@ -403,6 +494,88 @@ function App() {
   const activeOrganizationLabel = isLoading
     ? "Data laden"
     : selectedOrganization?.name ?? "Geen organisatie geselecteerd";
+
+  if (isAuthLoading) {
+    return (
+      <main className="app-shell login-shell">
+        <section className="login-panel">
+          <LockKeyhole aria-hidden="true" />
+          <h1>DREAD Risk Assessment</h1>
+          <p>Authenticatie controleren.</p>
+          <div className="login-loading">
+            <Loader2 className="spin" aria-hidden="true" />
+            Sessie laden
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <main className="app-shell login-shell">
+        <section className="login-panel">
+          <LockKeyhole aria-hidden="true" />
+          <span className="eyebrow">Development login</span>
+          <h1>DREAD Risk Assessment</h1>
+          <p>
+            Gebruik de lokale demo admin om de MVP auth foundation te testen. Dit is geen
+            productie-authenticatie.
+          </p>
+
+          {feedback && (
+            <section className={`message ${feedback.type}`} aria-live="polite">
+              {feedback.type === "error" ? (
+                <AlertCircle aria-hidden="true" />
+              ) : (
+                <CheckCircle2 aria-hidden="true" />
+              )}
+              <span>{feedback.message}</span>
+            </section>
+          )}
+
+          <form className="login-form" onSubmit={handleLogin}>
+            <label>
+              Email
+              <input
+                value={loginEmail}
+                onChange={(event) => setLoginEmail(event.target.value)}
+                placeholder="admin@example.local"
+                autoComplete="username"
+                required
+              />
+            </label>
+            <label>
+              Password
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                placeholder="ChangeMe123!"
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            <button type="submit" disabled={!loginEmail.trim() || !loginPassword || isLoginSaving}>
+              {isLoginSaving ? (
+                <Loader2 className="spin" aria-hidden="true" />
+              ) : (
+                <LockKeyhole aria-hidden="true" />
+              )}
+              Inloggen
+            </button>
+          </form>
+
+          <div className="demo-credentials">
+            <span>Demo user</span>
+            <strong>admin@example.local</strong>
+            <span>Demo password</span>
+            <strong>ChangeMe123!</strong>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   if (activeView === "report") {
     return (
@@ -643,11 +816,24 @@ function App() {
             Leg organisaties, assessments, assets en findings vast met een consistente DREAD-score.
           </p>
         </div>
-        <div className="hero-status" aria-live="polite">
-          <BadgeCheck aria-hidden="true" />
-          <span className="hero-status-name" title={activeOrganizationLabel}>
-            {activeOrganizationLabel}
-          </span>
+        <div className="hero-side">
+          <div className="hero-status" aria-live="polite">
+            <BadgeCheck aria-hidden="true" />
+            <span className="hero-status-name" title={activeOrganizationLabel}>
+              {activeOrganizationLabel}
+            </span>
+          </div>
+          <div className="user-session">
+            <div>
+              <span>Ingelogd als</span>
+              <strong>{currentUser.full_name}</strong>
+              <em>{currentUser.role}</em>
+            </div>
+            <button type="button" className="secondary-button" onClick={() => handleLogout()}>
+              <LogOut aria-hidden="true" />
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 

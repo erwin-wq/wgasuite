@@ -1,47 +1,17 @@
-from collections.abc import Generator
 from uuid import uuid4
 
-import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from app.db.base import Base
-from app.db.session import get_db
-from app.main import app
 
 
-@pytest.fixture
-def client() -> Generator[TestClient]:
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    Base.metadata.create_all(bind=engine)
-
-    def override_get_db() -> Generator[Session]:
-        db = testing_session_local()
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app.dependency_overrides[get_db] = override_get_db
-
-    with TestClient(app) as test_client:
-        yield test_client
-
-    app.dependency_overrides.clear()
-    Base.metadata.drop_all(bind=engine)
-
-
-def create_organization(client: TestClient, name: str = "Acme Security") -> dict:
+def create_organization(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    name: str = "Acme Security",
+) -> dict:
     response = client.post(
         "/api/v1/organizations",
         json={"name": name, "description": "Internal security team"},
+        headers=auth_headers,
     )
     assert response.status_code == 201
     return response.json()
@@ -49,6 +19,7 @@ def create_organization(client: TestClient, name: str = "Acme Security") -> dict
 
 def create_assessment(
     client: TestClient,
+    auth_headers: dict[str, str],
     organization_id: str,
     title: str = "Identity review",
 ) -> dict:
@@ -59,12 +30,18 @@ def create_assessment(
             "title": title,
             "scope_summary": "Identity and SaaS controls",
         },
+        headers=auth_headers,
     )
     assert response.status_code == 201
     return response.json()
 
 
-def create_asset(client: TestClient, organization_id: str, name: str) -> dict:
+def create_asset(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    organization_id: str,
+    name: str,
+) -> dict:
     response = client.post(
         "/api/v1/assets",
         json={
@@ -74,6 +51,7 @@ def create_asset(client: TestClient, organization_id: str, name: str) -> dict:
             "identifier": name.lower().replace(" ", "-"),
             "description": None,
         },
+        headers=auth_headers,
     )
     assert response.status_code == 201
     return response.json()
@@ -81,6 +59,7 @@ def create_asset(client: TestClient, organization_id: str, name: str) -> dict:
 
 def create_finding(
     client: TestClient,
+    auth_headers: dict[str, str],
     assessment_id: str,
     title: str,
     score_value: int,
@@ -103,20 +82,25 @@ def create_finding(
                 "discoverability": score_value,
             },
         },
+        headers=auth_headers,
     )
     assert response.status_code == 201
     return response.json()
 
 
-def test_report_endpoint_returns_context_assets_and_multiple_findings(client: TestClient) -> None:
-    organization = create_organization(client)
-    assessment = create_assessment(client, organization["id"])
-    workspace_asset = create_asset(client, organization["id"], "Google Workspace")
-    identity_asset = create_asset(client, organization["id"], "Identity Provider")
-    unused_asset = create_asset(client, organization["id"], "Unused Asset")
+def test_report_endpoint_returns_context_assets_and_multiple_findings(
+    client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    organization = create_organization(client, auth_headers)
+    assessment = create_assessment(client, auth_headers, organization["id"])
+    workspace_asset = create_asset(client, auth_headers, organization["id"], "Google Workspace")
+    identity_asset = create_asset(client, auth_headers, organization["id"], "Identity Provider")
+    unused_asset = create_asset(client, auth_headers, organization["id"], "Unused Asset")
 
     low_finding = create_finding(
         client,
+        auth_headers,
         assessment["id"],
         "Low finding",
         2,
@@ -124,6 +108,7 @@ def test_report_endpoint_returns_context_assets_and_multiple_findings(client: Te
     )
     medium_finding = create_finding(
         client,
+        auth_headers,
         assessment["id"],
         "Medium finding",
         4,
@@ -131,6 +116,7 @@ def test_report_endpoint_returns_context_assets_and_multiple_findings(client: Te
     )
     high_finding = create_finding(
         client,
+        auth_headers,
         assessment["id"],
         "High finding",
         6,
@@ -138,13 +124,14 @@ def test_report_endpoint_returns_context_assets_and_multiple_findings(client: Te
     )
     critical_finding = create_finding(
         client,
+        auth_headers,
         assessment["id"],
         "Critical finding",
         8,
         identity_asset["id"],
     )
 
-    response = client.get(f"/api/v1/assessments/{assessment['id']}/report")
+    response = client.get(f"/api/v1/assessments/{assessment['id']}/report", headers=auth_headers)
 
     assert response.status_code == 200
     report = response.json()
@@ -165,16 +152,19 @@ def test_report_endpoint_returns_context_assets_and_multiple_findings(client: Te
     }
 
 
-def test_report_summary_counts_average_and_highest_score_are_correct(client: TestClient) -> None:
-    organization = create_organization(client, "Risk Summary Org")
-    assessment = create_assessment(client, organization["id"], "Summary assessment")
+def test_report_summary_counts_average_and_highest_score_are_correct(
+    client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    organization = create_organization(client, auth_headers, "Risk Summary Org")
+    assessment = create_assessment(client, auth_headers, organization["id"], "Summary assessment")
 
-    create_finding(client, assessment["id"], "Low finding", 2)
-    create_finding(client, assessment["id"], "Medium finding", 4)
-    create_finding(client, assessment["id"], "High finding", 6)
-    create_finding(client, assessment["id"], "Critical finding", 8)
+    create_finding(client, auth_headers, assessment["id"], "Low finding", 2)
+    create_finding(client, auth_headers, assessment["id"], "Medium finding", 4)
+    create_finding(client, auth_headers, assessment["id"], "High finding", 6)
+    create_finding(client, auth_headers, assessment["id"], "Critical finding", 8)
 
-    response = client.get(f"/api/v1/assessments/{assessment['id']}/report")
+    response = client.get(f"/api/v1/assessments/{assessment['id']}/report", headers=auth_headers)
 
     assert response.status_code == 200
     report = response.json()
@@ -189,11 +179,14 @@ def test_report_summary_counts_average_and_highest_score_are_correct(client: Tes
     assert report["highest_risk_level"] == "Critical"
 
 
-def test_report_works_for_empty_assessment(client: TestClient) -> None:
-    organization = create_organization(client, "Empty Report Org")
-    assessment = create_assessment(client, organization["id"], "Empty assessment")
+def test_report_works_for_empty_assessment(
+    client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    organization = create_organization(client, auth_headers, "Empty Report Org")
+    assessment = create_assessment(client, auth_headers, organization["id"], "Empty assessment")
 
-    response = client.get(f"/api/v1/assessments/{assessment['id']}/report")
+    response = client.get(f"/api/v1/assessments/{assessment['id']}/report", headers=auth_headers)
 
     assert response.status_code == 200
     report = response.json()
@@ -211,8 +204,14 @@ def test_report_works_for_empty_assessment(client: TestClient) -> None:
     assert report["highest_risk_level"] is None
 
 
-def test_report_returns_404_for_unknown_assessment(client: TestClient) -> None:
-    response = client.get(f"/api/v1/assessments/{uuid4()}/report")
+def test_report_returns_404_for_unknown_assessment(
+    client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    response = client.get(
+        f"/api/v1/assessments/{uuid4()}/report",
+        headers=auth_headers,
+    )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Assessment not found."

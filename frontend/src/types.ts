@@ -6,6 +6,15 @@ export interface Organization {
   updated_at: string;
 }
 
+export interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  role: "admin" | "assessor" | "viewer" | string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface Assessment {
   id: string;
   organization_id: string;
@@ -72,6 +81,16 @@ export interface AssessmentReport {
   average_score: number | null;
   highest_score: number | null;
   highest_risk_level: DreadScore["risk_level"] | null;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: "bearer";
 }
 
 export type OrganizationCreate = Pick<Organization, "name" | "description">;

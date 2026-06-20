@@ -2,6 +2,9 @@
 set -eu
 
 API_BASE_URL="${API_BASE_URL:-http://localhost:8000}"
+SMOKE_API_EMAIL="${SMOKE_API_EMAIL:-admin@example.local}"
+SMOKE_API_PASSWORD="${SMOKE_API_PASSWORD:-ChangeMe123!}"
+AUTH_TOKEN=""
 
 if ! command -v curl >/dev/null 2>&1; then
   printf "Missing required command: curl\n"
@@ -25,25 +28,51 @@ request_json() {
   data="${3:-}"
 
   if [ -n "$data" ]; then
-    set +e
-    status_code=$(curl -sS -X "$method" \
-      -H "Content-Type: application/json" \
-      -d "$data" \
-      -D "$response_headers" \
-      -o "$response_body" \
-      -w "%{http_code}" \
-      "$API_BASE_URL$path")
-    curl_status=$?
-    set -e
+    if [ -n "$AUTH_TOKEN" ]; then
+      set +e
+      status_code=$(curl -sS -X "$method" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $AUTH_TOKEN" \
+        -d "$data" \
+        -D "$response_headers" \
+        -o "$response_body" \
+        -w "%{http_code}" \
+        "$API_BASE_URL$path")
+      curl_status=$?
+      set -e
+    else
+      set +e
+      status_code=$(curl -sS -X "$method" \
+        -H "Content-Type: application/json" \
+        -d "$data" \
+        -D "$response_headers" \
+        -o "$response_body" \
+        -w "%{http_code}" \
+        "$API_BASE_URL$path")
+      curl_status=$?
+      set -e
+    fi
   else
-    set +e
-    status_code=$(curl -sS -X "$method" \
-      -D "$response_headers" \
-      -o "$response_body" \
-      -w "%{http_code}" \
-      "$API_BASE_URL$path")
-    curl_status=$?
-    set -e
+    if [ -n "$AUTH_TOKEN" ]; then
+      set +e
+      status_code=$(curl -sS -X "$method" \
+        -H "Authorization: Bearer $AUTH_TOKEN" \
+        -D "$response_headers" \
+        -o "$response_body" \
+        -w "%{http_code}" \
+        "$API_BASE_URL$path")
+      curl_status=$?
+      set -e
+    else
+      set +e
+      status_code=$(curl -sS -X "$method" \
+        -D "$response_headers" \
+        -o "$response_body" \
+        -w "%{http_code}" \
+        "$API_BASE_URL$path")
+      curl_status=$?
+      set -e
+    fi
   fi
 
   if [ "$curl_status" -ne 0 ]; then
@@ -105,9 +134,21 @@ printf "1. Checking backend health...\n"
 request_json "GET" "/health"
 assert_json_value "status" "ok"
 
+printf "2. Logging in as development user...\n"
+request_json "POST" "/api/v1/auth/login" "{
+  \"email\": \"$SMOKE_API_EMAIL\",
+  \"password\": \"$SMOKE_API_PASSWORD\"
+}"
+AUTH_TOKEN=$(json_get "access_token")
+if [ -z "$AUTH_TOKEN" ]; then
+  printf "Login did not return an access token.\n"
+  exit 1
+fi
+printf "   authenticated=%s\n" "$SMOKE_API_EMAIL"
+
 timestamp="$(date +%Y%m%d%H%M%S)-$$"
 
-printf "2. Creating organization...\n"
+printf "3. Creating organization...\n"
 request_json "POST" "/api/v1/organizations" "{
   \"name\": \"Smoke Test Org $timestamp\",
   \"description\": \"Created by scripts/dev/smoke_api.sh\"
@@ -115,7 +156,7 @@ request_json "POST" "/api/v1/organizations" "{
 organization_id=$(json_get "id")
 printf "   organization_id=%s\n" "$organization_id"
 
-printf "3. Creating assessment...\n"
+printf "4. Creating assessment...\n"
 request_json "POST" "/api/v1/assessments" "{
   \"organization_id\": \"$organization_id\",
   \"title\": \"Smoke assessment $timestamp\",
@@ -124,7 +165,7 @@ request_json "POST" "/api/v1/assessments" "{
 assessment_id=$(json_get "id")
 printf "   assessment_id=%s\n" "$assessment_id"
 
-printf "4. Creating asset...\n"
+printf "5. Creating asset...\n"
 request_json "POST" "/api/v1/assets" "{
   \"organization_id\": \"$organization_id\",
   \"name\": \"Smoke asset $timestamp\",
@@ -135,7 +176,7 @@ request_json "POST" "/api/v1/assets" "{
 asset_id=$(json_get "id")
 printf "   asset_id=%s\n" "$asset_id"
 
-printf "5. Creating finding with DREAD score...\n"
+printf "6. Creating finding with DREAD score...\n"
 request_json "POST" "/api/v1/findings" "{
   \"assessment_id\": \"$assessment_id\",
   \"asset_id\": \"$asset_id\",
@@ -156,12 +197,12 @@ assert_json_value "dread_score.total_score" "8.0"
 assert_json_value "dread_score.risk_level" "Critical"
 printf "   finding_id=%s total_score=8.0 risk_level=Critical\n" "$finding_id"
 
-printf "6. Getting finding...\n"
+printf "7. Getting finding...\n"
 request_json "GET" "/api/v1/findings/$finding_id"
 assert_json_value "id" "$finding_id"
 assert_json_value "dread_score.risk_level" "Critical"
 
-printf "7. Patching DREAD score...\n"
+printf "8. Patching DREAD score...\n"
 request_json "PATCH" "/api/v1/findings/$finding_id" "{
   \"dread_score\": {
     \"damage\": 6,

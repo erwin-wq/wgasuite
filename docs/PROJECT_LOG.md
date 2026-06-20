@@ -590,3 +590,86 @@ Geef een aparte commit-opdracht als deze documentatiewijziging vastgelegd moet w
 Ik heb `AGENTS.md` en `docs/DEVELOPMENT_RULES.md` aangepast zodat Codex voortaan features mag bouwen en daarna zelf de lokale validatie probeert uit te voeren, inclusief Docker build, migraties, smoke test, backend checks, frontend build/lint en `git diff --check`. Codex moet daarna containers, migraties, smoke test, frontend/backend docs bereikbaarheid en handmatige browserchecks rapporteren.
 
 Ik heb ook vastgelegd dat Codex na een feature niet automatisch commit en nooit automatisch pusht. `docs/PROJECT_LOG.md` wordt tijdens de feature wel bijgewerkt, maar blijft uncommitted totdat de gebruiker expliciet vraagt om te committen. Deze wijziging is bewust niet gecommit en niet gepusht.
+
+## 2026-06-20 09:54 - Auth login foundation
+
+### Opdracht
+
+Bouw een eerste auth/login foundation voor de DREAD Risk Assessment Tool. Start vanaf `main`, maak branch `feature/auth-foundation`, voeg een User-entiteit, password hashing, login endpoint, current user endpoint, bearer-token aanpak en protected API dependencies toe. Voeg een lokale development demo admin toe, bouw frontend login/logout, update README en projectlogboek, valideer lokaal met Docker, en stop zonder commit of push.
+
+### Uitgevoerd
+
+Branch `feature/auth-foundation` is aangemaakt vanaf up-to-date `main`. De bestaande backend/frontend structuur, migraties, tests, API client en smoke scripts zijn geïnspecteerd.
+
+Backend: er is een `User` model toegevoegd met email, full name, hashed password, role, active flag en timestamps. Er is PBKDF2 wachtwoordhashing toegevoegd en een simpele HMAC-signed bearer/JWT-achtige token service op basis van `AUTH_SECRET_KEY`. Nieuwe endpoints zijn `POST /api/v1/auth/login` en `GET /api/v1/auth/me`. Bestaande organization, assessment, asset, finding en report endpoints zijn beschermd met bearer auth. `/health` blijft publiek.
+
+Er is een Alembic migratie toegevoegd voor de `users` tabel en een development/demo admin seed. De demo login is `admin@example.local` met wachtwoord `ChangeMe123!`; dit is expliciet als dev-only gedocumenteerd.
+
+Frontend: er is een login scherm toegevoegd, tokenopslag in `localStorage`, Authorization headers in de API client, logout, sessie-herstel via `/auth/me`, terugval naar login bij 401 en weergave van de ingelogde gebruiker in de header.
+
+Smoke test: `scripts/dev/smoke_api.sh` logt nu eerst in met de development user en gebruikt daarna de bearer token voor protected API calls.
+
+README: lokale login, demo user en production hardening-notitie zijn toegevoegd.
+
+### Aangepaste bestanden
+
+- `.env.example`
+- `README.md`
+- `backend/alembic/versions/0003_auth_foundation.py`
+- `backend/app/api/deps.py`
+- `backend/app/api/v1/router.py`
+- `backend/app/core/config.py`
+- `backend/app/db/base.py`
+- `backend/app/models/__init__.py`
+- `backend/app/models/user.py`
+- `backend/app/schemas/auth.py`
+- `backend/app/services/passwords.py`
+- `backend/app/services/tokens.py`
+- `backend/tests/conftest.py`
+- `backend/tests/test_assessment_report.py`
+- `backend/tests/test_auth.py`
+- `backend/tests/test_backend_core_crud.py`
+- `frontend/src/App.tsx`
+- `frontend/src/api/client.ts`
+- `frontend/src/app.css`
+- `frontend/src/types.ts`
+- `scripts/dev/smoke_api.sh`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `make check-env`: geslaagd
+- `make docker-up`: geslaagd, backend en frontend images gebouwd en containers gestart
+- `make db-upgrade`: geslaagd, migratie `0003_auth_foundation` toegepast
+- `make smoke-api`: geslaagd met login en bearer token
+- `make backend-checks`: geslaagd met 23 backend tests
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `git diff --check`: geslaagd
+- `docker compose ps`: uitgevoerd, backend/frontend/postgres draaien
+- `curl -I http://localhost:5173`: HTTP 200
+- `curl -I http://localhost:8000/docs`: HTTP 200
+
+### Resultaat
+
+Gelukt. De app heeft nu een eerste MVP auth foundation met development login, protected API endpoints, backend tests, aangepaste smoke test en frontend login/logout flow.
+
+### Problemen / beperkingen
+
+- Dit is een MVP/dev auth foundation en geen productieklare authlaag.
+- `AUTH_SECRET_KEY` gebruikt lokaal een placeholder in `.env.example`; echte secrets mogen niet in git.
+- Productie hardening zoals secret rotation, accountbeheer, rate limiting, audit logging, password reset en externe identity providers volgt later.
+- Backend tests tonen nog de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning.
+- Er is niet gecommit en niet gepusht.
+
+### Volgende aanbevolen stap
+
+Review de loginflow in de browser: log in met `admin@example.local` / `ChangeMe123!`, controleer dat de workspace laadt, test logout, en controleer dat een rapport openen na login werkt.
+
+### Volledige Codex samenvatting
+
+Ik heb branch `feature/auth-foundation` aangemaakt vanaf `main` en een eerste auth/login foundation gebouwd. Backend heeft nu een `User` model, PBKDF2 password hashing, een HMAC-signed bearer-token service met `AUTH_SECRET_KEY`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, en protected organization/assessment/asset/finding/report endpoints. Health blijft publiek. Er is een Alembic migratie toegevoegd die de `users` tabel maakt en een dev-only demo admin seedt: `admin@example.local` / `ChangeMe123!`.
+
+De frontend heeft nu een development login scherm, tokenopslag in `localStorage`, Authorization headers in de API client, sessie-herstel via `/auth/me`, logout, terugval naar login bij 401 en weergave van de ingelogde gebruiker in de header. De smoke test logt nu eerst in en gebruikt daarna de bearer token. README documenteert de demo login en vermeldt dat dit MVP/dev auth is en productie hardening later nodig heeft.
+
+Uitgevoerde checks: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `git diff --check`, `docker compose ps`, `curl -I http://localhost:5173` en `curl -I http://localhost:8000/docs`. Alles is geslaagd. Backend tests: 23 passed met de bekende niet-blokkerende `TestClient` warning. Er is niet gecommit en niet gepusht.
