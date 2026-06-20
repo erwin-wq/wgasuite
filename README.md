@@ -112,6 +112,17 @@ customer:
 Dit is alleen een eerste foundation. Het is nog geen volledige tenant-isolatie, billing,
 abonnementenbeheer of productieklantbeheer.
 
+## Mock Google Workspace scan
+
+Binnen een assessment kan lokaal een mock Google Workspace scan worden gestart. Deze scan gebruikt
+alleen fictieve demo data en maakt automatisch voorbeeld-findings met DREAD-scores aan. Er wordt
+geen echte Google API gebruikt, er worden geen OAuth scopes toegevoegd en er worden geen tokens of
+secrets opgeslagen.
+
+Deze mock scan is bedoeld om de volledige flow te testen: assessment kiezen, scan starten, findings
+laten aanmaken, DREAD-scores bekijken en het rapport opnieuw openen. Een echte Google Workspace
+integratie komt later.
+
 ## Tests en checks
 
 Backend:

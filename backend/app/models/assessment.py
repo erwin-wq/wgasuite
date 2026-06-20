@@ -11,6 +11,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.models.finding import Finding
     from app.models.organization import Organization
+    from app.models.scan_run import ScanRun
 
 
 class Assessment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -28,6 +29,10 @@ class Assessment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     organization: Mapped["Organization"] = relationship(back_populates="assessments")
     findings: Mapped[list["Finding"]] = relationship(
+        back_populates="assessment",
+        cascade="all, delete-orphan",
+    )
+    scan_runs: Mapped[list["ScanRun"]] = relationship(
         back_populates="assessment",
         cascade="all, delete-orphan",
     )

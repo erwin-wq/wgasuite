@@ -9,6 +9,7 @@ import type {
   Finding,
   FindingCreate,
   LoginRequest,
+  ScanRun,
   TokenResponse,
   Organization,
   OrganizationCreate,
@@ -109,6 +110,16 @@ export function createAssessment(payload: AssessmentCreate): Promise<Assessment>
 
 export function getAssessmentReport(assessmentId: string): Promise<AssessmentReport> {
   return request<AssessmentReport>(`/api/v1/assessments/${assessmentId}/report`);
+}
+
+export function runMockGoogleWorkspaceScan(assessmentId: string): Promise<ScanRun> {
+  return request<ScanRun>(`/api/v1/assessments/${assessmentId}/scan-runs/google-workspace-mock`, {
+    method: "POST"
+  });
+}
+
+export function listAssessmentScanRuns(assessmentId: string): Promise<ScanRun[]> {
+  return request<ScanRun[]>(`/api/v1/assessments/${assessmentId}/scan-runs`);
 }
 
 export function listAssets(): Promise<Asset[]> {

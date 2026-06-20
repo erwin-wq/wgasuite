@@ -128,6 +128,44 @@ assert_json_value() {
   fi
 }
 
+assert_json_number_greater_than() {
+  path="$1"
+  minimum="$2"
+  python3 - "$path" "$minimum" "$response_body" <<'PY'
+import json
+import sys
+
+path = sys.argv[1].split(".")
+minimum = float(sys.argv[2])
+file_path = sys.argv[3]
+
+with open(file_path, encoding="utf-8") as handle:
+    value = json.load(handle)
+
+for part in path:
+    value = value[part]
+
+if float(value) <= minimum:
+    raise SystemExit(f"Assertion failed for {'.'.join(path)}: expected > {minimum}, got {value}")
+PY
+}
+
+assert_report_has_mock_finding() {
+  python3 - "$response_body" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    report = json.load(handle)
+
+if not any(
+    finding["title"].startswith("[Mock Google Workspace]")
+    for finding in report.get("findings", [])
+):
+    raise SystemExit("Report did not contain a mock Google Workspace finding.")
+PY
+}
+
 printf "Running API smoke test against %s\n\n" "$API_BASE_URL"
 
 printf "1. Checking backend health...\n"
@@ -228,5 +266,17 @@ request_json "PATCH" "/api/v1/findings/$finding_id" "{
 }"
 assert_json_value "dread_score.total_score" "6.0"
 assert_json_value "dread_score.risk_level" "High"
+
+printf "10. Running mock Google Workspace scan...\n"
+request_json "POST" "/api/v1/assessments/$assessment_id/scan-runs/google-workspace-mock"
+scan_run_id=$(json_get "id")
+assert_json_value "status" "completed"
+assert_json_number_greater_than "findings_created" "0"
+printf "   scan_run_id=%s findings_created=%s\n" "$scan_run_id" "$(json_get "findings_created")"
+
+printf "11. Checking report contains mock scan findings...\n"
+request_json "GET" "/api/v1/assessments/$assessment_id/report"
+assert_json_number_greater_than "total_findings" "1"
+assert_report_has_mock_finding
 
 printf "\nAPI smoke test passed.\n"

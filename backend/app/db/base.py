@@ -6,6 +6,7 @@ from app.models import (
     DreadScore,
     Finding,
     Organization,
+    ScanRun,
     User,
 )
 from app.models.base import Base
@@ -19,5 +20,6 @@ __all__ = [
     "DreadScore",
     "Finding",
     "Organization",
+    "ScanRun",
     "User",
 ]

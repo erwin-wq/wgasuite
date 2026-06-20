@@ -5,6 +5,7 @@ from app.models.customer import Customer
 from app.models.dread_score import DreadScore
 from app.models.finding import Finding
 from app.models.organization import Organization
+from app.models.scan_run import ScanRun
 from app.models.user import User
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "DreadScore",
     "Finding",
     "Organization",
+    "ScanRun",
     "User",
 ]

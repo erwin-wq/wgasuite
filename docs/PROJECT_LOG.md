@@ -756,3 +756,93 @@ Ik heb branch `feature/customer-admin-foundation` aangemaakt vanaf `main` en een
 De frontend heeft nu een eenvoudige `Klantbeheer` sectie met customer-formulier, actieve customer selectie en customer overzicht. Bij organization aanmaken wordt de actieve customer optioneel gekoppeld en de actieve organization toont de gekoppelde customer. README beschrijft Customer als toekomstige klantbeheerlaag en vermeldt duidelijk dat dit nog geen volledige tenant-isolatie of billing is. De API smoke test maakt nu ook een customer aan en koppelt de smoke organization daaraan.
 
 Uitgevoerde checks: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `git diff --check`, `docker compose ps`, bereikbaarheid van `http://localhost:5173` en `http://localhost:8000/docs`. Alles is geslaagd. Backend tests: 30 passed met de bekende niet-blokkerende `TestClient` warning. Containers draaien: backend, frontend en postgres. Er is niet gecommit en niet gepusht.
+
+## 2026-06-20 16:20 - Mock Google Workspace scan
+
+### Opdracht
+
+Bouw een Mock Google Workspace scan feature voor de DREAD Risk Assessment Tool. Start vanaf `main`, maak branch `feature/mock-google-workspace-scan`, voeg een `ScanRun` model toe, maak een mock Google Workspace connector zonder echte API calls, voeg protected scan endpoints toe, laat de scan demo findings met DREAD-scores aanmaken, voeg backend tests en frontend scan UI toe, werk README en projectlogboek bij, valideer lokaal met Docker en stop zonder commit of push.
+
+### Uitgevoerd
+
+Branch `feature/mock-google-workspace-scan` is aangemaakt vanaf up-to-date `main`. De bestaande backend/frontend structuur, auth implementatie, connector placeholder, migrations, tests, API client en App-opbouw zijn geïnspecteerd.
+
+Backend: er is een `ScanRun` model toegevoegd met assessment, connector type, status, timestamps, aantal aangemaakte findings, summary en raw result JSON. Er zijn protected endpoints toegevoegd om een mock Google Workspace scan te starten, scan runs voor een assessment op te halen en scan run detail op te halen.
+
+Connector: de connector-map heeft nu een kleine base/interface structuur en een `MockGoogleWorkspaceConnector`. Deze connector gebruikt alleen fictieve demo data en maakt geen Google API calls. De mock checks gaan over MFA, super admins, external sharing, inactive users, password policy, legacy IMAP/POP en OAuth apps.
+
+Scan gedrag: de POST endpoint maakt een `ScanRun` met status `running`, draait de mock connector synchroon, maakt indien nodig een `Google Workspace Tenant` asset aan, maakt 7 demo findings aan met DREAD scores en zet de scan run op `completed`. Bij fouten wordt de scan run op `failed` gezet met een duidelijke summary.
+
+Frontend: in de assessment card is een compacte sectie `Google Workspace scan` toegevoegd met tekst `Mock scan - no real Google data is accessed.`, een knop `Run mock Google Workspace scan`, loading state, success/error feedback en een lijst met recente scan runs voor het actieve assessment. Na een succesvolle scan worden findings en scan runs opnieuw geladen.
+
+Smoke test: `scripts/dev/smoke_api.sh` start nu ook een mock Google Workspace scan, controleert dat `findings_created` groter dan 0 is en controleert dat het rapport daarna mock scan findings bevat.
+
+README: er is een korte uitleg toegevoegd over de mock Google Workspace scan, expliciet zonder echte Google API, OAuth scopes, tokens of secrets.
+
+### Aangepaste bestanden
+
+- `README.md`
+- `backend/alembic/versions/0005_mock_google_workspace_scan.py`
+- `backend/app/api/v1/router.py`
+- `backend/app/connectors/__init__.py`
+- `backend/app/connectors/base.py`
+- `backend/app/connectors/mock_google_workspace.py`
+- `backend/app/db/base.py`
+- `backend/app/models/__init__.py`
+- `backend/app/models/assessment.py`
+- `backend/app/models/scan_run.py`
+- `backend/app/schemas/scan_run.py`
+- `backend/tests/test_mock_google_workspace_scan.py`
+- `frontend/src/App.tsx`
+- `frontend/src/api/client.ts`
+- `frontend/src/app.css`
+- `frontend/src/types.ts`
+- `scripts/dev/smoke_api.sh`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `git status --short --branch`: uitgevoerd, startstatus was schoon op `main`
+- `git branch --show-current`: uitgevoerd
+- `git remote -v`: uitgevoerd, GitLab origin bestaat
+- `git log --oneline --decorate -5`: uitgevoerd
+- `make check-env`: geslaagd
+- `git switch main`: geslaagd
+- `git pull --ff-only origin main`: geslaagd, al up-to-date
+- `git switch -c feature/mock-google-workspace-scan`: geslaagd
+- `make backend-checks`: eerst gefaald op ruff import/lengte, daarna opgelost en geslaagd met 35 backend tests
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `make docker-up`: geslaagd, backend en frontend images gebouwd en containers gestart
+- `make db-upgrade`: geslaagd, migratie `0005_mock_google_workspace_scan` toegepast
+- `make smoke-api`: geslaagd met login, customer, organization, assessment, asset, finding, DREAD patch, mock scan en rapportcontrole
+- `git diff --check`: geslaagd
+- `docker compose ps`: uitgevoerd, backend/frontend/postgres draaien
+- `curl http://localhost:5173`: HTTP 200
+- `curl http://localhost:8000/docs`: HTTP 200
+
+### Resultaat
+
+Gelukt. De applicatie heeft nu een eerste mock Google Workspace scan feature waarmee een gebruiker binnen een assessment demo findings kan laten aanmaken en direct in findings en rapportage terugziet.
+
+### Problemen / beperkingen
+
+- Dit is bewust een mock/demo scan. Er is geen echte Google API koppeling, OAuth flow, Google scope of secret toegevoegd.
+- De scan draait synchroon in deze MVP en heeft nog geen background job queue.
+- Er is geen deduplicatie toegevoegd; meerdere runs mogen opnieuw demo findings aanmaken. Dit is zichtbaar via scan runs en `[Mock Google Workspace]` findingtitels.
+- Backend tests tonen nog de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning.
+- Er is niet gecommit en niet gepusht, volgens opdracht.
+
+### Volgende aanbevolen stap
+
+Review de scan workflow handmatig in de browser: log in, selecteer een assessment, start `Run mock Google Workspace scan`, controleer de scan run lijst, findings overzicht en rapportpagina.
+
+### Volledige Codex samenvatting
+
+Ik heb branch `feature/mock-google-workspace-scan` aangemaakt vanaf `main` en een eerste mock Google Workspace scan feature gebouwd. Backend heeft nu een `ScanRun` model, migration `0005_mock_google_workspace_scan`, schemas en protected endpoints: `POST /api/v1/assessments/{assessment_id}/scan-runs/google-workspace-mock`, `GET /api/v1/assessments/{assessment_id}/scan-runs` en `GET /api/v1/scan-runs/{scan_run_id}`.
+
+De connector-map bevat nu een kleine base/interface en `MockGoogleWorkspaceConnector` met 7 fictieve checks. De scan maakt geen echte Google API calls, gebruikt geen OAuth en geen secrets. De POST endpoint maakt een scan run, maakt indien nodig een `Google Workspace Tenant` asset aan, maakt 7 `[Mock Google Workspace]` findings met DREAD scores aan, zet de scan run op `completed` en bewaart een summary/raw result.
+
+De frontend heeft in de assessment card een compacte `Google Workspace scan` sectie met mock-uitleg, run-knop, loading state, success/error feedback en recente scan runs. Na een scan worden findings en scan runs ververst, zodat het findings overzicht en rapport de nieuwe data tonen. README en smoke test zijn bijgewerkt; de smoke test controleert nu ook `findings_created > 0` en dat het rapport mock scan findings bevat.
+
+Uitgevoerde checks: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `git diff --check`, `docker compose ps`, bereikbaarheid van `http://localhost:5173` en `http://localhost:8000/docs`. Alles is geslaagd na een kleine ruff-fix voor import/lengte. Backend tests: 35 passed met de bekende niet-blokkerende `TestClient` warning. Containers draaien: backend, frontend en postgres. Er is niet gecommit en niet gepusht.

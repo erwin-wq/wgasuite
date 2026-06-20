@@ -7,9 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
+from app.connectors import MockGoogleWorkspaceConnector
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.models import Assessment, Asset, Customer, DreadScore, Finding, Organization, User
+from app.models import Assessment, Asset, Customer, DreadScore, Finding, Organization, ScanRun, User
 from app.schemas.assessment import AssessmentCreate, AssessmentRead
 from app.schemas.asset import AssetCreate, AssetRead
 from app.schemas.auth import LoginRequest, TokenResponse, UserRead
@@ -17,6 +18,7 @@ from app.schemas.customer import CustomerCreate, CustomerRead, CustomerUpdate
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
 from app.schemas.organization import OrganizationCreate, OrganizationRead
 from app.schemas.report import AssessmentReportRead, RiskLevelCounts
+from app.schemas.scan_run import ScanRunRead
 from app.services.dread import calculate_dread_score
 from app.services.passwords import verify_password
 from app.services.tokens import encode_access_token
@@ -79,6 +81,16 @@ def get_finding_or_404(db: Session, finding_id: UUID) -> Finding:
     return finding
 
 
+def get_scan_run_or_404(db: Session, scan_run_id: UUID) -> ScanRun:
+    scan_run = db.get(ScanRun, scan_run_id)
+    if scan_run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan run not found.",
+        )
+    return scan_run
+
+
 def validate_asset_scope(
     db: Session,
     asset_id: UUID | None,
@@ -110,6 +122,27 @@ def apply_dread_score(score: DreadScore, values: dict[str, int]) -> None:
     total_score, risk_level = calculate_dread_score(current_values)
     score.total_score = total_score
     score.risk_level = risk_level
+
+
+def get_or_create_google_workspace_asset(db: Session, assessment: Assessment) -> Asset:
+    statement = select(Asset).where(
+        Asset.organization_id == assessment.organization_id,
+        Asset.name == "Google Workspace Tenant",
+    )
+    asset = db.scalar(statement)
+    if asset is not None:
+        return asset
+
+    asset = Asset(
+        organization_id=assessment.organization_id,
+        name="Google Workspace Tenant",
+        asset_type="SaaS Platform",
+        identifier="google-workspace-mock",
+        description="Demo asset created by the mock Google Workspace scan.",
+    )
+    db.add(asset)
+    db.flush()
+    return asset
 
 
 @api_router.post("/auth/login", response_model=TokenResponse, tags=["auth"])
@@ -369,6 +402,127 @@ def get_assessment_report(assessment_id: UUID, db: DbSession) -> AssessmentRepor
         highest_score=highest_finding.dread_score.total_score if highest_finding else None,
         highest_risk_level=highest_finding.dread_score.risk_level if highest_finding else None,
     )
+
+
+@api_router.post(
+    "/assessments/{assessment_id}/scan-runs/google-workspace-mock",
+    response_model=ScanRunRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["scan-runs"],
+    dependencies=[Depends(get_current_user)],
+)
+def run_mock_google_workspace_scan(assessment_id: UUID, db: DbSession) -> ScanRun:
+    assessment = get_assessment_or_404(db, assessment_id)
+    started_at = datetime.now(UTC)
+    scan_run = ScanRun(
+        assessment_id=assessment.id,
+        connector_type=MockGoogleWorkspaceConnector.connector_type,
+        status="running",
+        started_at=started_at,
+        findings_created=0,
+        summary="Mock Google Workspace scan started.",
+        raw_result_json={"note": "Mock scan only; no real Google data was accessed."},
+    )
+    db.add(scan_run)
+    db.commit()
+    db.refresh(scan_run)
+
+    try:
+        connector = MockGoogleWorkspaceConnector()
+        result = connector.run()
+        asset = get_or_create_google_workspace_asset(db, assessment)
+        created_count = 0
+
+        for connector_finding in result.findings:
+            score_values = connector_finding.dread_score
+            total_score, risk_level = calculate_dread_score(score_values)
+            finding = Finding(
+                assessment_id=assessment.id,
+                asset_id=asset.id,
+                title=connector_finding.title,
+                description=(
+                    f"Category: {connector_finding.category}\n\n"
+                    f"{connector_finding.description}\n\n"
+                    f"Impact: {connector_finding.impact}"
+                ),
+                status="open",
+                mitigation=connector_finding.recommendation,
+                dread_score=DreadScore(
+                    **score_values,
+                    total_score=total_score,
+                    risk_level=risk_level,
+                ),
+            )
+            db.add(finding)
+            created_count += 1
+
+        completed_at = datetime.now(UTC)
+        scan_run.status = "completed"
+        scan_run.completed_at = completed_at
+        scan_run.findings_created = created_count
+        scan_run.summary = (
+            f"Mock Google Workspace scan completed. {created_count} demo findings were "
+            "created; no real Google data was accessed."
+        )
+        scan_run.raw_result_json = {
+            "connector_type": result.connector_type,
+            "summary": result.summary,
+            "asset_name": asset.name,
+            "findings": [
+                {
+                    "title": finding.title,
+                    "category": finding.category,
+                    "impact": finding.impact,
+                    "recommendation": finding.recommendation,
+                    "dread_score": finding.dread_score,
+                }
+                for finding in result.findings
+            ],
+        }
+        db.add(scan_run)
+        db.commit()
+        db.refresh(scan_run)
+        return scan_run
+    except Exception as exc:
+        db.rollback()
+        scan_run = get_scan_run_or_404(db, scan_run.id)
+        scan_run.status = "failed"
+        scan_run.completed_at = datetime.now(UTC)
+        scan_run.summary = f"Mock Google Workspace scan failed: {exc}"
+        scan_run.raw_result_json = {
+            "error": str(exc),
+            "note": "Mock scan only; no real Google data was accessed.",
+        }
+        db.add(scan_run)
+        db.commit()
+        db.refresh(scan_run)
+        return scan_run
+
+
+@api_router.get(
+    "/assessments/{assessment_id}/scan-runs",
+    response_model=list[ScanRunRead],
+    tags=["scan-runs"],
+    dependencies=[Depends(get_current_user)],
+)
+def list_assessment_scan_runs(assessment_id: UUID, db: DbSession) -> list[ScanRun]:
+    get_assessment_or_404(db, assessment_id)
+    statement = (
+        select(ScanRun)
+        .where(ScanRun.assessment_id == assessment_id)
+        .order_by(ScanRun.started_at.desc())
+    )
+    return list(db.scalars(statement).all())
+
+
+@api_router.get(
+    "/scan-runs/{scan_run_id}",
+    response_model=ScanRunRead,
+    tags=["scan-runs"],
+    dependencies=[Depends(get_current_user)],
+)
+def get_scan_run(scan_run_id: UUID, db: DbSession) -> ScanRun:
+    return get_scan_run_or_404(db, scan_run_id)
 
 
 @api_router.post(

@@ -34,12 +34,14 @@ import {
   getAssessmentReport,
   getCurrentUser,
   getStoredAuthToken,
+  listAssessmentScanRuns,
   listAssessments,
   listAssets,
   listCustomers,
   listFindings,
   listOrganizations,
   login,
+  runMockGoogleWorkspaceScan,
   setStoredAuthToken
 } from "./api/client";
 import type {
@@ -51,6 +53,7 @@ import type {
   Finding,
   FindingCreate,
   Organization,
+  ScanRun,
   User
 } from "./types";
 
@@ -117,6 +120,7 @@ function App() {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
+  const [scanRuns, setScanRuns] = useState<ScanRun[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
   const [selectedAssessmentId, setSelectedAssessmentId] = useState("");
@@ -146,6 +150,8 @@ function App() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isLoginSaving, setIsLoginSaving] = useState(false);
   const [isReportLoading, setIsReportLoading] = useState(false);
+  const [isScanLoading, setIsScanLoading] = useState(false);
+  const [isScanRunning, setIsScanRunning] = useState(false);
   const [saving, setSaving] = useState<SavingTarget>(null);
   const [activeView, setActiveView] = useState<ActiveView>("workspace");
   const [report, setReport] = useState<AssessmentReport | null>(null);
@@ -242,6 +248,7 @@ function App() {
     setAssessments([]);
     setAssets([]);
     setFindings([]);
+    setScanRuns([]);
     setSelectedCustomerId("");
     setSelectedOrganizationId("");
     setSelectedAssessmentId("");
@@ -262,6 +269,26 @@ function App() {
       setFeedback({ type: "error", message: (error as Error).message });
     },
     [resetSession]
+  );
+
+  const loadAssessmentScanRuns = useCallback(
+    async (assessmentId: string) => {
+      if (!assessmentId) {
+        setScanRuns([]);
+        return;
+      }
+
+      setIsScanLoading(true);
+      try {
+        const loadedScanRuns = await listAssessmentScanRuns(assessmentId);
+        setScanRuns(loadedScanRuns);
+      } catch (scanError) {
+        handleRequestError(scanError);
+      } finally {
+        setIsScanLoading(false);
+      }
+    },
+    [handleRequestError]
   );
 
   const loadWorkspace = useCallback(
@@ -362,6 +389,7 @@ function App() {
     if (!selectedOrganizationId) {
       setSelectedAssessmentId("");
       setSelectedAssetId("");
+      setScanRuns([]);
       return;
     }
 
@@ -379,6 +407,15 @@ function App() {
     selectedAssetId,
     selectedOrganizationId
   ]);
+
+  useEffect(() => {
+    if (!currentUser || !selectedAssessmentId) {
+      setScanRuns([]);
+      return;
+    }
+
+    loadAssessmentScanRuns(selectedAssessmentId);
+  }, [currentUser, loadAssessmentScanRuns, selectedAssessmentId]);
 
   async function handleCreateCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -525,6 +562,35 @@ function App() {
       handleRequestError(submitError);
     } finally {
       setSaving(null);
+    }
+  }
+
+  async function handleRunMockGoogleWorkspaceScan() {
+    if (!selectedAssessmentId) {
+      return;
+    }
+
+    setFeedback(null);
+    setIsScanRunning(true);
+    try {
+      const scanRun = await runMockGoogleWorkspaceScan(selectedAssessmentId);
+      if (scanRun.status === "failed") {
+        setFeedback({
+          type: "error",
+          message: scanRun.summary ?? "Mock Google Workspace scan is mislukt."
+        });
+      } else {
+        setFeedback({
+          type: "success",
+          message: `Mock Google Workspace scan klaar: ${scanRun.findings_created} findings aangemaakt.`
+        });
+      }
+      await loadWorkspace(selectedCustomerId, selectedOrganizationId, selectedAssessmentId);
+      await loadAssessmentScanRuns(selectedAssessmentId);
+    } catch (scanError) {
+      handleRequestError(scanError);
+    } finally {
+      setIsScanRunning(false);
     }
   }
 
@@ -1276,6 +1342,60 @@ function App() {
                 Open rapport
               </button>
             </div>
+
+            <section className="mock-scan-panel" aria-label="Google Workspace scan">
+              <div className="inline-heading">
+                <ShieldAlert aria-hidden="true" />
+                <h3>Google Workspace scan</h3>
+              </div>
+              <p>Mock scan - no real Google data is accessed.</p>
+
+              {!selectedAssessmentId && (
+                <div className="mini-empty-state">Selecteer eerst een assessment.</div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleRunMockGoogleWorkspaceScan}
+                disabled={!selectedAssessmentId || isScanRunning}
+              >
+                {isScanRunning ? (
+                  <Loader2 className="spin" aria-hidden="true" />
+                ) : (
+                  <Activity aria-hidden="true" />
+                )}
+                {isScanRunning ? "Mock scan uitvoeren" : "Run mock Google Workspace scan"}
+              </button>
+
+              <div className="scan-run-list" aria-label="Recente scan runs">
+                <div className="scan-run-list-heading">
+                  <strong>Recente scan runs</strong>
+                  {isScanLoading && <span>laden</span>}
+                </div>
+                {scanRuns.length === 0 ? (
+                  <div className="mini-empty-state">Nog geen scan runs voor dit assessment.</div>
+                ) : (
+                  scanRuns.slice(0, 4).map((scanRun) => (
+                    <article className="scan-run-item" key={scanRun.id}>
+                      <div>
+                        <strong>{scanRun.status}</strong>
+                        <span>{formatDateTime(scanRun.started_at)}</span>
+                      </div>
+                      <div>
+                        <strong>{scanRun.findings_created}</strong>
+                        <span>findings</span>
+                      </div>
+                      <p>{scanRun.summary ?? "Geen samenvatting beschikbaar."}</p>
+                      {scanRun.completed_at && (
+                        <time dateTime={scanRun.completed_at}>
+                          Afgerond {formatDateTime(scanRun.completed_at)}
+                        </time>
+                      )}
+                    </article>
+                  ))
+                )}
+              </div>
+            </section>
           </article>
         </div>
 

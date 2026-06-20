@@ -96,6 +96,18 @@ export interface AssessmentReport {
   highest_risk_level: DreadScore["risk_level"] | null;
 }
 
+export interface ScanRun {
+  id: string;
+  assessment_id: string;
+  connector_type: "google_workspace_mock" | string;
+  status: "pending" | "running" | "completed" | "failed" | string;
+  started_at: string;
+  completed_at: string | null;
+  findings_created: number;
+  summary: string | null;
+  raw_result_json: Record<string, unknown> | null;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
