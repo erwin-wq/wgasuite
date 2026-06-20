@@ -34,6 +34,32 @@
 - Gebruik Docker Compose voor lokaal draaien.
 - Gebruik `.env` lokaal en commit dit bestand nooit.
 - Commit alleen `.env.example` met veilige voorbeeldwaarden.
+- Codex mag geen software installeren zonder expliciete toestemming.
+
+## Validatie na features
+
+Na elke feature of frontend/backend wijziging voert Codex zelf de lokale Docker build en smoke checks uit waar mogelijk. De vaste volgorde is:
+
+1. `make check-env`
+2. `make docker-up`
+3. `make db-upgrade`
+4. `make smoke-api`
+5. `make backend-checks`
+6. `npm --prefix frontend run build`
+7. `npm --prefix frontend run lint`
+8. `git diff --check`
+
+Regels:
+
+- Docker, Node en npm zijn beschikbaar in de juiste VS Code omgeving en mogen voor deze checks gebruikt worden.
+- Als Docker al draait, mag `docker compose up -d --build` gebruikt worden.
+- Als iets faalt, stopt Codex en vat de fout duidelijk samen.
+- Als containers opnieuw gebouwd zijn, meldt Codex welke containers draaien.
+- Codex meldt of database migraties gelukt zijn.
+- Codex meldt of de API smoke test gelukt is.
+- Codex controleert en meldt of de frontend bereikbaar is op `http://localhost:5173`.
+- Codex controleert en meldt of de backend docs bereikbaar zijn op `http://localhost:8000/docs`.
+- De gebruiker hoeft zo min mogelijk losse terminalcommando's te plakken.
 
 ## Connectoren
 

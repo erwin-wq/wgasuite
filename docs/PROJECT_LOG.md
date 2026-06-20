@@ -503,3 +503,45 @@ Ik heb branch `feature/assessment-report-export` aangemaakt vanaf up-to-date `ma
 In de frontend is bij het actieve assessment een knop `Open rapport` toegevoegd. De nieuwe rapportweergave toont metadata, executive summary, risk overview, findings tabel en detailkaarten per finding. Er is een knop `Terug naar assessment` en een knop `Print / opslaan als PDF`. De CSS bevat `@media print` regels zodat knoppen en overlays verdwijnen, de achtergrond wit wordt en tabellen/cards beter printen. Er is geen PDF-generator toegevoegd.
 
 Uitgevoerde checks: `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `make smoke-api`, `make backend-checks` en `git diff --check`. Alles is geslaagd na een kleine lintfix in de nieuwe testfile. De bekende niet-blokkerende FastAPI/Starlette `TestClient` warning blijft zichtbaar. De commit wordt gemaakt met message `feat: add assessment report export`; de definitieve commit-hash staat in het eindantwoord.
+
+## 2026-06-20 08:46 - Automatische Docker validatie werkwijze
+
+### Opdracht
+
+Leg vast dat Codex vanaf nu na elke feature of frontend/backend wijziging zelf de lokale Docker build en smoke checks uitvoert. Pas geen functionele code aan, push niet, werk alleen projectregels/documentatie bij en commit met `chore: document automatic docker validation workflow`.
+
+### Uitgevoerd
+
+`AGENTS.md` en `docs/DEVELOPMENT_RULES.md` zijn bijgewerkt met de nieuwe vaste validatiewerkwijze. De afgesproken volgorde is vastgelegd: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint` en `git diff --check`.
+
+Ook is vastgelegd dat Codex geen software mag installeren zonder expliciete toestemming, dat Docker/Node/npm gebruikt mogen worden in de juiste VS Code omgeving, dat Codex stopt bij falende checks, en dat Codex na een container rebuild duidelijk meldt welke containers draaien, of migraties en smoke tests gelukt zijn, en of `http://localhost:5173` en `http://localhost:8000/docs` bereikbaar zijn.
+
+### Aangepaste bestanden
+
+- `AGENTS.md`
+- `docs/DEVELOPMENT_RULES.md`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `git status --short --branch`: uitgevoerd
+- `git diff --check`: geslaagd
+
+### Resultaat
+
+Gelukt. De automatische Docker validatie na features is nu onderdeel van de projectregels en development rules.
+
+### Problemen / beperkingen
+
+- Er zijn geen Docker- of smoke checks uitgevoerd, omdat deze opdracht alleen documentatie/projectregels aanpast en geen feature of frontend/backend code wijzigt.
+- Er is niet gepusht.
+
+### Volgende aanbevolen stap
+
+Pas deze nieuwe validatiewerkwijze toe bij de eerstvolgende feature of frontend/backend wijziging.
+
+### Volledige Codex samenvatting
+
+Ik heb `AGENTS.md` en `docs/DEVELOPMENT_RULES.md` bijgewerkt met de nieuwe vaste werkwijze: na elke feature of frontend/backend wijziging probeert Codex zelf `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint` en `git diff --check` uit te voeren. Ook is vastgelegd dat Codex geen software installeert zonder toestemming, stopt bij falende checks en na container rebuilds duidelijk rapporteert welke containers draaien, of migraties en smoke tests gelukt zijn, en of de frontend en backend docs bereikbaar zijn.
+
+Dit was een documentatie-only wijziging; er is geen functionele code aangepast en er is niet gepusht. `docs/PROJECT_LOG.md` is bijgewerkt met deze afspraak. De commit wordt gemaakt met message `chore: document automatic docker validation workflow`; de definitieve commit-hash staat in het eindantwoord.
