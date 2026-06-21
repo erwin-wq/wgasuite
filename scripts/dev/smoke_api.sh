@@ -168,6 +168,24 @@ if actual != expected:
 PY
 }
 
+assert_json_array_min_length() {
+  minimum="$1"
+  python3 - "$minimum" "$response_body" <<'PY'
+import json
+import sys
+
+minimum = int(sys.argv[1])
+file_path = sys.argv[2]
+
+with open(file_path, encoding="utf-8") as handle:
+    value = json.load(handle)
+
+actual = len(value)
+if actual < minimum:
+    raise SystemExit(f"Assertion failed for array length: expected >= {minimum}, got {actual}")
+PY
+}
+
 assert_report_has_mock_finding() {
   python3 - "$response_body" <<'PY'
 import json
@@ -325,5 +343,10 @@ printf "15. Checking report contains mock scan findings...\n"
 request_json "GET" "/api/v1/assessments/$assessment_id/report"
 assert_json_number_greater_than "total_findings" "1"
 assert_report_has_mock_finding
+
+printf "16. Checking audit events include report view...\n"
+request_json "GET" "/api/v1/audit-events?customer_id=$customer_id&action=report.viewed"
+assert_json_array_min_length "1"
+printf "   audit_events_report_viewed>=1\n"
 
 printf "\nAPI smoke test passed.\n"

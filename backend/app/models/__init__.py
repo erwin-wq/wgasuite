@@ -1,5 +1,6 @@
 from app.models.assessment import Assessment
 from app.models.asset import Asset
+from app.models.audit_event import AuditEvent
 from app.models.connector_account import ConnectorAccount
 from app.models.connector_config import ConnectorConfig
 from app.models.customer import Customer
@@ -12,6 +13,7 @@ from app.models.user import User
 
 __all__ = [
     "Assessment",
+    "AuditEvent",
     "Asset",
     "ConnectorAccount",
     "ConnectorConfig",

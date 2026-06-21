@@ -150,8 +150,25 @@ De API dwingt een eerste customer data-scoping foundation af:
 - Inactieve memberships geven geen toegang.
 - Organizations zonder `customer_id` zijn alleen zichtbaar voor platformrollen.
 
-Dit is backend data-isolatie. Een volledige portal split en audit/support access logging volgen
-later.
+Dit is backend data-isolatie. Een volledige portal split volgt later.
+
+## Audit log foundation
+
+De backend heeft een eerste audit log foundation voor support access logging. De auditlog legt nu
+vast wanneer platformrollen klantdata of supportdata bekijken.
+
+Nu gelogde acties:
+
+- `customer.viewed` bij customer detailweergave door `platform_admin` of `platform_support`
+- `connector_config.viewed` bij connectorconfiguratie lezen door platformrollen
+- `connector_config.tested` bij connector teststatus controleren door platformrollen
+- `scan_run.viewed` bij scan-run detailweergave door platformrollen
+- `report.viewed` bij rapportweergave door platformrollen
+- `access.denied` op enkele duidelijke denied access-paden
+
+Audit metadata wordt gesanitized voordat het wordt opgeslagen. Keys zoals `password`, `token`,
+`secret`, `private_key`, `client_secret`, `service_account_json` en `api_key` worden verwijderd.
+Volledige supportmodus, audit dashboards en klantzichtbaarheid volgen later.
 
 ## Google Workspace connector configuratie
 

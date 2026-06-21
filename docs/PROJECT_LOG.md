@@ -1,5 +1,115 @@
 # Project Log
 
+## 2026-06-21 14:06 - Audit log foundation
+
+### Opdracht
+
+Bouw een Support Access Logging / Audit Log foundation vanaf `main` op branch
+`feature/audit-log-foundation`. Voeg een audit event model, migration, service, read endpoints,
+support access logging, tests, minimale frontendzichtbaarheid, README-uitleg en projectlogboek toe.
+Niet committen en niet pushen.
+
+### Uitgevoerd
+
+De bestaande User, Customer, rollen, customer scoping helpers, connector config endpoints, scan run
+endpoints, report endpoint, tests en migrations zijn gecontroleerd. Daarna is het nieuwe
+`AuditEvent` model toegevoegd met actor, customer, action, object, outcome, reason, metadata en
+created timestamp. De Alembic migration `0008_audit_events` maakt de tabel aan met indexen op
+`created_at`, `customer_id`, `actor_user_id`, `action` en `object_type`.
+
+Er is een audit service toegevoegd met `record_audit_event`. Deze service saneert metadata voordat
+het wordt opgeslagen en verwijdert gevoelige keys zoals `password`, `token`, `secret`,
+`private_key`, `client_secret`, `service_account_json` en `api_key`.
+
+De API heeft nieuwe read endpoints gekregen:
+
+- `GET /api/v1/audit-events`
+- `GET /api/v1/customers/{customer_id}/audit-events`
+
+Audit events lezen is toegestaan voor `platform_admin`, `platform_support` en `customer_admin` voor
+de eigen customer. `customer_user` en `customer_viewer` mogen audit events nog niet lezen.
+
+Audit logging is toegevoegd voor platformrollen bij:
+
+- customer detail bekijken
+- connector config lijst/detail bekijken
+- connector config teststatus controleren
+- scan-run detail bekijken
+- assessment report openen
+- een beperkt denied access-pad voor customer detail
+
+De smoke-test controleert nu ook dat rapportweergave een audit event oplevert. Het dashboard toont
+kort dat de support access logging foundation actief is. README is bijgewerkt met de auditlogregels.
+
+### Aangepaste bestanden
+
+- `backend/app/models/audit_event.py`
+- `backend/alembic/versions/0008_audit_events.py`
+- `backend/app/services/audit.py`
+- `backend/app/schemas/audit_event.py`
+- `backend/app/models/__init__.py`
+- `backend/app/db/base.py`
+- `backend/app/api/v1/router.py`
+- `backend/tests/test_audit_events.py`
+- `scripts/dev/smoke_api.sh`
+- `frontend/src/App.tsx`
+- `README.md`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `make check-env`: geslaagd
+- `make docker-up`: geslaagd, backend en frontend opnieuw gebouwd
+- `make db-upgrade`: geslaagd, migration `0008_audit_events` uitgevoerd
+- `make smoke-api`: geslaagd, inclusief `role=platform_admin`, `checks=7`,
+  `connector_test_status=not_implemented`, `findings_created=7` en
+  `audit_events_report_viewed>=1`
+- `make backend-checks`: geslaagd, 78 tests passed, 1 bestaande TestClient warning
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `git diff --check`: geslaagd
+- `docker compose ps`: backend, frontend en postgres draaien
+- `curl -I http://localhost:5173`: HTTP 200
+- `curl -I http://localhost:8000/docs`: HTTP 200
+
+### Resultaat
+
+Gelukt. De backend heeft nu een eerste audit log foundation voor support access logging en
+audit-event inzage per platformrol of eigen customer-admin.
+
+### Problemen / beperkingen
+
+- Dit is nog geen volledige supportmodus of audit dashboard.
+- Customer users en viewers kunnen audit events bewust nog niet lezen.
+- Niet elk mogelijk 403-pad wordt in deze eerste stap gelogd.
+- Er is geen echte Google API, OAuth scope, token, private key, service account JSON of API key
+  toegevoegd.
+- Backend tests tonen nog dezelfde niet-blokkerende Starlette/FastAPI `TestClient` warning.
+
+### Volgende aanbevolen stap
+
+Bouw een eenvoudige platform-admin auditlogweergave en voeg daarna expliciete support access start/
+stop acties toe.
+
+### Volledige Codex samenvatting
+
+Gebouwd op branch `feature/audit-log-foundation`, zonder commit en zonder push. Toegevoegd: nieuw
+`AuditEvent` model, migration `0008_audit_events`, audit schemas, audit service met metadata
+sanitization, en read endpoints `GET /api/v1/audit-events` en
+`GET /api/v1/customers/{customer_id}/audit-events`. Audit logging wordt nu vastgelegd voor
+platformrollen bij customer detailweergave, connector config lezen, connector teststatus, scan-run
+detail en rapportweergave. Metadata sanitization verwijdert gevoelige keys zoals `password`,
+`token`, `secret`, `private_key`, `client_secret`, `service_account_json` en `api_key`.
+
+Minimale frontendwijziging: de dashboardkaart `Access model` vermeldt dat support access logging
+foundation actief is. De smoke-test controleert naast de bestaande platform-admin flow ook dat een
+rapportweergave een audit event oplevert. Validatie is groen: `make check-env`, `make docker-up`,
+`make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`,
+`npm --prefix frontend run lint` en `git diff --check` zijn geslaagd. Backend tests: 78 passed, met
+1 bestaande TestClient warning. Containers draaien: `dread-backend-1`, `dread-frontend-1` en
+`dread-postgres-1`. Frontend is bereikbaar op `http://localhost:5173` en backend docs op
+`http://localhost:8000/docs`.
+
 ## 2026-06-21 11:05 - Customer data scoping
 
 ### Opdracht

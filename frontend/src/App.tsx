@@ -1334,7 +1334,7 @@ function App() {
             <LockKeyhole aria-hidden="true" />
             <div>
               <h2>Access model</h2>
-              <p>Customer data scoping will be enforced in a next step.</p>
+              <p>Customer data scoping is enforced. Support access logging foundation enabled.</p>
             </div>
           </div>
           <div className="access-model-grid">

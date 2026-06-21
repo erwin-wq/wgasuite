@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -22,6 +22,7 @@ from app.db.session import get_db
 from app.models import (
     Assessment,
     Asset,
+    AuditEvent,
     ConnectorConfig,
     Customer,
     CustomerMembership,
@@ -33,6 +34,7 @@ from app.models import (
 )
 from app.schemas.assessment import AssessmentCreate, AssessmentRead
 from app.schemas.asset import AssetCreate, AssetRead
+from app.schemas.audit_event import AuditEventRead
 from app.schemas.auth import LoginRequest, TokenResponse, UserRead
 from app.schemas.connector_config import (
     ConnectorConfigCreate,
@@ -52,6 +54,7 @@ from app.schemas.google_workspace_check import GoogleWorkspaceCheckRead
 from app.schemas.organization import OrganizationCreate, OrganizationRead
 from app.schemas.report import AssessmentReportRead, RiskLevelCounts
 from app.schemas.scan_run import ScanRunRead
+from app.services.audit import record_audit_event
 from app.services.dread import calculate_dread_score
 from app.services.passwords import verify_password
 from app.services.tokens import encode_access_token
@@ -174,6 +177,46 @@ def build_user_read(db: Session, user: User) -> UserRead:
 
 def scoped_customer_ids(current_user: User) -> list[UUID]:
     return list(get_active_customer_ids_for_user(current_user))
+
+
+def effective_audit_limit(limit: int) -> int:
+    return min(limit, 200)
+
+
+def require_audit_events_read_access(
+    current_user: User,
+    customer_id: UUID | None,
+) -> None:
+    if is_platform_user(current_user):
+        return
+    require_customer_admin_access(current_user, customer_id)
+
+
+def record_platform_audit_event(
+    db: Session,
+    current_user: User,
+    action: str,
+    object_type: str,
+    object_id: str | UUID | None = None,
+    customer_id: UUID | None = None,
+    outcome: str = "success",
+    reason: str | None = None,
+    metadata: dict[str, object] | None = None,
+) -> None:
+    if not is_platform_user(current_user):
+        return
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type=object_type,
+        object_id=object_id,
+        customer_id=customer_id,
+        outcome=outcome,
+        reason=reason,
+        metadata=metadata,
+    )
 
 
 def require_organization_read_access(current_user: User, organization: Organization) -> None:
@@ -334,6 +377,33 @@ def list_google_workspace_check_catalog() -> list[dict[str, object]]:
     return [check.as_dict() for check in list_google_workspace_checks()]
 
 
+@api_router.get(
+    "/audit-events",
+    response_model=list[AuditEventRead],
+    tags=["audit-events"],
+)
+def list_audit_events(
+    db: DbSession,
+    current_user: CurrentUser,
+    customer_id: UUID | None = None,
+    action: str | None = None,
+    object_type: str | None = None,
+    limit: int = Query(default=50, ge=1),
+) -> list[AuditEvent]:
+    require_audit_events_read_access(current_user, customer_id)
+
+    statement = select(AuditEvent).order_by(AuditEvent.created_at.desc())
+    if customer_id is not None:
+        statement = statement.where(AuditEvent.customer_id == customer_id)
+    if action is not None:
+        statement = statement.where(AuditEvent.action == action)
+    if object_type is not None:
+        statement = statement.where(AuditEvent.object_type == object_type)
+
+    statement = statement.limit(effective_audit_limit(limit))
+    return list(db.scalars(statement).all())
+
+
 @api_router.post(
     "/customers",
     response_model=CustomerRead,
@@ -378,8 +448,61 @@ def list_customers(db: DbSession, current_user: CurrentUser) -> list[Customer]:
 )
 def get_customer(customer_id: UUID, db: DbSession, current_user: CurrentUser) -> Customer:
     customer = get_customer_or_404(db, customer_id)
-    require_customer_read_access(current_user, customer.id)
+    try:
+        require_customer_read_access(current_user, customer.id)
+    except HTTPException as exc:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action="access.denied",
+            object_type="customer",
+            object_id=customer.id,
+            customer_id=customer.id,
+            outcome="denied",
+            reason=str(exc.detail),
+            metadata={"endpoint": "GET /api/v1/customers/{customer_id}"},
+        )
+        raise
+
+    record_platform_audit_event(
+        db=db,
+        current_user=current_user,
+        action="customer.viewed",
+        object_type="customer",
+        object_id=customer.id,
+        customer_id=customer.id,
+    )
     return customer
+
+
+@api_router.get(
+    "/customers/{customer_id}/audit-events",
+    response_model=list[AuditEventRead],
+    tags=["audit-events"],
+)
+def list_customer_audit_events(
+    customer_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+    action: str | None = None,
+    object_type: str | None = None,
+    limit: int = Query(default=50, ge=1),
+) -> list[AuditEvent]:
+    get_customer_or_404(db, customer_id)
+    require_audit_events_read_access(current_user, customer_id)
+
+    statement = (
+        select(AuditEvent)
+        .where(AuditEvent.customer_id == customer_id)
+        .order_by(AuditEvent.created_at.desc())
+    )
+    if action is not None:
+        statement = statement.where(AuditEvent.action == action)
+    if object_type is not None:
+        statement = statement.where(AuditEvent.object_type == object_type)
+
+    statement = statement.limit(effective_audit_limit(limit))
+    return list(db.scalars(statement).all())
 
 
 @api_router.patch(
@@ -609,7 +732,17 @@ def list_organization_connector_configs(
         .where(ConnectorConfig.organization_id == organization_id)
         .order_by(ConnectorConfig.created_at.desc())
     )
-    return list(db.scalars(statement).all())
+    connector_configs = list(db.scalars(statement).all())
+    record_platform_audit_event(
+        db=db,
+        current_user=current_user,
+        action="connector_config.viewed",
+        object_type="organization_connector_configs",
+        object_id=organization_id,
+        customer_id=organization.customer_id,
+        metadata={"count": len(connector_configs)},
+    )
+    return connector_configs
 
 
 @api_router.get(
@@ -624,6 +757,14 @@ def get_connector_config(
 ) -> ConnectorConfig:
     connector_config = get_connector_config_or_404(db, connector_config_id)
     require_connector_config_read_access(current_user, connector_config)
+    record_platform_audit_event(
+        db=db,
+        current_user=current_user,
+        action="connector_config.viewed",
+        object_type="connector_config",
+        object_id=connector_config.id,
+        customer_id=connector_config.organization.customer_id,
+    )
     return connector_config
 
 
@@ -667,6 +808,17 @@ def test_connector_config(
     connector_config.last_error = "Real Google Workspace connection testing is not implemented yet."
     db.add(connector_config)
     db.commit()
+    db.refresh(connector_config)
+    record_platform_audit_event(
+        db=db,
+        current_user=current_user,
+        action="connector_config.tested",
+        object_type="connector_config",
+        object_id=connector_config.id,
+        customer_id=connector_config.organization.customer_id,
+        outcome="success",
+        metadata={"status": "not_implemented"},
+    )
 
     return ConnectorConfigTestRead(
         status="not_implemented",
@@ -778,7 +930,7 @@ def get_assessment_report(
         default=None,
     )
 
-    return AssessmentReportRead(
+    report = AssessmentReportRead(
         generated_at=datetime.now(UTC),
         assessment=assessment,
         organization=assessment.organization,
@@ -790,6 +942,16 @@ def get_assessment_report(
         highest_score=highest_finding.dread_score.total_score if highest_finding else None,
         highest_risk_level=highest_finding.dread_score.risk_level if highest_finding else None,
     )
+    record_platform_audit_event(
+        db=db,
+        current_user=current_user,
+        action="report.viewed",
+        object_type="assessment_report",
+        object_id=assessment.id,
+        customer_id=assessment.organization.customer_id,
+        metadata={"total_findings": report.total_findings},
+    )
+    return report
 
 
 @api_router.post(
@@ -919,7 +1081,16 @@ def list_assessment_scan_runs(
 )
 def get_scan_run(scan_run_id: UUID, db: DbSession, current_user: CurrentUser) -> ScanRun:
     scan_run = get_scan_run_or_404(db, scan_run_id)
-    require_scan_run_read_access(db, current_user, scan_run)
+    assessment = get_assessment_or_404(db, scan_run.assessment_id)
+    require_assessment_read_access(current_user, assessment)
+    record_platform_audit_event(
+        db=db,
+        current_user=current_user,
+        action="scan_run.viewed",
+        object_type="scan_run",
+        object_id=scan_run.id,
+        customer_id=assessment.organization.customer_id,
+    )
     return scan_run
 
 

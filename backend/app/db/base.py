@@ -1,6 +1,7 @@
 from app.models import (
     Assessment,
     Asset,
+    AuditEvent,
     ConnectorAccount,
     ConnectorConfig,
     Customer,
@@ -15,6 +16,7 @@ from app.models.base import Base
 
 __all__ = [
     "Assessment",
+    "AuditEvent",
     "Asset",
     "Base",
     "ConnectorAccount",
