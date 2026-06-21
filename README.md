@@ -134,9 +134,24 @@ Customerrollen per customer membership:
 - `customer_user`
 - `customer_viewer`
 
-Een gebruiker kan later aan meerdere customers gekoppeld worden. In deze foundation mag alleen
-`platform_admin` memberships beheren. Volledige customer data-scoping is nog niet afgedwongen en
-volgt in een aparte feature. Support access logging volgt ook later.
+Een gebruiker kan aan meerdere customers gekoppeld worden. Alleen `platform_admin` mag memberships
+beheren.
+
+## Customer data scoping
+
+De API dwingt een eerste customer data-scoping foundation af:
+
+- `platform_admin` ziet en beheert alle customerdata.
+- `platform_support` kan supportdata lezen en connector-teststatus controleren, maar geen gewone
+  writes uitvoeren.
+- `customer_admin` kan data beheren binnen eigen actieve customer memberships.
+- `customer_user` kan operationele data beheren binnen eigen actieve customer memberships.
+- `customer_viewer` heeft alleen read-only toegang binnen eigen actieve customer memberships.
+- Inactieve memberships geven geen toegang.
+- Organizations zonder `customer_id` zijn alleen zichtbaar voor platformrollen.
+
+Dit is backend data-isolatie. Een volledige portal split en audit/support access logging volgen
+later.
 
 ## Google Workspace connector configuratie
 

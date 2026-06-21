@@ -1,5 +1,101 @@
 # Project Log
 
+## 2026-06-21 11:05 - Customer data scoping
+
+### Opdracht
+
+Dwing Customer Data Scoping af in de API. Start vanaf `main`, maak branch
+`feature/customer-data-scoping`, voeg backend authorization/scoping helpers toe, bescherm bestaande
+API endpoints, voeg tests toe, update README en projectlogboek, draai de volledige lokale Docker
+validatie en stop zonder commit of push.
+
+### Uitgevoerd
+
+De bestaande auth dependencies, rollen, membership model, customer/organization/assessment/asset/
+finding/connector/scan-run routes en tests zijn gecontroleerd. Daarna zijn de authorization helpers
+uitgebreid in `backend/app/api/deps.py` voor platformrollen, actieve customer memberships,
+customer read/write/admin access en connector operation access.
+
+De API routes in `backend/app/api/v1/router.py` zijn aangepast zodat:
+
+- `platform_admin` alle data kan lezen en beheren.
+- `platform_support` supportdata kan lezen en connector-teststatus kan controleren, maar geen
+  gewone writes kan uitvoeren.
+- `customer_admin` data binnen eigen actieve customer memberships kan lezen en beheren.
+- `customer_user` operationele data binnen eigen actieve customer memberships kan lezen en beheren.
+- `customer_viewer` alleen kan lezen binnen eigen actieve customer memberships.
+- Inactieve memberships geen toegang geven.
+- Customerloze organizations alleen zichtbaar/beheerbaar zijn voor platformrollen.
+
+List/detail/write checks zijn toegevoegd voor customers, organizations, assessments, reports,
+assets, findings, connector configs, scan runs en de mock Google Workspace scan. Het Google
+Workspace check catalog endpoint blijft beschikbaar voor alle ingelogde users, omdat dit geen
+customerdata bevat.
+
+Er is een nieuwe backend testfile toegevoegd voor customer data scoping. README is bijgewerkt met
+de nieuwe rol- en scopingregels. Er is geen frontendcode aangepast, omdat `/auth/me` en de bestaande
+frontend types niet hoefden te wijzigen.
+
+### Aangepaste bestanden
+
+- `backend/app/api/deps.py`
+- `backend/app/api/v1/router.py`
+- `backend/tests/test_customer_data_scoping.py`
+- `README.md`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `make check-env`: geslaagd
+- `make docker-up`: geslaagd, backend en frontend opnieuw gebouwd
+- `make db-upgrade`: geslaagd
+- `make smoke-api`: geslaagd, inclusief `role=platform_admin`, `checks=7`,
+  `connector_test_status=not_implemented` en `findings_created=7`
+- `make backend-checks`: geslaagd, 66 tests passed, 1 bestaande TestClient warning
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `git diff --check`: geslaagd
+- `docker compose ps`: backend, frontend en postgres draaien
+- `curl -I http://localhost:5173`: HTTP 200
+- `curl -I http://localhost:8000/docs`: HTTP 200
+
+### Resultaat
+
+Gelukt. De backend dwingt nu customer-scoping af op de bestaande hoofd-API’s. De bestaande
+platform-admin smoke flow blijft werken.
+
+### Problemen / beperkingen
+
+- Dit is backend data-isolatie; er is nog geen volledige frontend portal split.
+- Audit logging en support access logging zijn nog niet gebouwd.
+- Er is geen echte Google API, OAuth scope, token, private key, service account JSON of API key
+  toegevoegd.
+- Backend tests tonen nog dezelfde niet-blokkerende Starlette/FastAPI `TestClient` warning.
+
+### Volgende aanbevolen stap
+
+Bouw audit logging voor platform-support toegang en bereid daarna de frontend portalnavigatie per
+rol voor.
+
+### Volledige Codex samenvatting
+
+Gebouwd op branch `feature/customer-data-scoping`, zonder commit en zonder push. Toegevoegd:
+centrale scopinghelpers voor platformrollen, actieve customer memberships, customer read/write/
+admin access en connector operation access. Beschermd/aangepast: customers, organizations,
+assessments, reports, assets, findings, connector configs, scan runs en mock Google Workspace scan.
+Rolregels: `platform_admin` alles, `platform_support` read-only supportbasis plus connector-test,
+`customer_admin` read/write binnen eigen customer, `customer_user` operationele read/write binnen
+eigen customer, `customer_viewer` read-only binnen eigen customer, inactive memberships geen
+toegang. Nieuwe tests staan in `backend/tests/test_customer_data_scoping.py`.
+
+Validatie is groen: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`,
+`make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint` en
+`git diff --check` zijn geslaagd. Backend tests: 66 passed, met 1 bestaande TestClient warning.
+Smoke-test resultaat: `role=platform_admin`, `checks=7`, `connector_test_status=not_implemented`,
+`findings_created=7`. Containers draaien: `dread-backend-1`, `dread-frontend-1` en
+`dread-postgres-1`. Frontend is bereikbaar op `http://localhost:5173` en backend docs op
+`http://localhost:8000/docs`.
+
 ## 2026-06-21 10:27 - Customer Membership + Roles foundation
 
 ### Opdracht

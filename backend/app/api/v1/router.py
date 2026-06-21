@@ -6,7 +6,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.deps import get_current_user, require_platform_admin
+from app.api.deps import (
+    get_active_customer_ids_for_user,
+    get_current_user,
+    is_platform_user,
+    require_customer_admin_access,
+    require_customer_connector_operation_access,
+    require_customer_read_access,
+    require_customer_write_access,
+    require_platform_admin,
+)
 from app.connectors import MockGoogleWorkspaceConnector, list_google_workspace_checks
 from app.core.config import get_settings
 from app.db.session import get_db
@@ -163,6 +172,75 @@ def build_user_read(db: Session, user: User) -> UserRead:
     )
 
 
+def scoped_customer_ids(current_user: User) -> list[UUID]:
+    return list(get_active_customer_ids_for_user(current_user))
+
+
+def require_organization_read_access(current_user: User, organization: Organization) -> None:
+    require_customer_read_access(current_user, organization.customer_id)
+
+
+def require_organization_write_access(current_user: User, organization: Organization) -> None:
+    require_customer_write_access(current_user, organization.customer_id)
+
+
+def require_assessment_read_access(current_user: User, assessment: Assessment) -> None:
+    require_organization_read_access(current_user, assessment.organization)
+
+
+def require_assessment_write_access(current_user: User, assessment: Assessment) -> None:
+    require_organization_write_access(current_user, assessment.organization)
+
+
+def require_asset_read_access(current_user: User, asset: Asset) -> None:
+    require_organization_read_access(current_user, asset.organization)
+
+
+def require_asset_write_access(current_user: User, asset: Asset) -> None:
+    require_organization_write_access(current_user, asset.organization)
+
+
+def require_finding_read_access(current_user: User, finding: Finding) -> None:
+    require_assessment_read_access(current_user, finding.assessment)
+
+
+def require_finding_write_access(current_user: User, finding: Finding) -> None:
+    require_assessment_write_access(current_user, finding.assessment)
+
+
+def require_connector_config_read_access(
+    current_user: User,
+    connector_config: ConnectorConfig,
+) -> None:
+    require_organization_read_access(current_user, connector_config.organization)
+
+
+def require_connector_config_write_access(
+    current_user: User,
+    connector_config: ConnectorConfig,
+) -> None:
+    require_organization_write_access(current_user, connector_config.organization)
+
+
+def require_connector_config_operation_access(
+    current_user: User,
+    connector_config: ConnectorConfig,
+) -> None:
+    require_customer_connector_operation_access(
+        current_user,
+        connector_config.organization.customer_id,
+    )
+
+
+def require_scan_run_read_access(
+    db: Session,
+    current_user: User,
+    scan_run: ScanRun,
+) -> None:
+    assessment = get_assessment_or_404(db, scan_run.assessment_id)
+    require_assessment_read_access(current_user, assessment)
+
+
 def validate_asset_scope(
     db: Session,
     asset_id: UUID | None,
@@ -261,11 +339,11 @@ def list_google_workspace_check_catalog() -> list[dict[str, object]]:
     response_model=CustomerRead,
     status_code=status.HTTP_201_CREATED,
     tags=["customers"],
-    dependencies=[Depends(get_current_user)],
 )
 def create_customer(
     payload: CustomerCreate,
     db: DbSession,
+    _current_admin: CurrentPlatformAdmin,
 ) -> Customer:
     existing = db.scalar(select(Customer).where(Customer.slug == payload.slug))
     if existing:
@@ -285,10 +363,11 @@ def create_customer(
     "/customers",
     response_model=list[CustomerRead],
     tags=["customers"],
-    dependencies=[Depends(get_current_user)],
 )
-def list_customers(db: DbSession) -> list[Customer]:
+def list_customers(db: DbSession, current_user: CurrentUser) -> list[Customer]:
     statement = select(Customer).order_by(Customer.created_at.desc())
+    if not is_platform_user(current_user):
+        statement = statement.where(Customer.id.in_(scoped_customer_ids(current_user)))
     return list(db.scalars(statement).all())
 
 
@@ -296,24 +375,26 @@ def list_customers(db: DbSession) -> list[Customer]:
     "/customers/{customer_id}",
     response_model=CustomerRead,
     tags=["customers"],
-    dependencies=[Depends(get_current_user)],
 )
-def get_customer(customer_id: UUID, db: DbSession) -> Customer:
-    return get_customer_or_404(db, customer_id)
+def get_customer(customer_id: UUID, db: DbSession, current_user: CurrentUser) -> Customer:
+    customer = get_customer_or_404(db, customer_id)
+    require_customer_read_access(current_user, customer.id)
+    return customer
 
 
 @api_router.patch(
     "/customers/{customer_id}",
     response_model=CustomerRead,
     tags=["customers"],
-    dependencies=[Depends(get_current_user)],
 )
 def update_customer(
     customer_id: UUID,
     payload: CustomerUpdate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Customer:
     customer = get_customer_or_404(db, customer_id)
+    require_customer_admin_access(current_user, customer.id)
     update_data = payload.model_dump(exclude_unset=True)
 
     if "slug" in update_data and update_data["slug"] != customer.slug:
@@ -422,14 +503,15 @@ def update_customer_membership(
     response_model=OrganizationRead,
     status_code=status.HTTP_201_CREATED,
     tags=["organizations"],
-    dependencies=[Depends(get_current_user)],
 )
 def create_organization(
     payload: OrganizationCreate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Organization:
     if payload.customer_id is not None:
         get_customer_or_404(db, payload.customer_id)
+    require_customer_write_access(current_user, payload.customer_id)
 
     existing = db.scalar(select(Organization).where(Organization.name == payload.name))
     if existing:
@@ -449,10 +531,11 @@ def create_organization(
     "/organizations",
     response_model=list[OrganizationRead],
     tags=["organizations"],
-    dependencies=[Depends(get_current_user)],
 )
-def list_organizations(db: DbSession) -> list[Organization]:
+def list_organizations(db: DbSession, current_user: CurrentUser) -> list[Organization]:
     statement = select(Organization).order_by(Organization.created_at.desc())
+    if not is_platform_user(current_user):
+        statement = statement.where(Organization.customer_id.in_(scoped_customer_ids(current_user)))
     return list(db.scalars(statement).all())
 
 
@@ -460,10 +543,15 @@ def list_organizations(db: DbSession) -> list[Organization]:
     "/organizations/{organization_id}",
     response_model=OrganizationRead,
     tags=["organizations"],
-    dependencies=[Depends(get_current_user)],
 )
-def get_organization(organization_id: UUID, db: DbSession) -> Organization:
-    return get_organization_or_404(db, organization_id)
+def get_organization(
+    organization_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> Organization:
+    organization = get_organization_or_404(db, organization_id)
+    require_organization_read_access(current_user, organization)
+    return organization
 
 
 @api_router.post(
@@ -471,14 +559,15 @@ def get_organization(organization_id: UUID, db: DbSession) -> Organization:
     response_model=ConnectorConfigRead,
     status_code=status.HTTP_201_CREATED,
     tags=["connector-configs"],
-    dependencies=[Depends(get_current_user)],
 )
 def upsert_google_workspace_connector_config(
     organization_id: UUID,
     payload: ConnectorConfigCreate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> ConnectorConfig:
-    get_organization_or_404(db, organization_id)
+    organization = get_organization_or_404(db, organization_id)
+    require_organization_write_access(current_user, organization)
     statement = select(ConnectorConfig).where(
         ConnectorConfig.organization_id == organization_id,
         ConnectorConfig.connector_type == "google_workspace",
@@ -507,13 +596,14 @@ def upsert_google_workspace_connector_config(
     "/organizations/{organization_id}/connector-configs",
     response_model=list[ConnectorConfigRead],
     tags=["connector-configs"],
-    dependencies=[Depends(get_current_user)],
 )
 def list_organization_connector_configs(
     organization_id: UUID,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> list[ConnectorConfig]:
-    get_organization_or_404(db, organization_id)
+    organization = get_organization_or_404(db, organization_id)
+    require_organization_read_access(current_user, organization)
     statement = (
         select(ConnectorConfig)
         .where(ConnectorConfig.organization_id == organization_id)
@@ -526,24 +616,30 @@ def list_organization_connector_configs(
     "/connector-configs/{connector_config_id}",
     response_model=ConnectorConfigRead,
     tags=["connector-configs"],
-    dependencies=[Depends(get_current_user)],
 )
-def get_connector_config(connector_config_id: UUID, db: DbSession) -> ConnectorConfig:
-    return get_connector_config_or_404(db, connector_config_id)
+def get_connector_config(
+    connector_config_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ConnectorConfig:
+    connector_config = get_connector_config_or_404(db, connector_config_id)
+    require_connector_config_read_access(current_user, connector_config)
+    return connector_config
 
 
 @api_router.patch(
     "/connector-configs/{connector_config_id}",
     response_model=ConnectorConfigRead,
     tags=["connector-configs"],
-    dependencies=[Depends(get_current_user)],
 )
 def update_connector_config(
     connector_config_id: UUID,
     payload: ConnectorConfigUpdate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> ConnectorConfig:
     connector_config = get_connector_config_or_404(db, connector_config_id)
+    require_connector_config_write_access(current_user, connector_config)
     update_data = payload.model_dump(exclude_unset=True)
 
     for field, value in update_data.items():
@@ -559,13 +655,14 @@ def update_connector_config(
     "/connector-configs/{connector_config_id}/test",
     response_model=ConnectorConfigTestRead,
     tags=["connector-configs"],
-    dependencies=[Depends(get_current_user)],
 )
 def test_connector_config(
     connector_config_id: UUID,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> ConnectorConfigTestRead:
     connector_config = get_connector_config_or_404(db, connector_config_id)
+    require_connector_config_operation_access(current_user, connector_config)
     connector_config.last_tested_at = datetime.now(UTC)
     connector_config.last_error = "Real Google Workspace connection testing is not implemented yet."
     db.add(connector_config)
@@ -586,13 +683,14 @@ def test_connector_config(
     response_model=AssessmentRead,
     status_code=status.HTTP_201_CREATED,
     tags=["assessments"],
-    dependencies=[Depends(get_current_user)],
 )
 def create_assessment(
     payload: AssessmentCreate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Assessment:
-    get_organization_or_404(db, payload.organization_id)
+    organization = get_organization_or_404(db, payload.organization_id)
+    require_organization_write_access(current_user, organization)
 
     assessment = Assessment(**payload.model_dump())
     db.add(assessment)
@@ -605,10 +703,14 @@ def create_assessment(
     "/assessments",
     response_model=list[AssessmentRead],
     tags=["assessments"],
-    dependencies=[Depends(get_current_user)],
 )
-def list_assessments(db: DbSession) -> list[Assessment]:
+def list_assessments(db: DbSession, current_user: CurrentUser) -> list[Assessment]:
     statement = select(Assessment).order_by(Assessment.created_at.desc())
+    if not is_platform_user(current_user):
+        statement = (
+            statement.join(Assessment.organization)
+            .where(Organization.customer_id.in_(scoped_customer_ids(current_user)))
+        )
     return list(db.scalars(statement).all())
 
 
@@ -616,19 +718,23 @@ def list_assessments(db: DbSession) -> list[Assessment]:
     "/assessments/{assessment_id}",
     response_model=AssessmentRead,
     tags=["assessments"],
-    dependencies=[Depends(get_current_user)],
 )
-def get_assessment(assessment_id: UUID, db: DbSession) -> Assessment:
-    return get_assessment_or_404(db, assessment_id)
+def get_assessment(assessment_id: UUID, db: DbSession, current_user: CurrentUser) -> Assessment:
+    assessment = get_assessment_or_404(db, assessment_id)
+    require_assessment_read_access(current_user, assessment)
+    return assessment
 
 
 @api_router.get(
     "/assessments/{assessment_id}/report",
     response_model=AssessmentReportRead,
     tags=["assessments"],
-    dependencies=[Depends(get_current_user)],
 )
-def get_assessment_report(assessment_id: UUID, db: DbSession) -> AssessmentReportRead:
+def get_assessment_report(
+    assessment_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> AssessmentReportRead:
     assessment_statement = (
         select(Assessment)
         .where(Assessment.id == assessment_id)
@@ -640,6 +746,7 @@ def get_assessment_report(assessment_id: UUID, db: DbSession) -> AssessmentRepor
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Assessment not found.",
         )
+    require_assessment_read_access(current_user, assessment)
 
     findings_statement = (
         select(Finding)
@@ -690,10 +797,14 @@ def get_assessment_report(assessment_id: UUID, db: DbSession) -> AssessmentRepor
     response_model=ScanRunRead,
     status_code=status.HTTP_201_CREATED,
     tags=["scan-runs"],
-    dependencies=[Depends(get_current_user)],
 )
-def run_mock_google_workspace_scan(assessment_id: UUID, db: DbSession) -> ScanRun:
+def run_mock_google_workspace_scan(
+    assessment_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ScanRun:
     assessment = get_assessment_or_404(db, assessment_id)
+    require_assessment_write_access(current_user, assessment)
     started_at = datetime.now(UTC)
     scan_run = ScanRun(
         assessment_id=assessment.id,
@@ -785,10 +896,14 @@ def run_mock_google_workspace_scan(assessment_id: UUID, db: DbSession) -> ScanRu
     "/assessments/{assessment_id}/scan-runs",
     response_model=list[ScanRunRead],
     tags=["scan-runs"],
-    dependencies=[Depends(get_current_user)],
 )
-def list_assessment_scan_runs(assessment_id: UUID, db: DbSession) -> list[ScanRun]:
-    get_assessment_or_404(db, assessment_id)
+def list_assessment_scan_runs(
+    assessment_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> list[ScanRun]:
+    assessment = get_assessment_or_404(db, assessment_id)
+    require_assessment_read_access(current_user, assessment)
     statement = (
         select(ScanRun)
         .where(ScanRun.assessment_id == assessment_id)
@@ -801,10 +916,11 @@ def list_assessment_scan_runs(assessment_id: UUID, db: DbSession) -> list[ScanRu
     "/scan-runs/{scan_run_id}",
     response_model=ScanRunRead,
     tags=["scan-runs"],
-    dependencies=[Depends(get_current_user)],
 )
-def get_scan_run(scan_run_id: UUID, db: DbSession) -> ScanRun:
-    return get_scan_run_or_404(db, scan_run_id)
+def get_scan_run(scan_run_id: UUID, db: DbSession, current_user: CurrentUser) -> ScanRun:
+    scan_run = get_scan_run_or_404(db, scan_run_id)
+    require_scan_run_read_access(db, current_user, scan_run)
+    return scan_run
 
 
 @api_router.post(
@@ -812,13 +928,14 @@ def get_scan_run(scan_run_id: UUID, db: DbSession) -> ScanRun:
     response_model=AssetRead,
     status_code=status.HTTP_201_CREATED,
     tags=["assets"],
-    dependencies=[Depends(get_current_user)],
 )
 def create_asset(
     payload: AssetCreate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Asset:
-    get_organization_or_404(db, payload.organization_id)
+    organization = get_organization_or_404(db, payload.organization_id)
+    require_organization_write_access(current_user, organization)
 
     duplicate = db.scalar(
         select(Asset).where(
@@ -843,10 +960,14 @@ def create_asset(
     "/assets",
     response_model=list[AssetRead],
     tags=["assets"],
-    dependencies=[Depends(get_current_user)],
 )
-def list_assets(db: DbSession) -> list[Asset]:
+def list_assets(db: DbSession, current_user: CurrentUser) -> list[Asset]:
     statement = select(Asset).order_by(Asset.created_at.desc())
+    if not is_platform_user(current_user):
+        statement = (
+            statement.join(Asset.organization)
+            .where(Organization.customer_id.in_(scoped_customer_ids(current_user)))
+        )
     return list(db.scalars(statement).all())
 
 
@@ -854,10 +975,11 @@ def list_assets(db: DbSession) -> list[Asset]:
     "/assets/{asset_id}",
     response_model=AssetRead,
     tags=["assets"],
-    dependencies=[Depends(get_current_user)],
 )
-def get_asset(asset_id: UUID, db: DbSession) -> Asset:
-    return get_asset_or_404(db, asset_id)
+def get_asset(asset_id: UUID, db: DbSession, current_user: CurrentUser) -> Asset:
+    asset = get_asset_or_404(db, asset_id)
+    require_asset_read_access(current_user, asset)
+    return asset
 
 
 @api_router.post(
@@ -865,13 +987,14 @@ def get_asset(asset_id: UUID, db: DbSession) -> Asset:
     response_model=FindingRead,
     status_code=status.HTTP_201_CREATED,
     tags=["findings"],
-    dependencies=[Depends(get_current_user)],
 )
 def create_finding(
     payload: FindingCreate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Finding:
     assessment = get_assessment_or_404(db, payload.assessment_id)
+    require_assessment_write_access(current_user, assessment)
     validate_asset_scope(db, payload.asset_id, assessment)
 
     score_values = payload.dread_score.model_dump()
@@ -899,14 +1022,19 @@ def create_finding(
     "/findings",
     response_model=list[FindingRead],
     tags=["findings"],
-    dependencies=[Depends(get_current_user)],
 )
-def list_findings(db: DbSession) -> list[Finding]:
+def list_findings(db: DbSession, current_user: CurrentUser) -> list[Finding]:
     statement = (
         select(Finding)
         .options(selectinload(Finding.dread_score))
         .order_by(Finding.created_at.desc())
     )
+    if not is_platform_user(current_user):
+        statement = (
+            statement.join(Finding.assessment)
+            .join(Assessment.organization)
+            .where(Organization.customer_id.in_(scoped_customer_ids(current_user)))
+        )
     return list(db.scalars(statement).all())
 
 
@@ -914,25 +1042,27 @@ def list_findings(db: DbSession) -> list[Finding]:
     "/findings/{finding_id}",
     response_model=FindingRead,
     tags=["findings"],
-    dependencies=[Depends(get_current_user)],
 )
-def get_finding(finding_id: UUID, db: DbSession) -> Finding:
-    return get_finding_or_404(db, finding_id)
+def get_finding(finding_id: UUID, db: DbSession, current_user: CurrentUser) -> Finding:
+    finding = get_finding_or_404(db, finding_id)
+    require_finding_read_access(current_user, finding)
+    return finding
 
 
 @api_router.patch(
     "/findings/{finding_id}",
     response_model=FindingRead,
     tags=["findings"],
-    dependencies=[Depends(get_current_user)],
 )
 def update_finding(
     finding_id: UUID,
     payload: FindingUpdate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Finding:
     finding = get_finding_or_404(db, finding_id)
     assessment = get_assessment_or_404(db, finding.assessment_id)
+    require_finding_write_access(current_user, finding)
     update_data = payload.model_dump(exclude_unset=True)
 
     if "asset_id" in update_data:
