@@ -123,6 +123,48 @@ export interface GoogleWorkspaceCheck {
   maps_to_finding_title: string;
 }
 
+export type ConnectorAuthMethod =
+  | "service_account_domain_wide_delegation"
+  | "oauth_admin_consent"
+  | "manual_import";
+
+export type ConnectorStatus =
+  | "not_configured"
+  | "configured"
+  | "connected"
+  | "connection_failed";
+
+export interface ConnectorConfig {
+  id: string;
+  organization_id: string;
+  connector_type: "google_workspace";
+  auth_method: ConnectorAuthMethod;
+  status: ConnectorStatus;
+  display_name: string;
+  primary_domain: string | null;
+  admin_subject_email: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  last_tested_at: string | null;
+  last_error: string | null;
+}
+
+export interface ConnectorConfigPayload {
+  display_name: string;
+  primary_domain: string | null;
+  admin_subject_email: string | null;
+  auth_method: ConnectorAuthMethod;
+  status: ConnectorStatus;
+  notes: string | null;
+}
+
+export interface ConnectorConfigTestResult {
+  status: "not_implemented";
+  message: string;
+  recommended_next_step: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;

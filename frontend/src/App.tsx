@@ -40,15 +40,20 @@ import {
   listCustomers,
   listFindings,
   listGoogleWorkspaceChecks,
+  listOrganizationConnectorConfigs,
   listOrganizations,
   login,
   runMockGoogleWorkspaceScan,
-  setStoredAuthToken
+  setStoredAuthToken,
+  testConnectorConfig,
+  upsertGoogleWorkspaceConnectorConfig
 } from "./api/client";
 import type {
   Assessment,
   AssessmentReport,
   Asset,
+  ConnectorAuthMethod,
+  ConnectorConfig,
   Customer,
   DreadScoreCreate,
   Finding,
@@ -62,7 +67,13 @@ import type {
 type DreadScoreKey = keyof DreadScoreCreate;
 type Feedback = { type: "success" | "error"; message: string } | null;
 type SavingTarget = "customer" | "organization" | "assessment" | "asset" | "finding" | null;
-type ActiveView = "workspace" | "report";
+type ActiveSection =
+  | "dashboard"
+  | "customers"
+  | "organizations"
+  | "assessment"
+  | "google-workspace"
+  | "reports";
 
 const initialDreadScore: DreadScoreCreate = {
   damage: 5,
@@ -79,6 +90,12 @@ const dreadControls: Array<{ key: DreadScoreKey; label: string; hint: string }> 
   { key: "affected_users", label: "Affected users", hint: "Bereik van impact" },
   { key: "discoverability", label: "Discoverability", hint: "Hoe makkelijk te vinden" }
 ];
+
+const connectorAuthMethodLabels: Record<ConnectorAuthMethod, string> = {
+  service_account_domain_wide_delegation: "Service account + domain-wide delegation",
+  oauth_admin_consent: "OAuth admin consent",
+  manual_import: "Manual import"
+};
 
 function riskLevelFromScore(score: number): "Low" | "Medium" | "High" | "Critical" {
   if (score < 3) {
@@ -102,6 +119,10 @@ function formatDateTime(value: string): string {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
+}
+
+function formatOptionalDateTime(value: string | null): string {
+  return value ? formatDateTime(value) : "Nog niet getest";
 }
 
 function buildExecutiveSummary(report: AssessmentReport): string {
@@ -128,6 +149,7 @@ function App() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [scanRuns, setScanRuns] = useState<ScanRun[]>([]);
   const [googleWorkspaceChecks, setGoogleWorkspaceChecks] = useState<GoogleWorkspaceCheck[]>([]);
+  const [connectorConfigs, setConnectorConfigs] = useState<ConnectorConfig[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
   const [selectedAssessmentId, setSelectedAssessmentId] = useState("");
@@ -149,19 +171,29 @@ function App() {
   const [findingDescription, setFindingDescription] = useState("");
   const [findingMitigation, setFindingMitigation] = useState("");
   const [dreadScore, setDreadScore] = useState<DreadScoreCreate>(initialDreadScore);
+  const [connectorDisplayName, setConnectorDisplayName] = useState("Google Workspace");
+  const [connectorPrimaryDomain, setConnectorPrimaryDomain] = useState("");
+  const [connectorAdminSubjectEmail, setConnectorAdminSubjectEmail] = useState("");
+  const [connectorAuthMethod, setConnectorAuthMethod] = useState<ConnectorAuthMethod>(
+    "service_account_domain_wide_delegation"
+  );
+  const [connectorNotes, setConnectorNotes] = useState("");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loginEmail, setLoginEmail] = useState("admin@example.local");
   const [loginPassword, setLoginPassword] = useState("ChangeMe123!");
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [connectorFeedback, setConnectorFeedback] = useState<Feedback>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isLoginSaving, setIsLoginSaving] = useState(false);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [isScanLoading, setIsScanLoading] = useState(false);
   const [isScanRunning, setIsScanRunning] = useState(false);
+  const [isConnectorSaving, setIsConnectorSaving] = useState(false);
+  const [isConnectorTesting, setIsConnectorTesting] = useState(false);
   const [showGoogleWorkspaceChecks, setShowGoogleWorkspaceChecks] = useState(false);
   const [saving, setSaving] = useState<SavingTarget>(null);
-  const [activeView, setActiveView] = useState<ActiveView>("workspace");
+  const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
   const [report, setReport] = useState<AssessmentReport | null>(null);
 
   const customerById = useMemo(
@@ -204,6 +236,15 @@ function App() {
     () => findings.filter((finding) => finding.assessment_id === selectedAssessmentId),
     [findings, selectedAssessmentId]
   );
+  const googleWorkspaceConnectorConfig = useMemo(
+    () =>
+      connectorConfigs.find(
+        (connectorConfig) =>
+          connectorConfig.organization_id === selectedOrganizationId &&
+          connectorConfig.connector_type === "google_workspace"
+      ) ?? null,
+    [connectorConfigs, selectedOrganizationId]
+  );
   const assetById = useMemo(
     () => new Map(assets.map((asset) => [asset.id, asset])),
     [assets]
@@ -245,12 +286,13 @@ function App() {
   const canCreateAssessment = Boolean(selectedOrganizationId && assessmentTitle.trim());
   const canCreateAsset = Boolean(selectedOrganizationId && assetName.trim());
   const canCreateFinding = Boolean(selectedAssessmentId && findingTitle.trim());
+  const canSaveConnectorConfig = Boolean(selectedOrganizationId && connectorDisplayName.trim());
 
   const resetSession = useCallback((message?: string) => {
     clearStoredAuthToken();
     setCurrentUser(null);
     setReport(null);
-    setActiveView("workspace");
+    setActiveSection("dashboard");
     setCustomers([]);
     setOrganizations([]);
     setAssessments([]);
@@ -258,6 +300,8 @@ function App() {
     setFindings([]);
     setScanRuns([]);
     setGoogleWorkspaceChecks([]);
+    setConnectorConfigs([]);
+    setConnectorFeedback(null);
     setSelectedCustomerId("");
     setSelectedOrganizationId("");
     setSelectedAssessmentId("");
@@ -278,6 +322,23 @@ function App() {
       setFeedback({ type: "error", message: (error as Error).message });
     },
     [resetSession]
+  );
+
+  const loadOrganizationConnectorConfigs = useCallback(
+    async (organizationId: string) => {
+      if (!organizationId) {
+        setConnectorConfigs([]);
+        return;
+      }
+
+      try {
+        const loadedConnectorConfigs = await listOrganizationConnectorConfigs(organizationId);
+        setConnectorConfigs(loadedConnectorConfigs);
+      } catch (connectorError) {
+        handleRequestError(connectorError);
+      }
+    },
+    [handleRequestError]
   );
 
   const loadAssessmentScanRuns = useCallback(
@@ -402,6 +463,7 @@ function App() {
       setSelectedAssessmentId("");
       setSelectedAssetId("");
       setScanRuns([]);
+      setConnectorConfigs([]);
       return;
     }
 
@@ -428,6 +490,32 @@ function App() {
 
     loadAssessmentScanRuns(selectedAssessmentId);
   }, [currentUser, loadAssessmentScanRuns, selectedAssessmentId]);
+
+  useEffect(() => {
+    if (!currentUser || !selectedOrganizationId) {
+      setConnectorConfigs([]);
+      return;
+    }
+
+    loadOrganizationConnectorConfigs(selectedOrganizationId);
+  }, [currentUser, loadOrganizationConnectorConfigs, selectedOrganizationId]);
+
+  useEffect(() => {
+    if (!googleWorkspaceConnectorConfig) {
+      setConnectorDisplayName("Google Workspace");
+      setConnectorPrimaryDomain("");
+      setConnectorAdminSubjectEmail("");
+      setConnectorAuthMethod("service_account_domain_wide_delegation");
+      setConnectorNotes("");
+      return;
+    }
+
+    setConnectorDisplayName(googleWorkspaceConnectorConfig.display_name);
+    setConnectorPrimaryDomain(googleWorkspaceConnectorConfig.primary_domain ?? "");
+    setConnectorAdminSubjectEmail(googleWorkspaceConnectorConfig.admin_subject_email ?? "");
+    setConnectorAuthMethod(googleWorkspaceConnectorConfig.auth_method);
+    setConnectorNotes(googleWorkspaceConnectorConfig.notes ?? "");
+  }, [googleWorkspaceConnectorConfig]);
 
   async function handleCreateCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -606,6 +694,72 @@ function App() {
     }
   }
 
+  async function handleSaveConnectorConfig(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canSaveConnectorConfig) {
+      return;
+    }
+
+    setFeedback(null);
+    setConnectorFeedback(null);
+    setIsConnectorSaving(true);
+    try {
+      const savedConnectorConfig = await upsertGoogleWorkspaceConnectorConfig(
+        selectedOrganizationId,
+        {
+          display_name: connectorDisplayName.trim(),
+          primary_domain: connectorPrimaryDomain.trim() || null,
+          admin_subject_email: connectorAdminSubjectEmail.trim() || null,
+          auth_method: connectorAuthMethod,
+          status: "configured",
+          notes: connectorNotes.trim() || null
+        }
+      );
+      setConnectorConfigs((current) => {
+        const otherConfigs = current.filter((item) => item.id !== savedConnectorConfig.id);
+        return [savedConnectorConfig, ...otherConfigs];
+      });
+      setConnectorFeedback({
+        type: "success",
+        message: "Google Workspace connectorconfiguratie opgeslagen."
+      });
+    } catch (connectorError) {
+      if (connectorError instanceof ApiError && connectorError.status === 401) {
+        handleRequestError(connectorError);
+      } else {
+        setConnectorFeedback({ type: "error", message: (connectorError as Error).message });
+      }
+    } finally {
+      setIsConnectorSaving(false);
+    }
+  }
+
+  async function handleTestConnectorConfig() {
+    if (!googleWorkspaceConnectorConfig) {
+      return;
+    }
+
+    setFeedback(null);
+    setConnectorFeedback(null);
+    setIsConnectorTesting(true);
+    try {
+      const testResult = await testConnectorConfig(googleWorkspaceConnectorConfig.id);
+      setConnectorFeedback({
+        type: "success",
+        message: `${testResult.message} ${testResult.recommended_next_step}`
+      });
+      await loadOrganizationConnectorConfigs(selectedOrganizationId);
+    } catch (connectorError) {
+      if (connectorError instanceof ApiError && connectorError.status === 401) {
+        handleRequestError(connectorError);
+      } else {
+        setConnectorFeedback({ type: "error", message: (connectorError as Error).message });
+      }
+    } finally {
+      setIsConnectorTesting(false);
+    }
+  }
+
   function updateFindingScore(key: DreadScoreKey, value: number) {
     setDreadScore((current) => ({ ...current, [key]: value }));
   }
@@ -664,7 +818,7 @@ function App() {
     try {
       const loadedReport = await getAssessmentReport(selectedAssessmentId);
       setReport(loadedReport);
-      setActiveView("report");
+      setActiveSection("reports");
     } catch (reportError) {
       handleRequestError(reportError);
     } finally {
@@ -673,7 +827,7 @@ function App() {
   }
 
   function handleBackToWorkspace() {
-    setActiveView("workspace");
+    setActiveSection("assessment");
   }
 
   function handlePrintReport() {
@@ -686,6 +840,64 @@ function App() {
   const activeCustomerLabel = isLoading
     ? "Data laden"
     : selectedCustomer?.name ?? selectedOrganizationCustomer?.name ?? "Geen customer geselecteerd";
+  const activeSectionMeta: Record<ActiveSection, { title: string; description: string }> = {
+    dashboard: {
+      title: "Dashboard",
+      description: "Samenvatting van de actieve klantorganisatie, assessment en risico's."
+    },
+    customers: {
+      title: "Customer context",
+      description: "Platform/customer context for this MVP. Nog geen volledig admin-model."
+    },
+    organizations: {
+      title: "Organizations",
+      description: "Maak organisaties aan en controleer de koppeling met de actieve customer."
+    },
+    assessment: {
+      title: "Assessment workspace",
+      description: "Maak assessments, assets en findings aan en vul DREAD-scores in."
+    },
+    "google-workspace": {
+      title: "Google Workspace",
+      description: "Beheer connector metadata, check catalog en mock scans zonder echte Google data."
+    },
+    reports: {
+      title: "Reports",
+      description: "Open het rapport voor het actieve assessment en print of sla het op als PDF."
+    }
+  };
+  const recommendedNextStep: { message: string; buttonLabel: string; target: ActiveSection } =
+    !selectedCustomerId
+      ? {
+          message: "Selecteer of maak een customer aan.",
+          buttonLabel: "Customer context openen",
+          target: "customers"
+        }
+      : !selectedOrganizationId
+        ? {
+            message: "Selecteer of maak een organisatie aan.",
+            buttonLabel: "Organizations openen",
+            target: "organizations"
+          }
+        : !selectedAssessmentId
+          ? {
+              message: "Maak of open een assessment.",
+              buttonLabel: "Assessment workspace openen",
+              target: "assessment"
+            }
+          : assessmentFindings.length === 0
+            ? {
+                message: "Start een Google Workspace mock scan of voeg handmatig een finding toe.",
+                buttonLabel: "Google Workspace openen",
+                target: "google-workspace"
+              }
+            : {
+                message: "Open het rapport of beoordeel de findings.",
+                buttonLabel: "Reports openen",
+                target: "reports"
+              };
+  const sectionClass = (section: ActiveSection, extraClass = "") =>
+    `section-view ${activeSection === section ? "active" : ""} ${extraClass}`.trim();
 
   if (isAuthLoading) {
     return (
@@ -769,9 +981,8 @@ function App() {
     );
   }
 
-  if (activeView === "report") {
-    return (
-      <main className="app-shell report-shell">
+  const reportPanel = (
+    <>
         <section className="report-page">
           <div className="report-toolbar no-print">
             <button type="button" className="secondary-button" onClick={handleBackToWorkspace}>
@@ -787,7 +998,8 @@ function App() {
           {!report ? (
             <div className="empty-state">
               <FileText aria-hidden="true" />
-              <h3>Rapport laden</h3>
+              <h3>Geen rapport geopend</h3>
+              <p>Open eerst het rapport voor het actieve assessment.</p>
             </div>
           ) : (
             <>
@@ -994,26 +1206,82 @@ function App() {
             Rapport laden
           </div>
         )}
-      </main>
-    );
-  }
+    </>
+  );
 
   return (
-    <main className="app-shell">
-      <header className="hero">
-        <div>
-          <span className="eyebrow">Security risk workspace</span>
-          <h1>DREAD Risk Assessment</h1>
-          <p>
-            Leg organisaties, assessments, assets en findings vast met een consistente DREAD-score.
-          </p>
+    <main className="app-shell nav-app-shell">
+      <aside className="app-sidebar no-print" aria-label="Hoofdnavigatie">
+        <div className="sidebar-brand">
+          <ShieldAlert aria-hidden="true" />
+          <div>
+            <strong>DREAD</strong>
+            <span>Risk Assessment</span>
+          </div>
         </div>
-        <div className="hero-side">
-          <div className="hero-status" aria-live="polite">
-            <BadgeCheck aria-hidden="true" />
-            <span className="hero-status-name" title={activeOrganizationLabel}>
-              {activeOrganizationLabel}
-            </span>
+
+        <nav className="sidebar-nav">
+          <button
+            type="button"
+            className={activeSection === "dashboard" ? "active" : ""}
+            onClick={() => setActiveSection("dashboard")}
+          >
+            <Activity aria-hidden="true" />
+            Dashboard
+          </button>
+          <button
+            type="button"
+            className={activeSection === "customers" ? "active" : ""}
+            onClick={() => setActiveSection("customers")}
+          >
+            <Users aria-hidden="true" />
+            Customer context
+          </button>
+          <button
+            type="button"
+            className={activeSection === "organizations" ? "active" : ""}
+            onClick={() => setActiveSection("organizations")}
+          >
+            <Building2 aria-hidden="true" />
+            Organizations
+          </button>
+          <button
+            type="button"
+            className={activeSection === "assessment" ? "active" : ""}
+            onClick={() => setActiveSection("assessment")}
+          >
+            <ClipboardList aria-hidden="true" />
+            Assessment workspace
+          </button>
+          <button
+            type="button"
+            className={activeSection === "google-workspace" ? "active" : ""}
+            onClick={() => setActiveSection("google-workspace")}
+          >
+            <ShieldAlert aria-hidden="true" />
+            Google Workspace
+          </button>
+          <button
+            type="button"
+            className={activeSection === "reports" ? "active" : ""}
+            onClick={() => setActiveSection("reports")}
+          >
+            <FileText aria-hidden="true" />
+            Reports
+          </button>
+        </nav>
+
+        <div className="sidebar-context">
+          <span>Actieve organisatie</span>
+          <strong title={activeOrganizationLabel}>{activeOrganizationLabel}</strong>
+        </div>
+      </aside>
+
+      <section className="app-main">
+        <header className="app-topbar no-print">
+          <div>
+            <span className="eyebrow">Security risk workspace</span>
+            <h1>DREAD Risk Assessment</h1>
           </div>
           <div className="user-session">
             <div>
@@ -1026,8 +1294,20 @@ function App() {
               Logout
             </button>
           </div>
-        </div>
-      </header>
+        </header>
+
+        <section className="content-header no-print">
+          <div>
+            <h2>{activeSectionMeta[activeSection].title}</h2>
+            <p>{activeSectionMeta[activeSection].description}</p>
+          </div>
+          <div className="hero-status" aria-live="polite">
+            <BadgeCheck aria-hidden="true" />
+            <span className="hero-status-name" title={activeOrganizationLabel}>
+              {activeOrganizationLabel}
+            </span>
+          </div>
+        </section>
 
       {feedback && (
         <section className={`message ${feedback.type}`} aria-live="polite">
@@ -1040,73 +1320,101 @@ function App() {
         </section>
       )}
 
-      <section className="summary-grid" aria-label="Assessment overzicht">
-        <article className="metric-card">
-          <Users aria-hidden="true" />
-          <div className="metric-content">
-            <span className="metric-label">Actieve customer</span>
-            <strong className="metric-value" title={activeCustomerLabel}>
-              {activeCustomerLabel}
-            </strong>
+      <section className={sectionClass("dashboard", "dashboard-view")} aria-label="Dashboard">
+        <section className="product-context-panel">
+          <h2>Klantportaal voor security assessments</h2>
+          <p>
+            Dit portaal is bedoeld om per klantorganisatie risico-assessments, Google Workspace
+            checks en rapportages te beheren.
+          </p>
+        </section>
+
+        <div className="summary-grid" aria-label="Assessment overzicht">
+          <article className="metric-card">
+            <Users aria-hidden="true" />
+            <div className="metric-content">
+              <span className="metric-label">Actieve customer</span>
+              <strong className="metric-value" title={activeCustomerLabel}>
+                {activeCustomerLabel}
+              </strong>
+            </div>
+          </article>
+          <article className="metric-card">
+            <Building2 aria-hidden="true" />
+            <div className="metric-content">
+              <span className="metric-label">Actieve organisatie</span>
+              <strong className="metric-value" title={selectedOrganization?.name ?? "Niet gekozen"}>
+                {selectedOrganization?.name ?? "Niet gekozen"}
+              </strong>
+            </div>
+          </article>
+          <article className="metric-card">
+            <ClipboardList aria-hidden="true" />
+            <div className="metric-content">
+              <span className="metric-label">Actief assessment</span>
+              <strong className="metric-value" title={selectedAssessment?.title ?? "Niet gekozen"}>
+                {selectedAssessment?.title ?? "Niet gekozen"}
+              </strong>
+            </div>
+          </article>
+          <article className="metric-card">
+            <Flag aria-hidden="true" />
+            <div className="metric-content">
+              <span className="metric-label">Findings</span>
+              <strong className="metric-value metric-number">{assessmentFindings.length}</strong>
+            </div>
+          </article>
+          <article className="metric-card">
+            <TrendingUp aria-hidden="true" />
+            <div className="metric-content">
+              <span className="metric-label">Gemiddelde score</span>
+              <strong className="metric-value metric-number">{formatScore(averageRiskScore)}</strong>
+            </div>
+          </article>
+          <article className="metric-card">
+            <ShieldAlert aria-hidden="true" />
+            <div className="metric-content">
+              <span className="metric-label">Hoogste risico</span>
+              <strong className="metric-value">
+                {highestFinding ? (
+                  <span className={`risk-badge risk-${highestFinding.dread_score.risk_level.toLowerCase()}`}>
+                    {highestFinding.dread_score.risk_level}
+                  </span>
+                ) : (
+                  "-"
+                )}
+              </strong>
+            </div>
+          </article>
+        </div>
+
+        <section className="recommended-next-panel">
+          <div>
+            <h2>Aanbevolen volgende stap</h2>
+            <p>{recommendedNextStep.message}</p>
           </div>
-        </article>
-        <article className="metric-card">
-          <Building2 aria-hidden="true" />
-          <div className="metric-content">
-            <span className="metric-label">Actieve organisatie</span>
-            <strong className="metric-value" title={selectedOrganization?.name ?? "Niet gekozen"}>
-              {selectedOrganization?.name ?? "Niet gekozen"}
-            </strong>
-          </div>
-        </article>
-        <article className="metric-card">
-          <ClipboardList aria-hidden="true" />
-          <div className="metric-content">
-            <span className="metric-label">Actief assessment</span>
-            <strong className="metric-value" title={selectedAssessment?.title ?? "Niet gekozen"}>
-              {selectedAssessment?.title ?? "Niet gekozen"}
-            </strong>
-          </div>
-        </article>
-        <article className="metric-card">
-          <Flag aria-hidden="true" />
-          <div className="metric-content">
-            <span className="metric-label">Findings</span>
-            <strong className="metric-value metric-number">{assessmentFindings.length}</strong>
-          </div>
-        </article>
-        <article className="metric-card">
-          <TrendingUp aria-hidden="true" />
-          <div className="metric-content">
-            <span className="metric-label">Gemiddelde score</span>
-            <strong className="metric-value metric-number">{formatScore(averageRiskScore)}</strong>
-          </div>
-        </article>
-        <article className="metric-card">
-          <ShieldAlert aria-hidden="true" />
-          <div className="metric-content">
-            <span className="metric-label">Hoogste risico</span>
-            <strong className="metric-value">
-              {highestFinding ? (
-                <span className={`risk-badge risk-${highestFinding.dread_score.risk_level.toLowerCase()}`}>
-                  {highestFinding.dread_score.risk_level}
-                </span>
-              ) : (
-                "-"
-              )}
-            </strong>
-          </div>
-        </article>
+          <button type="button" onClick={() => setActiveSection(recommendedNextStep.target)}>
+            <Target aria-hidden="true" />
+            {recommendedNextStep.buttonLabel}
+          </button>
+        </section>
       </section>
 
-      <section className="workflow-layout">
+      <section
+        className={`workflow-layout ${
+          activeSection === "dashboard" || activeSection === "reports" ? "section-hidden" : ""
+        } ${activeSection === "assessment" ? "" : "single-column"}`}
+      >
         <div className="setup-column">
-          <article className="panel compact-panel customer-panel">
+          <article className={sectionClass("customers", "panel compact-panel customer-panel")}>
             <div className="panel-heading">
               <span className="step-number">A</span>
               <div>
-                <h2>Klantbeheer</h2>
-                <p>Customer hangt boven organizations en is alvast voorbereid voor klantbeheer.</p>
+                <h2>Customer context</h2>
+                <p>
+                  Platform/customer context for this MVP. Dit is nog geen volledig
+                  platform-admin/customer-user model.
+                </p>
               </div>
             </div>
 
@@ -1212,7 +1520,7 @@ function App() {
             )}
           </article>
 
-          <article className="panel compact-panel">
+          <article className={sectionClass("organizations", "panel compact-panel")}>
             <div className="panel-heading">
               <span className="step-number">1</span>
               <div>
@@ -1286,7 +1594,300 @@ function App() {
             )}
           </article>
 
-          <article className="panel compact-panel">
+          <article className={sectionClass("google-workspace", "panel compact-panel connector-panel")}>
+            <div className="panel-heading">
+              <span className="step-number">G</span>
+              <div>
+                <h2>Google Workspace connector</h2>
+                <p>Leg alvast configuratiemetadata vast voor de latere echte koppeling.</p>
+              </div>
+            </div>
+
+            {!selectedOrganizationId && (
+              <div className="helper-note">
+                <ShieldAlert aria-hidden="true" />
+                Kies eerst een organisatie.
+              </div>
+            )}
+
+            <div className="connector-summary">
+              <div>
+                <span>Status</span>
+                <strong>
+                  {googleWorkspaceConnectorConfig ? (
+                    <span
+                      className={`connector-status connector-status-${googleWorkspaceConnectorConfig.status.replace(
+                        "_",
+                        "-"
+                      )}`}
+                    >
+                      {googleWorkspaceConnectorConfig.status.replace("_", " ")}
+                    </span>
+                  ) : (
+                    <span className="connector-status connector-status-not-configured">
+                      not configured
+                    </span>
+                  )}
+                </strong>
+              </div>
+              <div>
+                <span>Primary domain</span>
+                <strong title={googleWorkspaceConnectorConfig?.primary_domain ?? "Nog niet gezet"}>
+                  {googleWorkspaceConnectorConfig?.primary_domain ?? "-"}
+                </strong>
+              </div>
+              <div>
+                <span>Auth method</span>
+                <strong>
+                  {googleWorkspaceConnectorConfig
+                    ? connectorAuthMethodLabels[googleWorkspaceConnectorConfig.auth_method]
+                    : "-"}
+                </strong>
+              </div>
+              <div>
+                <span>Admin subject</span>
+                <strong
+                  title={googleWorkspaceConnectorConfig?.admin_subject_email ?? "Nog niet gezet"}
+                >
+                  {googleWorkspaceConnectorConfig?.admin_subject_email ?? "-"}
+                </strong>
+              </div>
+              <div>
+                <span>Laatst getest</span>
+                <strong>{formatOptionalDateTime(googleWorkspaceConnectorConfig?.last_tested_at ?? null)}</strong>
+              </div>
+            </div>
+
+            <p className="connector-disclaimer">
+              No secrets are stored. Real Google Workspace API access will be added later.
+            </p>
+
+            <form className="form-stack connector-form" onSubmit={handleSaveConnectorConfig}>
+              <label>
+                Display name
+                <input
+                  value={connectorDisplayName}
+                  onChange={(event) => setConnectorDisplayName(event.target.value)}
+                  placeholder="Google Workspace"
+                  disabled={!selectedOrganizationId}
+                  required
+                />
+              </label>
+              <label>
+                Primary domain
+                <input
+                  value={connectorPrimaryDomain}
+                  onChange={(event) => setConnectorPrimaryDomain(event.target.value)}
+                  placeholder="example.com"
+                  disabled={!selectedOrganizationId}
+                />
+              </label>
+              <label>
+                Admin subject email
+                <input
+                  type="email"
+                  value={connectorAdminSubjectEmail}
+                  onChange={(event) => setConnectorAdminSubjectEmail(event.target.value)}
+                  placeholder="admin@example.com"
+                  disabled={!selectedOrganizationId}
+                />
+              </label>
+              <label>
+                Auth method
+                <select
+                  value={connectorAuthMethod}
+                  onChange={(event) =>
+                    setConnectorAuthMethod(event.target.value as ConnectorAuthMethod)
+                  }
+                  disabled={!selectedOrganizationId}
+                >
+                  <option value="service_account_domain_wide_delegation">
+                    Service account + domain-wide delegation
+                  </option>
+                  <option value="oauth_admin_consent">OAuth admin consent</option>
+                  <option value="manual_import">Manual import</option>
+                </select>
+              </label>
+              <label>
+                Notes
+                <textarea
+                  value={connectorNotes}
+                  onChange={(event) => setConnectorNotes(event.target.value)}
+                  placeholder="Korte notitie over beoogde configuratie"
+                  rows={3}
+                  disabled={!selectedOrganizationId}
+                />
+              </label>
+              <div className="connector-actions">
+                <button
+                  type="submit"
+                  disabled={!canSaveConnectorConfig || isConnectorSaving}
+                >
+                  {isConnectorSaving ? (
+                    <Loader2 className="spin" aria-hidden="true" />
+                  ) : (
+                    <Plus aria-hidden="true" />
+                  )}
+                  {isConnectorSaving ? "Opslaan" : "Configuratie opslaan"}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={handleTestConnectorConfig}
+                  disabled={!googleWorkspaceConnectorConfig || isConnectorTesting}
+                >
+                  {isConnectorTesting ? (
+                    <Loader2 className="spin" aria-hidden="true" />
+                  ) : (
+                    <Activity aria-hidden="true" />
+                  )}
+                  Test connection
+                </button>
+              </div>
+            </form>
+
+            {connectorFeedback && (
+              <section className={`message connector-message ${connectorFeedback.type}`} aria-live="polite">
+                {connectorFeedback.type === "error" ? (
+                  <AlertCircle aria-hidden="true" />
+                ) : (
+                  <CheckCircle2 aria-hidden="true" />
+                )}
+                <span>{connectorFeedback.message}</span>
+              </section>
+            )}
+          </article>
+
+          <article className={sectionClass("google-workspace", "panel compact-panel google-workspace-info")}>
+            <div className="panel-heading">
+              <span className="step-number">S</span>
+              <div>
+                <h2>Mock scan en check catalog</h2>
+                <p>No real Google data is accessed yet.</p>
+              </div>
+            </div>
+
+            <div className="google-workspace-explainer">
+              <article>
+                <strong>Connector configuration</strong>
+                <span>Metadata/configuratie voor later. No secrets are stored.</span>
+              </article>
+              <article>
+                <strong>Check catalog</strong>
+                <span>Welke Google Workspace checks de tool nu als mock/demo kent.</span>
+              </article>
+              <article>
+                <strong>Mock scan</strong>
+                <span>Mock scan creates demo findings for the selected assessment.</span>
+              </article>
+            </div>
+
+            <section className="check-catalog-panel" aria-label="Google Workspace check catalog">
+              <div className="check-catalog-toolbar">
+                <div>
+                  <strong>Check catalog</strong>
+                  <span>
+                    Welke Google Workspace checks de tool kent. Deze checks zijn nu mock/demo.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setShowGoogleWorkspaceChecks((current) => !current)}
+                >
+                  {showGoogleWorkspaceChecks ? "Verberg checks" : "Bekijk checks"}
+                </button>
+              </div>
+
+              {showGoogleWorkspaceChecks && (
+                <div className="check-catalog-list">
+                  {googleWorkspaceChecks.map((check) => (
+                    <article className="check-catalog-item" key={check.check_id}>
+                      <div className="check-catalog-title">
+                        <span>{check.check_id}</span>
+                        <h4>{check.title}</h4>
+                        <em>Mock only</em>
+                      </div>
+                      <p>{check.risk_statement}</p>
+                      <div className="check-catalog-meta">
+                        <span>{check.category}</span>
+                        <span>
+                          DREAD {averageDreadScore(check.default_dread_score).toFixed(1)} ·{" "}
+                          {check.default_risk_level}
+                        </span>
+                      </div>
+                      <dl>
+                        <div>
+                          <dt>Finding</dt>
+                          <dd>{check.maps_to_finding_title}</dd>
+                        </div>
+                        <div>
+                          <dt>Later databron/API</dt>
+                          <dd>{check.future_google_api_hint}</dd>
+                        </div>
+                      </dl>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="mock-scan-panel" aria-label="Google Workspace mock scan">
+              <div className="inline-heading">
+                <ShieldAlert aria-hidden="true" />
+                <h3>Mock scan</h3>
+              </div>
+              <p>No real Google data is accessed yet. Mock scan creates demo findings for the selected assessment.</p>
+
+              {!selectedAssessmentId && (
+                <div className="mini-empty-state">Selecteer eerst een assessment.</div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleRunMockGoogleWorkspaceScan}
+                disabled={!selectedAssessmentId || isScanRunning}
+              >
+                {isScanRunning ? (
+                  <Loader2 className="spin" aria-hidden="true" />
+                ) : (
+                  <Activity aria-hidden="true" />
+                )}
+                {isScanRunning ? "Mock scan uitvoeren" : "Run mock Google Workspace scan"}
+              </button>
+
+              <div className="scan-run-list" aria-label="Recente scan runs">
+                <div className="scan-run-list-heading">
+                  <strong>Scan run historie</strong>
+                  {isScanLoading && <span>laden</span>}
+                </div>
+                {scanRuns.length === 0 ? (
+                  <div className="mini-empty-state">Nog geen scan runs voor dit assessment.</div>
+                ) : (
+                  scanRuns.slice(0, 6).map((scanRun) => (
+                    <article className="scan-run-item" key={scanRun.id}>
+                      <div>
+                        <strong>{scanRun.status}</strong>
+                        <span>{formatDateTime(scanRun.started_at)}</span>
+                      </div>
+                      <div>
+                        <strong>{scanRun.findings_created}</strong>
+                        <span>findings</span>
+                      </div>
+                      <p>{scanRun.summary ?? "Geen samenvatting beschikbaar."}</p>
+                      {scanRun.completed_at && (
+                        <time dateTime={scanRun.completed_at}>
+                          Afgerond {formatDateTime(scanRun.completed_at)}
+                        </time>
+                      )}
+                    </article>
+                  ))
+                )}
+              </div>
+            </section>
+          </article>
+
+          <article className={sectionClass("assessment", "panel compact-panel")}>
             <div className="panel-heading">
               <span className="step-number">2</span>
               <div>
@@ -1355,114 +1956,10 @@ function App() {
               </button>
             </div>
 
-            <section className="mock-scan-panel" aria-label="Google Workspace scan">
-              <div className="inline-heading">
-                <ShieldAlert aria-hidden="true" />
-                <h3>Google Workspace scan</h3>
-              </div>
-              <p>Mock scan - no real Google data is accessed.</p>
-
-              {!selectedAssessmentId && (
-                <div className="mini-empty-state">Selecteer eerst een assessment.</div>
-              )}
-
-              <button
-                type="button"
-                onClick={handleRunMockGoogleWorkspaceScan}
-                disabled={!selectedAssessmentId || isScanRunning}
-              >
-                {isScanRunning ? (
-                  <Loader2 className="spin" aria-hidden="true" />
-                ) : (
-                  <Activity aria-hidden="true" />
-                )}
-                {isScanRunning ? "Mock scan uitvoeren" : "Run mock Google Workspace scan"}
-              </button>
-
-              <div className="check-catalog-panel">
-                <div className="check-catalog-toolbar">
-                  <div>
-                    <strong>Check library</strong>
-                    <span>
-                      Deze checks zijn nu mock/demo. De echte Google API-koppeling wordt later per
-                      check toegevoegd.
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => setShowGoogleWorkspaceChecks((current) => !current)}
-                  >
-                    {showGoogleWorkspaceChecks ? "Verberg checks" : "Bekijk checks"}
-                  </button>
-                </div>
-
-                {showGoogleWorkspaceChecks && (
-                  <div className="check-catalog-list">
-                    {googleWorkspaceChecks.map((check) => (
-                      <article className="check-catalog-item" key={check.check_id}>
-                        <div className="check-catalog-title">
-                          <span>{check.check_id}</span>
-                          <h4>{check.title}</h4>
-                          <em>Mock only</em>
-                        </div>
-                        <p>{check.risk_statement}</p>
-                        <div className="check-catalog-meta">
-                          <span>{check.category}</span>
-                          <span>
-                            DREAD {averageDreadScore(check.default_dread_score).toFixed(1)} ·{" "}
-                            {check.default_risk_level}
-                          </span>
-                        </div>
-                        <dl>
-                          <div>
-                            <dt>Finding</dt>
-                            <dd>{check.maps_to_finding_title}</dd>
-                          </div>
-                          <div>
-                            <dt>Later databron/API</dt>
-                            <dd>{check.future_google_api_hint}</dd>
-                          </div>
-                        </dl>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="scan-run-list" aria-label="Recente scan runs">
-                <div className="scan-run-list-heading">
-                  <strong>Recente scan runs</strong>
-                  {isScanLoading && <span>laden</span>}
-                </div>
-                {scanRuns.length === 0 ? (
-                  <div className="mini-empty-state">Nog geen scan runs voor dit assessment.</div>
-                ) : (
-                  scanRuns.slice(0, 4).map((scanRun) => (
-                    <article className="scan-run-item" key={scanRun.id}>
-                      <div>
-                        <strong>{scanRun.status}</strong>
-                        <span>{formatDateTime(scanRun.started_at)}</span>
-                      </div>
-                      <div>
-                        <strong>{scanRun.findings_created}</strong>
-                        <span>findings</span>
-                      </div>
-                      <p>{scanRun.summary ?? "Geen samenvatting beschikbaar."}</p>
-                      {scanRun.completed_at && (
-                        <time dateTime={scanRun.completed_at}>
-                          Afgerond {formatDateTime(scanRun.completed_at)}
-                        </time>
-                      )}
-                    </article>
-                  ))
-                )}
-              </div>
-            </section>
           </article>
         </div>
 
-        <article className="panel finding-panel composer-panel">
+        <article className={sectionClass("assessment", "panel finding-panel composer-panel")}>
           <div className="panel-heading">
             <span className="step-number">3</span>
             <div>
@@ -1606,7 +2103,7 @@ function App() {
         </article>
       </section>
 
-      <section className="findings-section">
+      <section className={sectionClass("assessment", "findings-section")}>
         <div className="section-heading">
           <div>
             <span className="step-number">4</span>
@@ -1658,12 +2155,44 @@ function App() {
         )}
       </section>
 
+      <section className={sectionClass("reports", "reports-view report-shell")}>
+        <article className="panel report-intro-panel no-print">
+          <div className="panel-heading">
+            <span className="step-number">R</span>
+            <div>
+              <h2>Rapportage/export</h2>
+              <p>
+                Open het rapport voor het actieve assessment. Gebruik daarna Print / opslaan als PDF
+                via de browser.
+              </p>
+            </div>
+          </div>
+          {!selectedAssessmentId && (
+            <div className="helper-note">
+              <FileText aria-hidden="true" />
+              Selecteer eerst een assessment in de Assessment workspace.
+            </div>
+          )}
+          <button type="button" onClick={handleOpenReport} disabled={!selectedAssessmentId || isReportLoading}>
+            {isReportLoading ? (
+              <Loader2 className="spin" aria-hidden="true" />
+            ) : (
+              <FileText aria-hidden="true" />
+            )}
+            Rapport openen
+          </button>
+        </article>
+
+        {reportPanel}
+      </section>
+
       {isLoading && (
         <div className="loading-overlay" aria-live="polite">
           <Activity className="spin" aria-hidden="true" />
           Workspace laden
         </div>
       )}
+      </section>
     </main>
   );
 }

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.assessment import Assessment
     from app.models.asset import Asset
     from app.models.connector_account import ConnectorAccount
+    from app.models.connector_config import ConnectorConfig
     from app.models.customer import Customer
 
 
@@ -37,6 +38,10 @@ class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
     )
     connector_accounts: Mapped[list["ConnectorAccount"]] = relationship(
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    connector_configs: Mapped[list["ConnectorConfig"]] = relationship(
         back_populates="organization",
         cascade="all, delete-orphan",
     )

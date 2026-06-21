@@ -112,6 +112,33 @@ customer:
 Dit is alleen een eerste foundation. Het is nog geen volledige tenant-isolatie, billing,
 abonnementenbeheer of productieklantbeheer.
 
+## Google Workspace connector configuratie
+
+Per organisatie kan alvast een Google Workspace connectorconfiguratie worden vastgelegd. Dit is
+metadata-only en bedoeld als voorbereiding op een latere echte koppeling.
+
+Ondersteunde configuratievelden:
+
+- Display name
+- Primary domain
+- Admin subject email
+- Auth method
+- Notes
+- Status
+
+Ondersteunde auth-methods als configuratiekeuze:
+
+- `service_account_domain_wide_delegation`
+- `oauth_admin_consent`
+- `manual_import`
+
+Er wordt nog geen echte Google API aangeroepen. Er worden ook geen service account JSON-bestanden,
+private keys, OAuth tokens, refresh tokens, wachtwoorden of API keys opgeslagen in de database of
+in git. Het endpoint om de connectie te testen geeft nu bewust `not_implemented` terug.
+
+Latere richting: bouw eerst veilige secret handling via environment/secret manager, voeg daarna
+read-only Google Workspace scopes toe en implementeer connection testing per gekozen auth-methode.
+
 ## Mock Google Workspace scan
 
 Binnen een assessment kan lokaal een mock Google Workspace scan worden gestart. Deze scan gebruikt
@@ -160,4 +187,6 @@ npm --prefix frontend run build
 
 ## Connector-status
 
-Er is bewust nog geen echte Google Workspace koppeling. De code bevat alleen een connector-namespace en een metadata-tabel voor toekomstige connectoraccounts. Sla geen tokens, wachtwoorden of API keys op in git.
+Er is bewust nog geen echte Google Workspace koppeling. De code bevat alleen connector-metadata,
+een mock scan en een check catalog voor toekomstige connectorontwikkeling. Sla geen tokens,
+wachtwoorden, private keys of API keys op in git.

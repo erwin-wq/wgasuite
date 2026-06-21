@@ -4,6 +4,9 @@ import type {
   AssessmentReport,
   Asset,
   AssetCreate,
+  ConnectorConfig,
+  ConnectorConfigPayload,
+  ConnectorConfigTestResult,
   Customer,
   CustomerCreate,
   Finding,
@@ -125,6 +128,33 @@ export function listAssessmentScanRuns(assessmentId: string): Promise<ScanRun[]>
 
 export function listGoogleWorkspaceChecks(): Promise<GoogleWorkspaceCheck[]> {
   return request<GoogleWorkspaceCheck[]>("/api/v1/connectors/google-workspace/checks");
+}
+
+export function listOrganizationConnectorConfigs(
+  organizationId: string
+): Promise<ConnectorConfig[]> {
+  return request<ConnectorConfig[]>(`/api/v1/organizations/${organizationId}/connector-configs`);
+}
+
+export function upsertGoogleWorkspaceConnectorConfig(
+  organizationId: string,
+  payload: ConnectorConfigPayload
+): Promise<ConnectorConfig> {
+  return request<ConnectorConfig>(
+    `/api/v1/organizations/${organizationId}/connector-configs/google-workspace`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+export function testConnectorConfig(
+  connectorConfigId: string
+): Promise<ConnectorConfigTestResult> {
+  return request<ConnectorConfigTestResult>(`/api/v1/connector-configs/${connectorConfigId}/test`, {
+    method: "POST"
+  });
 }
 
 export function listAssets(): Promise<Asset[]> {

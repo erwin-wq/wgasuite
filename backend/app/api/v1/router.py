@@ -10,10 +10,26 @@ from app.api.deps import get_current_user
 from app.connectors import MockGoogleWorkspaceConnector, list_google_workspace_checks
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.models import Assessment, Asset, Customer, DreadScore, Finding, Organization, ScanRun, User
+from app.models import (
+    Assessment,
+    Asset,
+    ConnectorConfig,
+    Customer,
+    DreadScore,
+    Finding,
+    Organization,
+    ScanRun,
+    User,
+)
 from app.schemas.assessment import AssessmentCreate, AssessmentRead
 from app.schemas.asset import AssetCreate, AssetRead
 from app.schemas.auth import LoginRequest, TokenResponse, UserRead
+from app.schemas.connector_config import (
+    ConnectorConfigCreate,
+    ConnectorConfigRead,
+    ConnectorConfigTestRead,
+    ConnectorConfigUpdate,
+)
 from app.schemas.customer import CustomerCreate, CustomerRead, CustomerUpdate
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
 from app.schemas.google_workspace_check import GoogleWorkspaceCheckRead
@@ -90,6 +106,16 @@ def get_scan_run_or_404(db: Session, scan_run_id: UUID) -> ScanRun:
             detail="Scan run not found.",
         )
     return scan_run
+
+
+def get_connector_config_or_404(db: Session, connector_config_id: UUID) -> ConnectorConfig:
+    connector_config = db.get(ConnectorConfig, connector_config_id)
+    if connector_config is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Connector config not found.",
+        )
+    return connector_config
 
 
 def validate_asset_scope(
@@ -309,6 +335,121 @@ def list_organizations(db: DbSession) -> list[Organization]:
 )
 def get_organization(organization_id: UUID, db: DbSession) -> Organization:
     return get_organization_or_404(db, organization_id)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/connector-configs/google-workspace",
+    response_model=ConnectorConfigRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["connector-configs"],
+    dependencies=[Depends(get_current_user)],
+)
+def upsert_google_workspace_connector_config(
+    organization_id: UUID,
+    payload: ConnectorConfigCreate,
+    db: DbSession,
+) -> ConnectorConfig:
+    get_organization_or_404(db, organization_id)
+    statement = select(ConnectorConfig).where(
+        ConnectorConfig.organization_id == organization_id,
+        ConnectorConfig.connector_type == "google_workspace",
+    )
+    connector_config = db.scalar(statement)
+    payload_data = payload.model_dump()
+
+    if connector_config is None:
+        connector_config = ConnectorConfig(
+            organization_id=organization_id,
+            connector_type="google_workspace",
+            **payload_data,
+        )
+        db.add(connector_config)
+    else:
+        for field, value in payload_data.items():
+            setattr(connector_config, field, value)
+        db.add(connector_config)
+
+    db.commit()
+    db.refresh(connector_config)
+    return connector_config
+
+
+@api_router.get(
+    "/organizations/{organization_id}/connector-configs",
+    response_model=list[ConnectorConfigRead],
+    tags=["connector-configs"],
+    dependencies=[Depends(get_current_user)],
+)
+def list_organization_connector_configs(
+    organization_id: UUID,
+    db: DbSession,
+) -> list[ConnectorConfig]:
+    get_organization_or_404(db, organization_id)
+    statement = (
+        select(ConnectorConfig)
+        .where(ConnectorConfig.organization_id == organization_id)
+        .order_by(ConnectorConfig.created_at.desc())
+    )
+    return list(db.scalars(statement).all())
+
+
+@api_router.get(
+    "/connector-configs/{connector_config_id}",
+    response_model=ConnectorConfigRead,
+    tags=["connector-configs"],
+    dependencies=[Depends(get_current_user)],
+)
+def get_connector_config(connector_config_id: UUID, db: DbSession) -> ConnectorConfig:
+    return get_connector_config_or_404(db, connector_config_id)
+
+
+@api_router.patch(
+    "/connector-configs/{connector_config_id}",
+    response_model=ConnectorConfigRead,
+    tags=["connector-configs"],
+    dependencies=[Depends(get_current_user)],
+)
+def update_connector_config(
+    connector_config_id: UUID,
+    payload: ConnectorConfigUpdate,
+    db: DbSession,
+) -> ConnectorConfig:
+    connector_config = get_connector_config_or_404(db, connector_config_id)
+    update_data = payload.model_dump(exclude_unset=True)
+
+    for field, value in update_data.items():
+        setattr(connector_config, field, value)
+
+    db.add(connector_config)
+    db.commit()
+    db.refresh(connector_config)
+    return connector_config
+
+
+@api_router.post(
+    "/connector-configs/{connector_config_id}/test",
+    response_model=ConnectorConfigTestRead,
+    tags=["connector-configs"],
+    dependencies=[Depends(get_current_user)],
+)
+def test_connector_config(
+    connector_config_id: UUID,
+    db: DbSession,
+) -> ConnectorConfigTestRead:
+    connector_config = get_connector_config_or_404(db, connector_config_id)
+    connector_config.last_tested_at = datetime.now(UTC)
+    connector_config.last_error = "Real Google Workspace connection testing is not implemented yet."
+    db.add(connector_config)
+    db.commit()
+
+    return ConnectorConfigTestRead(
+        status="not_implemented",
+        message="Real Google Workspace connection testing is not implemented yet.",
+        recommended_next_step=(
+            "Configure service account domain-wide delegation or OAuth admin consent in a future "
+            "release."
+        ),
+    )
 
 
 @api_router.post(

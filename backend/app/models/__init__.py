@@ -1,6 +1,7 @@
 from app.models.assessment import Assessment
 from app.models.asset import Asset
 from app.models.connector_account import ConnectorAccount
+from app.models.connector_config import ConnectorConfig
 from app.models.customer import Customer
 from app.models.dread_score import DreadScore
 from app.models.finding import Finding
@@ -12,6 +13,7 @@ __all__ = [
     "Assessment",
     "Asset",
     "ConnectorAccount",
+    "ConnectorConfig",
     "Customer",
     "DreadScore",
     "Finding",

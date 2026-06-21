@@ -933,3 +933,215 @@ De mock connector gebruikt nu deze catalog in plaats van dubbele hardcoded check
 De frontend toont de catalog in de bestaande Google Workspace scan sectie via `Bekijk checks`, met check ID, titel, categorie, DREAD-score/risk level, risicotekst, finding mapping, toekomstige API-hint en `Mock only` badge. README en smoke test zijn bijgewerkt; de smoke test controleert nu dat het catalog endpoint 7 checks teruggeeft.
 
 Uitgevoerde checks: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `git diff --check`, `docker compose ps`, bereikbaarheid van `http://localhost:5173` en `http://localhost:8000/docs`. Alles is geslaagd. Backend tests: 39 passed met de bekende niet-blokkerende `TestClient` warning. De smoke test bevestigde `checks=7` en `findings_created=7`. Containers draaien: backend, frontend en postgres. Er is niet gecommit en niet gepusht.
+
+## 2026-06-20 21:56 - Google Workspace connector configuratie
+
+### Opdracht
+
+Bouw een Google Workspace connector configuration foundation. Start vanaf `main`, maak branch `feature/google-workspace-connector-config`, voeg een `ConnectorConfig` model toe, maak protected API endpoints voor Google Workspace connectorconfiguratie, voeg tests toe, toon configuratie in de frontend, werk README en smoke test bij, valideer lokaal met Docker en stop zonder commit of push. Voeg geen echte Google API, OAuth scopes, tokens, private keys of secrets toe.
+
+### Uitgevoerd
+
+Branch `feature/google-workspace-connector-config` is aangemaakt vanaf up-to-date `main`. De bestaande backendmodellen, schemas, router, migrations, tests, frontend API client, App-structuur en smoke test zijn geïnspecteerd.
+
+Backend: er is een nieuw `ConnectorConfig` model toegevoegd voor metadata-only connectorconfiguratie per organisatie. De tabel heeft velden voor organization, connector type, auth method, status, display name, primary domain, admin subject email, notes, timestamps, last tested timestamp en last error. Er is een unieke constraint toegevoegd op `organization_id` + `connector_type`.
+
+API: er zijn protected endpoints toegevoegd voor het aanmaken/updaten, lijsten, ophalen, patchen en testen van Google Workspace connectorconfiguraties. Het test-endpoint doet bewust geen echte Google API-call en geeft `not_implemented` terug met een duidelijke vervolgstap.
+
+Frontend: de workspace heeft nu een compacte sectie `Google Workspace connector` bij de organisatieflow. De UI toont status, primary domain, auth method, admin subject, laatst getest, een configure form en een `Test connection` knop. De tekst maakt duidelijk dat er geen secrets worden opgeslagen en dat echte Google Workspace API-toegang later komt.
+
+Smoke test: `scripts/dev/smoke_api.sh` maakt nu ook een Google Workspace connectorconfiguratie aan, controleert `connector_type=google_workspace`, controleert `status=configured` en roept het test-endpoint aan met verwachte status `not_implemented`.
+
+README: de connectorconfiguratie is beschreven inclusief auth-methods, metadata-only status, geen echte API en geen secrets/private keys in database of git.
+
+### Aangepaste bestanden
+
+- `README.md`
+- `backend/alembic/versions/0006_connector_config.py`
+- `backend/app/api/v1/router.py`
+- `backend/app/db/base.py`
+- `backend/app/models/__init__.py`
+- `backend/app/models/connector_config.py`
+- `backend/app/models/organization.py`
+- `backend/app/schemas/connector_config.py`
+- `backend/tests/test_connector_config.py`
+- `frontend/src/App.tsx`
+- `frontend/src/api/client.ts`
+- `frontend/src/app.css`
+- `frontend/src/types.ts`
+- `scripts/dev/smoke_api.sh`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `git status --short --branch`: uitgevoerd, startstatus was schoon op `main`
+- `git branch --show-current`: uitgevoerd
+- `git remote -v`: uitgevoerd, GitLab origin bestaat
+- `git log --oneline --decorate -5`: uitgevoerd
+- `make check-env`: geslaagd
+- `git switch main`: geslaagd
+- `git pull --ff-only origin main`: geslaagd, al up-to-date
+- `git switch -c feature/google-workspace-connector-config`: geslaagd
+- `make docker-up`: geslaagd, backend en frontend images gebouwd en containers gestart
+- `make db-upgrade`: eerst gefaald door te lange Alembic revision id voor `alembic_version.version_num`, daarna opgelost met kortere revision id `0006_connector_config` en geslaagd
+- `make smoke-api`: geslaagd met catalog `checks=7`, connector test `not_implemented` en mock scan `findings_created=7`
+- `make backend-checks`: geslaagd met 46 backend tests
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `git diff --check`: geslaagd
+- `docker compose ps`: uitgevoerd, backend/frontend/postgres draaien
+
+### Resultaat
+
+Gelukt. De applicatie heeft nu een eerste Google Workspace connector configuration foundation zonder echte Google API-integratie en zonder secrets.
+
+### Problemen / beperkingen
+
+- Het connection test endpoint is bewust nog `not_implemented`.
+- Er is geen echte Google API, OAuth flow, OAuth scope, token, private key of service account JSON toegevoegd.
+- Secrets/private keys worden niet opgeslagen; latere echte koppeling moet veilige secret handling krijgen.
+- Backend tests tonen nog de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning.
+- De eerste migratiepoging faalde door een te lange Alembic revision id; dit is opgelost met `0006_connector_config`.
+- Er is niet gecommit en niet gepusht, volgens opdracht.
+
+### Volgende aanbevolen stap
+
+Review de connectorconfiguratie handmatig in de browser: log in, selecteer een organisatie, vul de Google Workspace connector metadata in, sla op en klik op `Test connection` om de `not_implemented` feedback te zien.
+
+### Volledige Codex samenvatting
+
+Ik heb branch `feature/google-workspace-connector-config` aangemaakt vanaf `main` en een Google Workspace connector configuration foundation gebouwd. Backend heeft nu een `ConnectorConfig` model, schema's, migration `0006_connector_config` en protected endpoints: `POST /api/v1/organizations/{organization_id}/connector-configs/google-workspace`, `GET /api/v1/organizations/{organization_id}/connector-configs`, `GET /api/v1/connector-configs/{connector_config_id}`, `PATCH /api/v1/connector-configs/{connector_config_id}` en `POST /api/v1/connector-configs/{connector_config_id}/test`.
+
+De configuratie is metadata-only: connector type, auth method, status, display name, primary domain, admin subject email, notes en test metadata. Er worden geen tokens, private keys, service account JSON, OAuth secrets of echte Google API-gegevens opgeslagen. Het test-endpoint doet bewust geen echte call en geeft `not_implemented` terug.
+
+De frontend heeft een compacte `Google Workspace connector` sectie in de organisatieflow met statusbadge, metadata-overzicht, configuratieformulier en `Test connection` knop. README en smoke test zijn bijgewerkt; de smoke test maakt een connectorconfiguratie aan en controleert het placeholder test-resultaat.
+
+Uitgevoerde checks: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `git diff --check` en `docker compose ps`. Alles is geslaagd na het verkorten van de Alembic revision id. Backend tests: 46 passed met de bekende niet-blokkerende `TestClient` warning. De smoke test bevestigde `checks=7`, `connector_test_status=not_implemented` en `findings_created=7`. Containers draaien: backend, frontend en postgres. Frontend is bereikbaar op `http://localhost:5173` en backend docs op `http://localhost:8000/docs`. Er is niet gecommit en niet gepusht.
+
+## 2026-06-20 22:19 - Menu en navigatiestructuur
+
+### Opdracht
+
+Verbeter de menu- en navigatiestructuur van de DREAD Risk Assessment Tool op branch `feature/google-workspace-connector-config`. Voeg een duidelijke app shell toe met menu, topbar en content area. Verdeel de bestaande functionaliteit over Dashboard, Customers, Organizations, Assessment workspace, Google Workspace en Reports. Gebruik geen grote routing library of UI-framework, houd functionaliteit intact, valideer lokaal met Docker en stop zonder commit of push.
+
+### Uitgevoerd
+
+De branch, git status, bestaande wijzigingen, frontend build en frontend lint zijn vooraf gecontroleerd. De branch was correct: `feature/google-workspace-connector-config`. De frontend is daarna aangepast met eenvoudige state-based navigatie zonder React Router.
+
+Er is een vaste applicatiestructuur toegevoegd met sidebar, topbar, actieve gebruiker, logout, content header en actieve sectietitel. De bestaande alles-op-één-pagina workflow is verdeeld in zes hoofdsecties:
+
+- Dashboard: KPI's, actieve customer, actieve organisatie, actief assessment, findings, gemiddelde score, hoogste risico en snelle acties.
+- Customers: customer aanmaken, customer lijst en actieve customer selecteren.
+- Organizations: organization aanmaken, actieve organization selecteren en customer-koppeling tonen.
+- Assessment workspace: assessment kiezen/aanmaken, asset/finding toevoegen, DREAD-score invullen en findings overzicht.
+- Google Workspace: connector configuration, check catalog, mock scan en scan run historie.
+- Reports: rapport openen voor actief assessment en print/save-as-pdf via browser.
+
+De Google Workspace sectie is verduidelijkt met uitleg dat connector configuration alleen metadata/configuratie is, dat er geen secrets worden opgeslagen, dat de check catalog mock/demo checks toont en dat de mock scan demo findings maakt voor het geselecteerde assessment. De mock scan/check catalog is uit de assessmentkaart gehaald en naar de Google Workspace sectie verplaatst.
+
+### Aangepaste bestanden
+
+- `frontend/src/App.tsx`
+- `frontend/src/app.css`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `git status --short --branch`: uitgevoerd
+- `git branch --show-current`: uitgevoerd, branch is `feature/google-workspace-connector-config`
+- `git diff --name-only`: uitgevoerd
+- `npm --prefix frontend run build`: vooraf geslaagd en na wijzigingen opnieuw geslaagd
+- `npm --prefix frontend run lint`: vooraf geslaagd en na wijzigingen opnieuw geslaagd
+- `make check-env`: geslaagd
+- `make docker-up`: geslaagd, backend en frontend images gebouwd en containers gestart
+- `make db-upgrade`: geslaagd, migraties staan op head
+- `make smoke-api`: geslaagd met catalog `checks=7`, connector test `not_implemented` en mock scan `findings_created=7`
+- `make backend-checks`: geslaagd met 46 backend tests
+- `git diff --check`: geslaagd
+- `docker compose ps`: uitgevoerd, backend/frontend/postgres draaien
+- `curl -I http://localhost:5173`: HTTP 200
+- `curl -I http://localhost:8000/docs`: HTTP 200
+
+### Resultaat
+
+Gelukt. De frontend heeft nu een duidelijke menu- en workspace-structuur, zonder routing library of zwaar UI-framework. Bestaande login, customer, organization, assessment, finding, DREAD, report, Google Workspace connector, check catalog en mock scan flows blijven behouden.
+
+### Problemen / beperkingen
+
+- Er is geen browser-screenshot tooling gebruikt; de gebruiker moet de navigatie visueel handmatig nalopen in de browser.
+- Backend tests tonen nog de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning.
+- Er is niet gecommit en niet gepusht, volgens opdracht.
+
+### Volgende aanbevolen stap
+
+Review de nieuwe navigatie handmatig in de browser: log in, klik alle menu-items langs en controleer vooral Customers, Organizations, Assessment workspace, Google Workspace en Reports met een actief assessment.
+
+### Volledige Codex samenvatting
+
+Ik heb op branch `feature/google-workspace-connector-config` de frontend navigatie en informatiearchitectuur verbeterd. De app heeft nu een vaste sidebar met de menu-items Dashboard, Customers, Organizations, Assessment workspace, Google Workspace en Reports, plus een topbar met appnaam, ingelogde gebruiker en logout. De content area toont per menu-item alleen de relevante workflow in plaats van alles tegelijk.
+
+Functionaliteit is logisch verplaatst: customerbeheer staat onder Customers, organizationbeheer onder Organizations, assessment/finding/DREAD/findings overzicht onder Assessment workspace, connector configuration/check catalog/mock scan/scan run historie onder Google Workspace en rapport openen/printen onder Reports. Dashboard toont KPI's en snelle acties naar de belangrijkste secties. De Google Workspace sectie maakt expliciet duidelijk: `No real Google data is accessed yet.`, `No secrets are stored.` en `Mock scan creates demo findings for the selected assessment.`
+
+Uitgevoerde checks: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `git diff --check`, `docker compose ps`, plus HTTP 200 checks op `http://localhost:5173` en `http://localhost:8000/docs`. Alles is geslaagd. Backend tests: 46 passed met de bekende niet-blokkerende `TestClient` warning. De smoke test bevestigde `checks=7`, `connector_test_status=not_implemented` en `findings_created=7`. Containers draaien: backend, frontend en postgres. Er is niet gecommit en niet gepusht.
+
+## 2026-06-21 08:37 - Dashboard rust en customer context
+
+### Opdracht
+
+Voer een kleine UX-correctie uit op de huidige menu- en dashboardstructuur. Werk verder op branch `feature/google-workspace-connector-config`, commit en push niet. Verwijder het dubbele blok `Snelle acties` van het dashboard, verplaats de Google Workspace `not_implemented` melding naar de Google Workspace sectie, verduidelijk customer/portal-denkrichting en maak de Google Workspace sectie duidelijker in connector configuration, check catalog en mock scan.
+
+### Uitgevoerd
+
+De branch, git status, frontend build en frontend lint zijn vooraf gecontroleerd. De branch was correct: `feature/google-workspace-connector-config`.
+
+Het dashboard is rustiger gemaakt. Het blok `Snelle acties` met vijf navigatieknoppen is vervangen door één kaart `Aanbevolen volgende stap` met maximaal één knop. De kaart toont een eenvoudige aanbeveling op basis van ontbrekende customer, organization, assessment, findings of rapportreview.
+
+De algemene dashboardtekst is verduidelijkt met de klantportaalrichting: het portaal is bedoeld om per klantorganisatie risico-assessments, Google Workspace checks en rapportages te beheren. De zichtbare menu- en sectienaam `Customers` is aangepast naar `Customer context`, met uitleg dat dit alleen platform/customer context voor de MVP is en nog geen volledig platform-admin/customer-user model.
+
+De Google Workspace connector-test feedback is verplaatst naar de connector configuration kaart. De melding `Real Google Workspace connection testing is not implemented yet...` verschijnt daardoor niet meer als globale groene dashboardmelding, maar dicht bij de connector test/configuratie.
+
+De Google Workspace sectie is duidelijker gemaakt in drie blokken: connector configuration, check catalog en mock scan. Check catalog en mock scan zijn visueel gescheiden, met behoud van bestaande functionaliteit.
+
+### Aangepaste bestanden
+
+- `frontend/src/App.tsx`
+- `frontend/src/app.css`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `git status --short --branch`: uitgevoerd
+- `git branch --show-current`: uitgevoerd, branch is `feature/google-workspace-connector-config`
+- `npm --prefix frontend run build`: vooraf geslaagd en na wijzigingen opnieuw geslaagd
+- `npm --prefix frontend run lint`: vooraf geslaagd en na wijzigingen opnieuw geslaagd
+- `make check-env`: geslaagd
+- `make docker-up`: geslaagd, backend en frontend images gebouwd en containers gestart
+- `make db-upgrade`: geslaagd, migraties staan op head
+- `make smoke-api`: geslaagd met catalog `checks=7`, connector test `not_implemented` en mock scan `findings_created=7`
+- `make backend-checks`: geslaagd met 46 backend tests
+- `git diff --check`: geslaagd
+- `docker compose ps`: uitgevoerd, backend/frontend/postgres draaien
+- `curl -I http://localhost:5173`: HTTP 200
+- `curl -I http://localhost:8000/docs`: HTTP 200
+
+### Resultaat
+
+Gelukt. Het dashboard is rustiger, de customer/portal-denkrichting is duidelijker en de Google Workspace feedback staat nu inhoudelijk op de juiste plek.
+
+### Problemen / beperkingen
+
+- Er is geen browser-screenshot tooling gebruikt; de gebruiker moet de visuele UX nog handmatig nalopen.
+- Backend tests tonen nog de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning.
+- Er is niet gecommit en niet gepusht, volgens opdracht.
+
+### Volgende aanbevolen stap
+
+Review handmatig in de browser: log in, controleer Dashboard zonder `Snelle acties`, test `Test connection` in Google Workspace en bevestig dat de `not_implemented` melding alleen daar zichtbaar is.
+
+### Volledige Codex samenvatting
+
+Ik heb op branch `feature/google-workspace-connector-config` een kleine UX-correctie gedaan. Het dashboard toont geen dubbel navigatieblok `Snelle acties` meer; dit is vervangen door één rustige kaart `Aanbevolen volgende stap` met maximaal één knop. Het dashboard heeft nu ook producttekst die duidelijk maakt dat dit portaal bedoeld is om per klantorganisatie risico-assessments, Google Workspace checks en rapportages te beheren.
+
+De zichtbare customersectie heet nu `Customer context` en legt uit dat dit alleen platform/customer context voor de MVP is, nog geen volledig platform-admin/customer-user model. De Google Workspace `not_implemented` feedback van `Test connection` is verplaatst naar de connector configuration kaart, zodat deze niet meer globaal op Dashboard verschijnt. De Google Workspace sectie voelt nu als drie duidelijke blokken: connector configuration, check catalog en mock scan.
+
+Uitgevoerde checks: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `git diff --check`, `docker compose ps`, plus HTTP 200 checks op `http://localhost:5173` en `http://localhost:8000/docs`. Alles is geslaagd. Backend tests: 46 passed met de bekende niet-blokkerende `TestClient` warning. De smoke test bevestigde `checks=7`, `connector_test_status=not_implemented` en `findings_created=7`. Containers draaien: backend, frontend en postgres. Er is niet gecommit en niet gepusht.
