@@ -25,6 +25,15 @@
 - Rate limiting
 - Striktere inputvalidatie en security headers
 
+## Portal & Roles
+
+- Customer Portal
+- Platform Admin Portal
+- Role-based access control
+- Customer membership
+- Support access logging
+- Audit logging
+
 ## Fase 4: Connectoren
 
 - Connector abstraction

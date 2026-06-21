@@ -112,6 +112,12 @@ customer:
 Dit is alleen een eerste foundation. Het is nog geen volledige tenant-isolatie, billing,
 abonnementenbeheer of productieklantbeheer.
 
+## Portal en rollen
+
+Het toekomstige productontwerp maakt onderscheid tussen een Customer Portal en een Platform Admin
+Portal. Zie `docs/PORTAL_AND_ROLES.md` voor de rollen, data access regels, support access logging
+en open beslissingen.
+
 ## Google Workspace connector configuratie
 
 Per organisatie kan alvast een Google Workspace connectorconfiguratie worden vastgelegd. Dit is

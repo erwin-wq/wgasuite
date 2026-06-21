@@ -1084,6 +1084,62 @@ Functionaliteit is logisch verplaatst: customerbeheer staat onder Customers, org
 
 Uitgevoerde checks: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `git diff --check`, `docker compose ps`, plus HTTP 200 checks op `http://localhost:5173` en `http://localhost:8000/docs`. Alles is geslaagd. Backend tests: 46 passed met de bekende niet-blokkerende `TestClient` warning. De smoke test bevestigde `checks=7`, `connector_test_status=not_implemented` en `findings_created=7`. Containers draaien: backend, frontend en postgres. Er is niet gecommit en niet gepusht.
 
+## 2026-06-21 09:09 - Portal en rollen ontwerp
+
+### Opdracht
+
+Leg het Customer Portal / Platform Admin Portal ontwerp vast. Start vanaf `main`, maak branch `docs/portal-roles-design`, pas geen functionele code aan, maak geen database migration, voeg documentatie toe voor portaldoelen, rollen, data access regels, support access logging, implementatiefases en open beslissingen. Stop zonder commit of push.
+
+### Uitgevoerd
+
+De git status, huidige branch, remote en laatste commits zijn gecontroleerd. De werkboom was schoon op `main`. Daarna is `main` bijgewerkt met `git pull --ff-only origin main` en is branch `docs/portal-roles-design` aangemaakt.
+
+Er is een nieuw document `docs/PORTAL_AND_ROLES.md` toegevoegd. Dit document beschrijft het toekomstige Customer Portal en Platform Admin Portal, inclusief klantmogelijkheden, platform-admin/supportmogelijkheden, support access logging, toekomstige rollen, data access regels, MVP-status, aanbevolen implementatiefases en open beslissingen.
+
+README is kort bijgewerkt met een verwijzing naar het nieuwe portal- en rollenontwerp. Roadmap is aangevuld met een compacte sectie `Portal & Roles`.
+
+### Aangepaste bestanden
+
+- `docs/PORTAL_AND_ROLES.md`
+- `README.md`
+- `docs/ROADMAP.md`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `git status --short --branch`: uitgevoerd, startstatus schoon op `main`
+- `git branch --show-current`: uitgevoerd
+- `git remote -v`: uitgevoerd, GitLab origin bestaat
+- `git log --oneline --decorate -5`: uitgevoerd
+- `git switch main`: uitgevoerd
+- `git pull --ff-only origin main`: geslaagd, al up-to-date
+- `git switch -c docs/portal-roles-design`: geslaagd
+- `git diff --check`: geslaagd
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `make check-env`: geslaagd
+- `make backend-checks`: geslaagd met 46 backend tests
+
+### Resultaat
+
+De portal- en rollenrichting is vastgelegd in documentatie. Er is geen functionele code aangepast.
+
+### Problemen / beperkingen
+
+- Dit is ontwerpdocumentatie; er is nog geen customer membership model, echte rollenmatrix, tenant-isolatie of audit logging gebouwd.
+- Backend tests tonen nog de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning.
+- Er is niet gecommit en niet gepusht, volgens opdracht.
+
+### Volgende aanbevolen stap
+
+Review `docs/PORTAL_AND_ROLES.md` met de projectleider en kies daarna de eerste implementatiestap: rollen uitbreiden of customer membership model ontwerpen.
+
+### Volledige Codex samenvatting
+
+Ik heb op branch `docs/portal-roles-design` het ontwerp voor Customer Portal en Platform Admin Portal vastgelegd. Het nieuwe document `docs/PORTAL_AND_ROLES.md` beschrijft wat klanten zelf mogen beheren, wat platform-admin/support mag zien of doen, welke rollen later nodig zijn, welke data access regels gelden, hoe support access/audit logging moet werken, wat de huidige MVP-status is, welke implementatiefases logisch zijn en welke beslissingen nog openstaan.
+
+README verwijst nu naar dit document en `docs/ROADMAP.md` bevat een korte `Portal & Roles` sectie met Customer Portal, Platform Admin Portal, RBAC, customer membership, support access logging en audit logging. Checks zijn uitgevoerd en geslaagd: `git diff --check`, `npm --prefix frontend run build`, `npm --prefix frontend run lint`, `make check-env` en `make backend-checks` met 46 backend tests. Er is geen functionele code aangepast, geen migration gemaakt, niet gecommit en niet gepusht.
+
 ## 2026-06-21 08:37 - Dashboard rust en customer context
 
 ### Opdracht
