@@ -1,5 +1,115 @@
 # Project Log
 
+## 2026-06-21 10:27 - Customer Membership + Roles foundation
+
+### Opdracht
+
+Bouw de Customer Membership + Roles foundation vanaf `main` op branch
+`feature/customer-membership-roles`. Leg platformrollen, customer memberships en customerrollen
+technisch vast. Voeg migration, schemas, endpoints, tests, minimale frontendweergave, README-uitleg
+en smoke-testuitbreiding toe. Niet committen en niet pushen.
+
+### Uitgevoerd
+
+De bestaande auth, customer, models, schemas, routes, tests en migrations zijn gecontroleerd. Daarna
+is een centrale rollenmodule toegevoegd met platformrollen en customerrollen. Het `User.role` veld
+is voorbereid op `platform_admin`, `platform_support` en `customer_user`.
+
+Er is een nieuw `CustomerMembership` model toegevoegd met relaties naar `User` en `Customer`, een
+unique constraint op `user_id` en `customer_id`, en velden voor customerrol en actieve status. De
+nieuwe Alembic migration `0007_customer_memberships` maakt de tabel aan, migreert oude demo/admin
+rollen naar `platform_admin` of `customer_user`, en maakt veilig een demo membership aan als de
+demo user en demo customer bestaan.
+
+De API heeft nieuwe platform-admin-only endpoints gekregen voor memberships:
+
+- `GET /api/v1/customers/{customer_id}/memberships`
+- `POST /api/v1/customers/{customer_id}/memberships`
+- `PATCH /api/v1/customer-memberships/{membership_id}`
+
+`GET /api/v1/auth/me` geeft nu ook customer memberships terug met customernaam, rol en actieve
+status. De auth dependencies zijn uitgebreid met `require_platform_admin`, `is_platform_admin` en
+een helper voor toekomstige customer-scoping.
+
+De frontend is minimaal aangepast: de topbar toont de platform role en het dashboard heeft een
+kleine kaart `Access model` met platform role, aantal customer memberships en de tekst dat customer
+data-scoping in een volgende stap wordt afgedwongen. De smoke-test controleert nu ook dat
+`/auth/me` role `platform_admin` teruggeeft.
+
+### Aangepaste bestanden
+
+- `backend/app/core/roles.py`
+- `backend/app/models/customer_membership.py`
+- `backend/app/models/user.py`
+- `backend/app/models/customer.py`
+- `backend/app/models/__init__.py`
+- `backend/app/db/base.py`
+- `backend/app/api/deps.py`
+- `backend/app/api/v1/router.py`
+- `backend/app/schemas/auth.py`
+- `backend/app/schemas/customer_membership.py`
+- `backend/alembic/versions/0007_customer_memberships.py`
+- `backend/tests/conftest.py`
+- `backend/tests/test_auth.py`
+- `backend/tests/test_customer_membership_roles.py`
+- `frontend/src/App.tsx`
+- `frontend/src/app.css`
+- `frontend/src/types.ts`
+- `scripts/dev/smoke_api.sh`
+- `README.md`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `make check-env`: geslaagd
+- `make docker-up`: geslaagd, backend en frontend opnieuw gebouwd
+- `make db-upgrade`: geslaagd, migration `0007_customer_memberships` uitgevoerd
+- `make smoke-api`: geslaagd, inclusief `role=platform_admin`, `checks=7`,
+  `connector_test_status=not_implemented` en `findings_created=7`
+- `make backend-checks`: geslaagd, 56 tests passed, 1 bestaande TestClient warning
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `git diff --check`: geslaagd
+- `docker compose ps`: backend, frontend en postgres draaien
+- `curl -I http://localhost:5173`: HTTP 200
+- `curl -I http://localhost:8000/docs`: HTTP 200
+
+### Resultaat
+
+Gelukt. De foundation voor platformrollen en customer memberships staat klaar, zonder volledige
+tenant-isolatie af te dwingen. De demo login blijft werken met
+`admin@example.local` / `ChangeMe123!` en role `platform_admin`.
+
+### Problemen / beperkingen
+
+- Customer data-scoping is bewust nog niet afgedwongen op bestaande business endpoints.
+- Support access logging is nog niet gebouwd.
+- Er is geen user-create API toegevoegd; tests maken extra users direct in de testdatabase.
+- Backend tests tonen nog dezelfde niet-blokkerende Starlette/FastAPI `TestClient` warning.
+- Browser-review is beperkt tot URL-bereikbaarheid; de gebruiker moet de workflow visueel nog
+  handmatig controleren.
+
+### Volgende aanbevolen stap
+
+Bouw de customer data-scoping feature zodat customer users alleen data van hun eigen customer
+kunnen zien en gebruiken.
+
+### Volledige Codex samenvatting
+
+Gebouwd op branch `feature/customer-membership-roles`, zonder commit en zonder push. Toegevoegd:
+centrale rollen in `backend/app/core/roles.py`, nieuw `CustomerMembership` model, migration
+`0007_customer_memberships`, schemas, platform-admin-only membership endpoints en een verrijkt
+`/api/v1/auth/me` response met customer memberships. De frontend toont nu `Role: platform_admin` in
+de topbar en een dashboardkaart `Access model` met platform role, aantal memberships en de melding
+dat customer data-scoping later volgt. README en smoke-test zijn bijgewerkt.
+
+Validatie is groen: `make check-env`, `make docker-up`, `make db-upgrade`, `make smoke-api`,
+`make backend-checks`, `npm --prefix frontend run build`, `npm --prefix frontend run lint` en
+`git diff --check` zijn geslaagd. Backend tests: 56 passed, met 1 bestaande TestClient warning.
+Containers draaien: `dread-backend-1`, `dread-frontend-1` en `dread-postgres-1`. Frontend is
+bereikbaar op `http://localhost:5173` en backend docs op `http://localhost:8000/docs`.
+Er zijn geen echte Google API's, OAuth scopes, tokens, private keys of secrets toegevoegd.
+
 ## 2026-06-19 18:00 - MVP foundation
 
 ### Opdracht

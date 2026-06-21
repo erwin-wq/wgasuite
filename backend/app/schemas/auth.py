@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.customer_membership import UserCustomerMembershipRead
+
 
 class LoginRequest(BaseModel):
     email: str = Field(..., min_length=1, max_length=255)
@@ -23,3 +25,4 @@ class UserRead(BaseModel):
     role: str
     is_active: bool
     created_at: datetime
+    customer_memberships: list[UserCustomerMembershipRead] = Field(default_factory=list)

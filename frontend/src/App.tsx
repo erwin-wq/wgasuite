@@ -1287,7 +1287,7 @@ function App() {
             <div>
               <span>Ingelogd als</span>
               <strong>{currentUser.full_name}</strong>
-              <em>{currentUser.role}</em>
+              <em>Role: {currentUser.role}</em>
             </div>
             <button type="button" className="secondary-button" onClick={() => handleLogout()}>
               <LogOut aria-hidden="true" />
@@ -1327,6 +1327,26 @@ function App() {
             Dit portaal is bedoeld om per klantorganisatie risico-assessments, Google Workspace
             checks en rapportages te beheren.
           </p>
+        </section>
+
+        <section className="access-model-panel" aria-label="Access model">
+          <div className="access-model-heading">
+            <LockKeyhole aria-hidden="true" />
+            <div>
+              <h2>Access model</h2>
+              <p>Customer data scoping will be enforced in a next step.</p>
+            </div>
+          </div>
+          <div className="access-model-grid">
+            <div>
+              <span>Platform role</span>
+              <strong>{currentUser.role}</strong>
+            </div>
+            <div>
+              <span>Customer memberships</span>
+              <strong>{currentUser.customer_memberships.length}</strong>
+            </div>
+          </div>
         </section>
 
         <div className="summary-grid" aria-label="Assessment overzicht">

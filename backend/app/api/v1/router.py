@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_platform_admin
 from app.connectors import MockGoogleWorkspaceConnector, list_google_workspace_checks
 from app.core.config import get_settings
 from app.db.session import get_db
@@ -15,6 +15,7 @@ from app.models import (
     Asset,
     ConnectorConfig,
     Customer,
+    CustomerMembership,
     DreadScore,
     Finding,
     Organization,
@@ -31,6 +32,12 @@ from app.schemas.connector_config import (
     ConnectorConfigUpdate,
 )
 from app.schemas.customer import CustomerCreate, CustomerRead, CustomerUpdate
+from app.schemas.customer_membership import (
+    CustomerMembershipCreate,
+    CustomerMembershipRead,
+    CustomerMembershipUpdate,
+    UserCustomerMembershipRead,
+)
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
 from app.schemas.google_workspace_check import GoogleWorkspaceCheckRead
 from app.schemas.organization import OrganizationCreate, OrganizationRead
@@ -43,6 +50,7 @@ from app.services.tokens import encode_access_token
 api_router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+CurrentPlatformAdmin = Annotated[User, Depends(require_platform_admin)]
 
 
 def get_customer_or_404(db: Session, customer_id: UUID) -> Customer:
@@ -116,6 +124,43 @@ def get_connector_config_or_404(db: Session, connector_config_id: UUID) -> Conne
             detail="Connector config not found.",
         )
     return connector_config
+
+
+def get_customer_membership_or_404(db: Session, membership_id: UUID) -> CustomerMembership:
+    membership = db.get(CustomerMembership, membership_id)
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer membership not found.",
+        )
+    return membership
+
+
+def build_user_read(db: Session, user: User) -> UserRead:
+    statement = (
+        select(CustomerMembership)
+        .where(CustomerMembership.user_id == user.id)
+        .options(selectinload(CustomerMembership.customer))
+        .order_by(CustomerMembership.created_at.desc())
+    )
+    memberships = [
+        UserCustomerMembershipRead(
+            customer_id=membership.customer_id,
+            customer_name=membership.customer.name,
+            role=membership.role,
+            is_active=membership.is_active,
+        )
+        for membership in db.scalars(statement).all()
+    ]
+    return UserRead(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        customer_memberships=memberships,
+    )
 
 
 def validate_asset_scope(
@@ -197,8 +242,8 @@ def login(payload: LoginRequest, db: DbSession) -> TokenResponse:
 
 
 @api_router.get("/auth/me", response_model=UserRead, tags=["auth"])
-def get_me(current_user: CurrentUser) -> User:
-    return current_user
+def get_me(current_user: CurrentUser, db: DbSession) -> UserRead:
+    return build_user_read(db, current_user)
 
 
 @api_router.get(
@@ -286,6 +331,90 @@ def update_customer(
     db.commit()
     db.refresh(customer)
     return customer
+
+
+@api_router.get(
+    "/customers/{customer_id}/memberships",
+    response_model=list[CustomerMembershipRead],
+    tags=["customer-memberships"],
+)
+def list_customer_memberships(
+    customer_id: UUID,
+    db: DbSession,
+    _current_admin: CurrentPlatformAdmin,
+) -> list[CustomerMembership]:
+    get_customer_or_404(db, customer_id)
+    statement = (
+        select(CustomerMembership)
+        .where(CustomerMembership.customer_id == customer_id)
+        .order_by(CustomerMembership.created_at.desc())
+    )
+    return list(db.scalars(statement).all())
+
+
+@api_router.post(
+    "/customers/{customer_id}/memberships",
+    response_model=CustomerMembershipRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["customer-memberships"],
+)
+def upsert_customer_membership(
+    customer_id: UUID,
+    payload: CustomerMembershipCreate,
+    db: DbSession,
+    _current_admin: CurrentPlatformAdmin,
+) -> CustomerMembership:
+    get_customer_or_404(db, customer_id)
+    user = db.scalar(select(User).where(User.email == payload.user_email.strip().lower()))
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+
+    statement = select(CustomerMembership).where(
+        CustomerMembership.user_id == user.id,
+        CustomerMembership.customer_id == customer_id,
+    )
+    membership = db.scalar(statement)
+    if membership is None:
+        membership = CustomerMembership(
+            user_id=user.id,
+            customer_id=customer_id,
+            role=payload.role,
+            is_active=payload.is_active,
+        )
+    else:
+        membership.role = payload.role
+        membership.is_active = payload.is_active
+
+    db.add(membership)
+    db.commit()
+    db.refresh(membership)
+    return membership
+
+
+@api_router.patch(
+    "/customer-memberships/{membership_id}",
+    response_model=CustomerMembershipRead,
+    tags=["customer-memberships"],
+)
+def update_customer_membership(
+    membership_id: UUID,
+    payload: CustomerMembershipUpdate,
+    db: DbSession,
+    _current_admin: CurrentPlatformAdmin,
+) -> CustomerMembership:
+    membership = get_customer_membership_or_404(db, membership_id)
+    update_data = payload.model_dump(exclude_unset=True)
+
+    for field, value in update_data.items():
+        setattr(membership, field, value)
+
+    db.add(membership)
+    db.commit()
+    db.refresh(membership)
+    return membership
 
 
 @api_router.post(

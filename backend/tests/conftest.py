@@ -17,27 +17,43 @@ DEMO_PASSWORD = "ChangeMe123!"
 
 
 @pytest.fixture
-def client() -> Generator[TestClient]:
+def testing_session_local() -> Generator[sessionmaker[Session]]:
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base.metadata.create_all(bind=engine)
 
-    with testing_session_local() as db:
+    with session_local() as db:
         db.add(
             User(
                 email=DEMO_EMAIL,
                 full_name="Development Admin",
                 hashed_password=hash_password(DEMO_PASSWORD),
-                role="admin",
+                role="platform_admin",
                 is_active=True,
             )
         )
         db.commit()
 
+    yield session_local
+
+    Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture
+def db_session(testing_session_local: sessionmaker[Session]) -> Generator[Session]:
+    db = testing_session_local()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture
+def client(testing_session_local: sessionmaker[Session]) -> Generator[TestClient]:
     def override_get_db() -> Generator[Session]:
         db = testing_session_local()
         try:
@@ -51,7 +67,6 @@ def client() -> Generator[TestClient]:
         yield test_client
 
     app.dependency_overrides.clear()
-    Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture

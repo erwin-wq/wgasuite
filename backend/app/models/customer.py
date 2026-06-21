@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.customer_membership import CustomerMembership
     from app.models.organization import Organization
 
 
@@ -22,3 +23,7 @@ class Customer(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     organizations: Mapped[list["Organization"]] = relationship(back_populates="customer")
+    memberships: Mapped[list["CustomerMembership"]] = relationship(
+        back_populates="customer",
+        cascade="all, delete-orphan",
+    )

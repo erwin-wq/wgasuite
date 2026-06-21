@@ -33,11 +33,11 @@ Open daarna:
 
 ## Development login
 
-De MVP heeft een eerste dev-only auth foundation. Na `make db-upgrade` bestaat er lokaal een demo admin gebruiker:
+De MVP heeft een eerste dev-only auth foundation. Na `make db-upgrade` bestaat er lokaal een demo platform admin gebruiker:
 
 - Email: `admin@example.local`
 - Password: `ChangeMe123!`
-- Role: `admin`
+- Role: `platform_admin`
 
 Dit account is alleen bedoeld voor lokale development en demo's. Gebruik deze gegevens niet voor productie of echte klantdata. De auth foundation gebruikt een bearer token en `AUTH_SECRET_KEY` uit environment variables. `.env.example` bevat alleen een veilige placeholder; zet echte secrets nooit in git.
 
@@ -117,6 +117,26 @@ abonnementenbeheer of productieklantbeheer.
 Het toekomstige productontwerp maakt onderscheid tussen een Customer Portal en een Platform Admin
 Portal. Zie `docs/PORTAL_AND_ROLES.md` voor de rollen, data access regels, support access logging
 en open beslissingen.
+
+## Customer memberships en rollen
+
+De backend heeft een eerste foundation voor platformrollen en customer memberships.
+
+Platformrollen op user-niveau:
+
+- `platform_admin`
+- `platform_support`
+- `customer_user`
+
+Customerrollen per customer membership:
+
+- `customer_admin`
+- `customer_user`
+- `customer_viewer`
+
+Een gebruiker kan later aan meerdere customers gekoppeld worden. In deze foundation mag alleen
+`platform_admin` memberships beheren. Volledige customer data-scoping is nog niet afgedwongen en
+volgt in een aparte feature. Support access logging volgt ook later.
 
 ## Google Workspace connector configuratie
 

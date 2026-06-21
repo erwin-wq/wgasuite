@@ -34,8 +34,9 @@ def test_auth_me_with_token_returns_current_user(
     assert response.status_code == 200
     body = response.json()
     assert body["email"] == DEMO_EMAIL
-    assert body["role"] == "admin"
+    assert body["role"] == "platform_admin"
     assert body["is_active"] is True
+    assert body["customer_memberships"] == []
 
 
 def test_auth_me_without_token_returns_401(client: TestClient) -> None:

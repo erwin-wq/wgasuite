@@ -401,6 +401,7 @@ h4 {
 }
 
 .product-context-panel,
+.access-model-panel,
 .recommended-next-panel {
   background: rgba(255, 255, 255, 0.94);
   border-radius: var(--radius-lg);
@@ -410,7 +411,8 @@ h4 {
   padding: var(--space-7);
 }
 
-.product-context-panel {
+.product-context-panel,
+.access-model-panel {
   margin-bottom: var(--space-6);
 }
 
@@ -421,9 +423,66 @@ h4 {
 }
 
 .product-context-panel p,
+.access-model-panel p,
 .recommended-next-panel p {
   color: var(--color-ink-soft);
   margin-top: var(--space-1);
+}
+
+.access-model-panel {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.8fr);
+}
+
+.access-model-heading {
+  align-items: center;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
+}
+
+.access-model-heading > svg {
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-sm);
+  color: var(--color-primary);
+  height: 2.8rem;
+  padding: 0.68rem;
+  width: 2.8rem;
+}
+
+.access-model-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.access-model-grid div {
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-md);
+  min-width: 0;
+  padding: var(--space-4);
+}
+
+.access-model-grid span,
+.access-model-grid strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.access-model-grid span {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-sm);
+  font-weight: 780;
+  margin-bottom: var(--space-1);
+}
+
+.access-model-grid strong {
+  color: var(--color-ink);
+  font-size: var(--font-size-lg);
+  font-weight: 900;
 }
 
 .recommended-next-panel button {
@@ -1899,6 +1958,8 @@ h4 {
   .hero,
   .app-topbar,
   .content-header,
+  .access-model-panel,
+  .access-model-grid,
   .sidebar-nav,
   .summary-grid,
   .setup-column,

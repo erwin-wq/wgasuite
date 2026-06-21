@@ -19,13 +19,25 @@ export interface Customer {
   updated_at: string;
 }
 
+export type PlatformRole = "platform_admin" | "platform_support" | "customer_user";
+
+export type CustomerMembershipRole = "customer_admin" | "customer_user" | "customer_viewer";
+
+export interface UserCustomerMembership {
+  customer_id: string;
+  customer_name: string;
+  role: CustomerMembershipRole;
+  is_active: boolean;
+}
+
 export interface User {
   id: string;
   email: string;
   full_name: string;
-  role: "admin" | "assessor" | "viewer" | string;
+  role: PlatformRole | string;
   is_active: boolean;
   created_at: string;
+  customer_memberships: UserCustomerMembership[];
 }
 
 export interface Assessment {
