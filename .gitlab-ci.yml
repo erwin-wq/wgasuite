@@ -15,6 +15,9 @@ backend:lint:
 backend:test:
   image: python:3.12-slim
   stage: test
+  variables:
+    DATABASE_URL: "sqlite+pysqlite:///:memory:"
+    AUTH_SECRET_KEY: "test-only-auth-signing-key-32-chars"
   before_script:
     - cd backend
     - pip install --no-cache-dir -r requirements-dev.txt
@@ -26,7 +29,7 @@ frontend:lint:
   stage: lint
   before_script:
     - cd frontend
-    - npm install
+    - npm ci
   script:
     - npm run lint
 
@@ -35,6 +38,6 @@ frontend:build:
   stage: build
   before_script:
     - cd frontend
-    - npm install
+    - npm ci
   script:
     - npm run build

@@ -177,6 +177,77 @@ export interface ConnectorConfigTestResult {
   recommended_next_step: string;
 }
 
+export interface PlatformAdminTotals {
+  customers_count: number;
+  organizations_count: number;
+  assessments_count: number;
+  connector_configs_count: number;
+  scan_runs_count: number;
+  audit_events_count: number;
+}
+
+export interface PlatformAdminCustomerSummary {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  organization_count: number;
+  connector_config_count: number;
+  last_scan_run_at: string | null;
+  last_audit_event_at: string | null;
+}
+
+export interface PlatformAdminConnectorSummary {
+  id: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  organization_id: string;
+  organization_name: string;
+  connector_type: string;
+  status: string;
+  auth_method: string;
+  primary_domain: string | null;
+  last_tested_at: string | null;
+  last_error: string | null;
+}
+
+export interface PlatformAdminScanRunSummary {
+  id: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  organization_id: string;
+  organization_name: string;
+  assessment_id: string;
+  assessment_title: string;
+  connector_type: string;
+  status: string;
+  findings_created: number;
+  started_at: string;
+  completed_at: string | null;
+  summary: string | null;
+}
+
+export interface PlatformAdminAuditEventSummary {
+  id: string;
+  created_at: string;
+  actor_email: string | null;
+  actor_role: string | null;
+  customer_id: string | null;
+  customer_name: string | null;
+  action: string;
+  object_type: string;
+  object_id: string | null;
+  outcome: string;
+}
+
+export interface PlatformAdminOverview {
+  totals: PlatformAdminTotals;
+  customers: PlatformAdminCustomerSummary[];
+  connector_configs: PlatformAdminConnectorSummary[];
+  recent_scan_runs: PlatformAdminScanRunSummary[];
+  recent_audit_events: PlatformAdminAuditEventSummary[];
+}
+
 export interface LoginRequest {
   email: string;
   password: string;

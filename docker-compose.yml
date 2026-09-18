@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-dread}
       POSTGRES_USER: ${POSTGRES_USER:-dread}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_password_change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
       - "5432:5432"
     volumes:
@@ -21,7 +21,12 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://dread:local_dev_password_change_me@postgres:5432/dread}
+      POSTGRES_DB: ${POSTGRES_DB:-dread}
+      POSTGRES_USER: ${POSTGRES_USER:-dread}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:?Set AUTH_SECRET_KEY in .env}
+      DEVELOPMENT_ADMIN_EMAIL: ${DEVELOPMENT_ADMIN_EMAIL:-}
+      DEVELOPMENT_ADMIN_PASSWORD: ${DEVELOPMENT_ADMIN_PASSWORD:-}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       postgres:

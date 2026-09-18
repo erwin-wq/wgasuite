@@ -1,10 +1,14 @@
 # Product Requirements Document
 
+> Dit document beschrijft de oorspronkelijke MVP-foundation. Zie `README.md` voor de actuele
+> productstatus en huidige capabilities.
+
 ## Doel
 
-Bouw een webbased DREAD Risk Assessment Tool waarmee security teams risico's consistent kunnen vastleggen, scoren en opvolgen.
+Bouw binnen AdminDeck een webbased assessmentworkflow waarmee security teams risico's volgens de
+DREAD-methodiek consistent kunnen vastleggen, scoren en opvolgen.
 
-## MVP-scope
+## Oorspronkelijke MVP-scope
 
 - Organisatie aanmaken
 - Assessment starten voor een organisatie
@@ -14,7 +18,7 @@ Bouw een webbased DREAD Risk Assessment Tool waarmee security teams risico's con
 - Basis UI voor handmatige invoer
 - Ruimte voor latere connectoren, zonder echte Google Workspace koppeling
 
-## Buiten scope voor deze stap
+## Oorspronkelijk buiten scope voor deze stap
 
 - Authenticatie en autorisatie
 - Multi-tenant hardening

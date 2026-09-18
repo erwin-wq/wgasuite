@@ -1,0 +1,60 @@
+name: Feature request
+description: Suggest a focused AdminDeck improvement or workflow.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the user problem first. Do not include real tenant data, credentials or other
+        sensitive Google Workspace information.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or workflow
+      description: Which administration or security workflow is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: What should AdminDeck make possible?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      options:
+        - Google Workspace administration
+        - Security assessments and DREAD scoring
+        - Customer or organization management
+        - Platform administration and support
+        - Audit and reporting
+        - Authentication and authorization
+        - Developer experience
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional scripts, tools or manual workflows currently used.
+  - type: textarea
+    id: security
+    attributes:
+      label: Security and data considerations
+      description: Describe required scopes, sensitive data or permission boundaries without sharing secrets.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: I understand that real Google Workspace API administration is not implemented yet.
+          required: true
+        - label: This request contains no credentials, secrets or real customer data.
+          required: true

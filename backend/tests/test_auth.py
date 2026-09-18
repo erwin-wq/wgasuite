@@ -14,6 +14,7 @@ def test_login_with_valid_credentials_returns_token(client: TestClient) -> None:
     body = response.json()
     assert body["access_token"]
     assert body["token_type"] == "bearer"
+    assert set(body) == {"access_token", "token_type"}
 
 
 def test_login_with_wrong_password_returns_401(client: TestClient) -> None:
@@ -37,6 +38,8 @@ def test_auth_me_with_token_returns_current_user(
     assert body["role"] == "platform_admin"
     assert body["is_active"] is True
     assert body["customer_memberships"] == []
+    assert "password" not in body
+    assert "hashed_password" not in body
 
 
 def test_auth_me_without_token_returns_401(client: TestClient) -> None:

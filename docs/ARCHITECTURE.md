@@ -18,7 +18,8 @@ De applicatie bestaat uit een FastAPI backend, PostgreSQL database en React/Vite
 - `app/models`: SQLAlchemy datamodellen.
 - `app/db`: engine, sessies en metadata.
 - `app/services`: domeinlogica zoals DREAD-scoreberekening.
-- `app/connectors`: toekomstige connectoren, nu alleen placeholder.
+- `app/connectors`: connectorgrens, een check catalog en een lokale mock Google Workspace
+  connector zonder externe calls.
 
 ## Datamodel
 
@@ -50,4 +51,7 @@ Findings hebben een optionele koppeling naar een asset. De DREAD-score staat in 
 
 ## Connector boundary
 
-Connectoren komen onder `backend/app/connectors`. De huidige Google Workspace placeholder doet geen externe calls en bevat geen credentials. Toekomstige connectoren moeten tokens buiten git houden en bij voorkeur encrypted storage of een secrets manager gebruiken.
+Connectoren staan onder `backend/app/connectors`. De huidige implementatie bevat configuratiemetadata,
+een check catalog en een mock scanner die fictieve findings genereert. Er zijn geen echte Google
+API-calls en er worden geen connectorcredentials opgeslagen. Toekomstige connectoren moeten tokens
+buiten git houden en encrypted storage of een secrets manager gebruiken.

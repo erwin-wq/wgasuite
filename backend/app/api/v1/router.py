@@ -3,7 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import (
@@ -52,6 +52,14 @@ from app.schemas.customer_membership import (
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
 from app.schemas.google_workspace_check import GoogleWorkspaceCheckRead
 from app.schemas.organization import OrganizationCreate, OrganizationRead
+from app.schemas.platform_admin import (
+    PlatformAdminAuditEventSummary,
+    PlatformAdminConnectorSummary,
+    PlatformAdminCustomerSummary,
+    PlatformAdminOverview,
+    PlatformAdminScanRunSummary,
+    PlatformAdminTotals,
+)
 from app.schemas.report import AssessmentReportRead, RiskLevelCounts
 from app.schemas.scan_run import ScanRunRead
 from app.services.audit import record_audit_event
@@ -219,6 +227,10 @@ def record_platform_audit_event(
     )
 
 
+def count_rows(db: Session, model: type) -> int:
+    return db.scalar(select(func.count()).select_from(model)) or 0
+
+
 def require_organization_read_access(current_user: User, organization: Organization) -> None:
     require_customer_read_access(current_user, organization.customer_id)
 
@@ -355,7 +367,7 @@ def login(payload: LoginRequest, db: DbSession) -> TokenResponse:
     settings = get_settings()
     access_token = encode_access_token(
         subject=str(user.id),
-        secret_key=settings.auth_secret_key,
+        secret_key=settings.auth_secret_key.get_secret_value(),
         expires_minutes=settings.auth_token_expires_minutes,
         extra_claims={"email": user.email, "role": user.role},
     )
@@ -365,6 +377,173 @@ def login(payload: LoginRequest, db: DbSession) -> TokenResponse:
 @api_router.get("/auth/me", response_model=UserRead, tags=["auth"])
 def get_me(current_user: CurrentUser, db: DbSession) -> UserRead:
     return build_user_read(db, current_user)
+
+
+@api_router.get(
+    "/platform-admin/overview",
+    response_model=PlatformAdminOverview,
+    tags=["platform-admin"],
+)
+def get_platform_admin_overview(
+    db: DbSession,
+    current_user: CurrentUser,
+) -> PlatformAdminOverview:
+    if not is_platform_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin or support role required.",
+        )
+
+    customer_name_by_id = {
+        customer.id: customer.name
+        for customer in db.scalars(select(Customer).order_by(Customer.name.asc())).all()
+    }
+    customer_summaries: list[PlatformAdminCustomerSummary] = []
+    for customer in db.scalars(select(Customer).order_by(Customer.name.asc())).all():
+        organization_count = (
+            db.scalar(
+                select(func.count())
+                .select_from(Organization)
+                .where(Organization.customer_id == customer.id)
+            )
+            or 0
+        )
+        connector_config_count = (
+            db.scalar(
+                select(func.count())
+                .select_from(ConnectorConfig)
+                .join(Organization, ConnectorConfig.organization_id == Organization.id)
+                .where(Organization.customer_id == customer.id)
+            )
+            or 0
+        )
+        last_scan_run_at = db.scalar(
+            select(func.max(ScanRun.started_at))
+            .select_from(ScanRun)
+            .join(Assessment, ScanRun.assessment_id == Assessment.id)
+            .join(Organization, Assessment.organization_id == Organization.id)
+            .where(Organization.customer_id == customer.id)
+        )
+        last_audit_event_at = db.scalar(
+            select(func.max(AuditEvent.created_at)).where(AuditEvent.customer_id == customer.id)
+        )
+        customer_summaries.append(
+            PlatformAdminCustomerSummary(
+                id=customer.id,
+                name=customer.name,
+                slug=customer.slug,
+                status=customer.status,
+                organization_count=organization_count,
+                connector_config_count=connector_config_count,
+                last_scan_run_at=last_scan_run_at,
+                last_audit_event_at=last_audit_event_at,
+            )
+        )
+
+    connector_configs = list(
+        db.scalars(
+            select(ConnectorConfig)
+            .options(
+                selectinload(ConnectorConfig.organization).selectinload(Organization.customer)
+            )
+            .order_by(ConnectorConfig.updated_at.desc())
+        ).all()
+    )
+    connector_summaries = [
+        PlatformAdminConnectorSummary(
+            id=connector_config.id,
+            customer_id=connector_config.organization.customer_id,
+            customer_name=(
+                connector_config.organization.customer.name
+                if connector_config.organization.customer is not None
+                else None
+            ),
+            organization_id=connector_config.organization_id,
+            organization_name=connector_config.organization.name,
+            connector_type=connector_config.connector_type,
+            status=connector_config.status,
+            auth_method=connector_config.auth_method,
+            primary_domain=connector_config.primary_domain,
+            last_tested_at=connector_config.last_tested_at,
+            last_error=connector_config.last_error,
+        )
+        for connector_config in connector_configs
+    ]
+
+    recent_scan_runs = list(
+        db.scalars(
+            select(ScanRun)
+            .options(
+                selectinload(ScanRun.assessment)
+                .selectinload(Assessment.organization)
+                .selectinload(Organization.customer)
+            )
+            .order_by(ScanRun.started_at.desc())
+            .limit(10)
+        ).all()
+    )
+    scan_run_summaries = [
+        PlatformAdminScanRunSummary(
+            id=scan_run.id,
+            customer_id=scan_run.assessment.organization.customer_id,
+            customer_name=(
+                scan_run.assessment.organization.customer.name
+                if scan_run.assessment.organization.customer is not None
+                else None
+            ),
+            organization_id=scan_run.assessment.organization_id,
+            organization_name=scan_run.assessment.organization.name,
+            assessment_id=scan_run.assessment_id,
+            assessment_title=scan_run.assessment.title,
+            connector_type=scan_run.connector_type,
+            status=scan_run.status,
+            findings_created=scan_run.findings_created,
+            started_at=scan_run.started_at,
+            completed_at=scan_run.completed_at,
+            summary=scan_run.summary,
+        )
+        for scan_run in recent_scan_runs
+    ]
+
+    recent_audit_events = list(
+        db.scalars(
+            select(AuditEvent).order_by(AuditEvent.created_at.desc()).limit(10)
+        ).all()
+    )
+    audit_event_summaries = [
+        PlatformAdminAuditEventSummary(
+            id=audit_event.id,
+            created_at=audit_event.created_at,
+            actor_email=audit_event.actor_email,
+            actor_role=audit_event.actor_role,
+            customer_id=audit_event.customer_id,
+            customer_name=(
+                customer_name_by_id.get(audit_event.customer_id)
+                if audit_event.customer_id is not None
+                else None
+            ),
+            action=audit_event.action,
+            object_type=audit_event.object_type,
+            object_id=audit_event.object_id,
+            outcome=audit_event.outcome,
+        )
+        for audit_event in recent_audit_events
+    ]
+
+    return PlatformAdminOverview(
+        totals=PlatformAdminTotals(
+            customers_count=count_rows(db, Customer),
+            organizations_count=count_rows(db, Organization),
+            assessments_count=count_rows(db, Assessment),
+            connector_configs_count=count_rows(db, ConnectorConfig),
+            scan_runs_count=count_rows(db, ScanRun),
+            audit_events_count=count_rows(db, AuditEvent),
+        ),
+        customers=customer_summaries,
+        connector_configs=connector_summaries,
+        recent_scan_runs=scan_run_summaries,
+        recent_audit_events=audit_event_summaries,
+    )
 
 
 @api_router.get(

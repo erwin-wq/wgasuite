@@ -1,0 +1,83 @@
+name: Bug report
+description: Report reproducible incorrect behavior without including sensitive data.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Redact credentials, tenant names, email addresses, customer
+        data, tokens and other sensitive Google Workspace information. Report security
+        vulnerabilities privately according to SECURITY.md.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+      placeholder: A concise description of the problem.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Frontend
+        - Backend API
+        - Database or migrations
+        - Docker or local development
+        - Documentation
+        - CI
+        - Mock Google Workspace workflow
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Use synthetic data and provide the smallest reproducible sequence.
+      placeholder: |
+        1. Start ...
+        2. Open ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Revision
+      description: Branch, tag or commit hash where the issue occurs.
+      placeholder: main or a commit hash
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Relevant OS, browser, Docker, Python and Node.js versions.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs or screenshots
+      description: Optional. Remove secrets, identifiers and customer data before attaching.
+  - type: checkboxes
+    id: sensitive_data
+    attributes:
+      label: Sensitive-data check
+      options:
+        - label: I removed secrets, credentials and real customer or Google Workspace data.
+          required: true
+        - label: This report does not disclose an active security vulnerability.
+          required: true

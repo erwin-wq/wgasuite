@@ -36,7 +36,10 @@ def get_current_user(
         raise unauthorized_error
 
     settings = get_settings()
-    payload = decode_access_token(credentials.credentials, settings.auth_secret_key)
+    payload = decode_access_token(
+        credentials.credentials,
+        settings.auth_secret_key.get_secret_value(),
+    )
     if payload is None:
         raise unauthorized_error
 

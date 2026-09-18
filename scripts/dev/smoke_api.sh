@@ -2,9 +2,15 @@
 set -eu
 
 API_BASE_URL="${API_BASE_URL:-http://localhost:8000}"
-SMOKE_API_EMAIL="${SMOKE_API_EMAIL:-admin@example.local}"
-SMOKE_API_PASSWORD="${SMOKE_API_PASSWORD:-ChangeMe123!}"
+DEVELOPMENT_ADMIN_EMAIL="${DEVELOPMENT_ADMIN_EMAIL:-}"
+DEVELOPMENT_ADMIN_PASSWORD="${DEVELOPMENT_ADMIN_PASSWORD:-}"
 AUTH_TOKEN=""
+
+if [ -z "$DEVELOPMENT_ADMIN_EMAIL" ] || [ -z "$DEVELOPMENT_ADMIN_PASSWORD" ]; then
+  printf "Missing development login configuration.\n"
+  printf "Set DEVELOPMENT_ADMIN_EMAIL and DEVELOPMENT_ADMIN_PASSWORD before running this test.\n"
+  exit 1
+fi
 
 if ! command -v curl >/dev/null 2>&1; then
   printf "Missing required command: curl\n"
@@ -209,16 +215,21 @@ request_json "GET" "/health"
 assert_json_value "status" "ok"
 
 printf "2. Logging in as development user...\n"
-request_json "POST" "/api/v1/auth/login" "{
-  \"email\": \"$SMOKE_API_EMAIL\",
-  \"password\": \"$SMOKE_API_PASSWORD\"
-}"
+login_payload_file="$TMP_DIR/login.json"
+python3 - "$DEVELOPMENT_ADMIN_EMAIL" "$DEVELOPMENT_ADMIN_PASSWORD" "$login_payload_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[3], "w", encoding="utf-8") as handle:
+    json.dump({"email": sys.argv[1], "password": sys.argv[2]}, handle)
+PY
+request_json "POST" "/api/v1/auth/login" "@$login_payload_file"
 AUTH_TOKEN=$(json_get "access_token")
 if [ -z "$AUTH_TOKEN" ]; then
   printf "Login did not return an access token.\n"
   exit 1
 fi
-printf "   authenticated=%s\n" "$SMOKE_API_EMAIL"
+printf "   authenticated=%s\n" "$DEVELOPMENT_ADMIN_EMAIL"
 
 printf "3. Checking authenticated user role...\n"
 request_json "GET" "/api/v1/auth/me"
@@ -348,5 +359,14 @@ printf "16. Checking audit events include report view...\n"
 request_json "GET" "/api/v1/audit-events?customer_id=$customer_id&action=report.viewed"
 assert_json_array_min_length "1"
 printf "   audit_events_report_viewed>=1\n"
+
+printf "17. Checking platform admin overview totals...\n"
+request_json "GET" "/api/v1/platform-admin/overview"
+assert_json_number_greater_than "totals.customers_count" "0"
+assert_json_number_greater_than "totals.organizations_count" "0"
+assert_json_number_greater_than "totals.connector_configs_count" "0"
+assert_json_number_greater_than "totals.scan_runs_count" "0"
+assert_json_number_greater_than "totals.audit_events_count" "0"
+printf "   platform_admin_overview=ok\n"
 
 printf "\nAPI smoke test passed.\n"

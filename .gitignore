@@ -28,3 +28,7 @@ coverage/
 
 .DS_Store
 *.log
+
+# Local secret-scan output (never commit findings that may contain secret context).
+/gitleaks-report.json
+/*.sarif

@@ -1,1 +1,1 @@
-"""DREAD Risk Assessment backend application."""
+"""AdminDeck backend application."""

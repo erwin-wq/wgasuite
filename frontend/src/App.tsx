@@ -33,6 +33,7 @@ import {
   createOrganization,
   getAssessmentReport,
   getCurrentUser,
+  getPlatformAdminOverview,
   getStoredAuthToken,
   listAssessmentScanRuns,
   listAssessments,
@@ -60,6 +61,7 @@ import type {
   FindingCreate,
   GoogleWorkspaceCheck,
   Organization,
+  PlatformAdminOverview,
   ScanRun,
   User
 } from "./types";
@@ -73,6 +75,7 @@ type ActiveSection =
   | "organizations"
   | "assessment"
   | "google-workspace"
+  | "platform-admin"
   | "reports";
 
 const initialDreadScore: DreadScoreCreate = {
@@ -123,6 +126,10 @@ function formatDateTime(value: string): string {
 
 function formatOptionalDateTime(value: string | null): string {
   return value ? formatDateTime(value) : "Nog niet getest";
+}
+
+function formatNullableDateTime(value: string | null): string {
+  return value ? formatDateTime(value) : "-";
 }
 
 function buildExecutiveSummary(report: AssessmentReport): string {
@@ -179,8 +186,8 @@ function App() {
   );
   const [connectorNotes, setConnectorNotes] = useState("");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loginEmail, setLoginEmail] = useState("admin@example.local");
-  const [loginPassword, setLoginPassword] = useState("ChangeMe123!");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [connectorFeedback, setConnectorFeedback] = useState<Feedback>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -195,6 +202,9 @@ function App() {
   const [saving, setSaving] = useState<SavingTarget>(null);
   const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
   const [report, setReport] = useState<AssessmentReport | null>(null);
+  const [platformAdminOverview, setPlatformAdminOverview] =
+    useState<PlatformAdminOverview | null>(null);
+  const [isPlatformAdminOverviewLoading, setIsPlatformAdminOverviewLoading] = useState(false);
 
   const customerById = useMemo(
     () => new Map(customers.map((customer) => [customer.id, customer])),
@@ -287,6 +297,8 @@ function App() {
   const canCreateAsset = Boolean(selectedOrganizationId && assetName.trim());
   const canCreateFinding = Boolean(selectedAssessmentId && findingTitle.trim());
   const canSaveConnectorConfig = Boolean(selectedOrganizationId && connectorDisplayName.trim());
+  const canViewPlatformAdmin =
+    currentUser?.role === "platform_admin" || currentUser?.role === "platform_support";
 
   const resetSession = useCallback((message?: string) => {
     clearStoredAuthToken();
@@ -301,6 +313,7 @@ function App() {
     setScanRuns([]);
     setGoogleWorkspaceChecks([]);
     setConnectorConfigs([]);
+    setPlatformAdminOverview(null);
     setConnectorFeedback(null);
     setSelectedCustomerId("");
     setSelectedOrganizationId("");
@@ -360,6 +373,23 @@ function App() {
     },
     [handleRequestError]
   );
+
+  const loadPlatformAdminOverview = useCallback(async () => {
+    if (!canViewPlatformAdmin) {
+      setPlatformAdminOverview(null);
+      return;
+    }
+
+    setIsPlatformAdminOverviewLoading(true);
+    try {
+      const loadedOverview = await getPlatformAdminOverview();
+      setPlatformAdminOverview(loadedOverview);
+    } catch (overviewError) {
+      handleRequestError(overviewError);
+    } finally {
+      setIsPlatformAdminOverviewLoading(false);
+    }
+  }, [canViewPlatformAdmin, handleRequestError]);
 
   const loadWorkspace = useCallback(
     async (
@@ -499,6 +529,20 @@ function App() {
 
     loadOrganizationConnectorConfigs(selectedOrganizationId);
   }, [currentUser, loadOrganizationConnectorConfigs, selectedOrganizationId]);
+
+  useEffect(() => {
+    if (!currentUser || !canViewPlatformAdmin) {
+      setPlatformAdminOverview(null);
+      if (activeSection === "platform-admin") {
+        setActiveSection("dashboard");
+      }
+      return;
+    }
+
+    if (activeSection === "platform-admin") {
+      loadPlatformAdminOverview();
+    }
+  }, [activeSection, canViewPlatformAdmin, currentUser, loadPlatformAdminOverview]);
 
   useEffect(() => {
     if (!googleWorkspaceConnectorConfig) {
@@ -804,7 +848,7 @@ function App() {
 
   function handleLogout(message = "Uitgelogd.") {
     resetSession();
-    setLoginPassword("ChangeMe123!");
+    setLoginPassword("");
     setFeedback({ type: "success", message });
   }
 
@@ -861,6 +905,10 @@ function App() {
       title: "Google Workspace",
       description: "Beheer connector metadata, check catalog en mock scans zonder echte Google data."
     },
+    "platform-admin": {
+      title: "Platform Admin",
+      description: "Read-only support en troubleshooting overzicht voor platformrollen."
+    },
     reports: {
       title: "Reports",
       description: "Open het rapport voor het actieve assessment en print of sla het op als PDF."
@@ -904,7 +952,7 @@ function App() {
       <main className="app-shell login-shell">
         <section className="login-panel">
           <LockKeyhole aria-hidden="true" />
-          <h1>DREAD Risk Assessment</h1>
+          <h1>AdminDeck</h1>
           <p>Authenticatie controleren.</p>
           <div className="login-loading">
             <Loader2 className="spin" aria-hidden="true" />
@@ -921,10 +969,10 @@ function App() {
         <section className="login-panel">
           <LockKeyhole aria-hidden="true" />
           <span className="eyebrow">Development login</span>
-          <h1>DREAD Risk Assessment</h1>
+          <h1>AdminDeck</h1>
           <p>
-            Gebruik de lokale demo admin om de MVP auth foundation te testen. Dit is geen
-            productie-authenticatie.
+            Gebruik het lokaal geconfigureerde development-account om de MVP auth foundation te
+            testen. Dit is geen productie-authenticatie.
           </p>
 
           {feedback && (
@@ -955,7 +1003,7 @@ function App() {
                 type="password"
                 value={loginPassword}
                 onChange={(event) => setLoginPassword(event.target.value)}
-                placeholder="ChangeMe123!"
+                placeholder="Password"
                 autoComplete="current-password"
                 required
               />
@@ -970,12 +1018,6 @@ function App() {
             </button>
           </form>
 
-          <div className="demo-credentials">
-            <span>Demo user</span>
-            <strong>admin@example.local</strong>
-            <span>Demo password</span>
-            <strong>ChangeMe123!</strong>
-          </div>
         </section>
       </main>
     );
@@ -1006,7 +1048,7 @@ function App() {
               <header className="report-header">
                 <div>
                   <span className="eyebrow">Assessment export</span>
-                  <h1>DREAD Risk Assessment Report</h1>
+                  <h1>AdminDeck DREAD Risk Assessment Report</h1>
                   <p>{buildExecutiveSummary(report)}</p>
                 </div>
                 {report.highest_risk_level ? (
@@ -1215,8 +1257,8 @@ function App() {
         <div className="sidebar-brand">
           <ShieldAlert aria-hidden="true" />
           <div>
-            <strong>DREAD</strong>
-            <span>Risk Assessment</span>
+            <strong>AdminDeck</strong>
+            <span>Admin &amp; security ops</span>
           </div>
         </div>
 
@@ -1261,6 +1303,16 @@ function App() {
             <ShieldAlert aria-hidden="true" />
             Google Workspace
           </button>
+          {canViewPlatformAdmin && (
+            <button
+              type="button"
+              className={activeSection === "platform-admin" ? "active" : ""}
+              onClick={() => setActiveSection("platform-admin")}
+            >
+              <Database aria-hidden="true" />
+              Platform Admin
+            </button>
+          )}
           <button
             type="button"
             className={activeSection === "reports" ? "active" : ""}
@@ -1280,8 +1332,8 @@ function App() {
       <section className="app-main">
         <header className="app-topbar no-print">
           <div>
-            <span className="eyebrow">Security risk workspace</span>
-            <h1>DREAD Risk Assessment</h1>
+            <span className="eyebrow">Administration &amp; security workspace</span>
+            <h1>AdminDeck</h1>
           </div>
           <div className="user-session">
             <div>
@@ -1347,6 +1399,9 @@ function App() {
               <strong>{currentUser.customer_memberships.length}</strong>
             </div>
           </div>
+          {canViewPlatformAdmin && (
+            <p className="platform-admin-hint">Platform Admin overview available.</p>
+          )}
         </section>
 
         <div className="summary-grid" aria-label="Assessment overzicht">
@@ -1422,7 +1477,11 @@ function App() {
 
       <section
         className={`workflow-layout ${
-          activeSection === "dashboard" || activeSection === "reports" ? "section-hidden" : ""
+          activeSection === "dashboard" ||
+          activeSection === "reports" ||
+          activeSection === "platform-admin"
+            ? "section-hidden"
+            : ""
         } ${activeSection === "assessment" ? "" : "single-column"}`}
       >
         <div className="setup-column">
@@ -2172,6 +2231,251 @@ function App() {
               );
             })}
           </div>
+        )}
+      </section>
+
+      <section
+        className={sectionClass("platform-admin", "platform-admin-view")}
+        aria-label="Platform Admin overview"
+      >
+        <article className="platform-admin-hero">
+          <div>
+            <span className="eyebrow">Platform Admin</span>
+            <h2>Read-only support overview</h2>
+            <p>
+              Read-only platform overview for support and troubleshooting. Customer data access is
+              scoped and support actions are audit logged.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={loadPlatformAdminOverview}
+            disabled={!canViewPlatformAdmin || isPlatformAdminOverviewLoading}
+          >
+            {isPlatformAdminOverviewLoading ? (
+              <Loader2 className="spin" aria-hidden="true" />
+            ) : (
+              <Activity aria-hidden="true" />
+            )}
+            Refresh overview
+          </button>
+        </article>
+
+        {!canViewPlatformAdmin ? (
+          <div className="empty-state">
+            <LockKeyhole aria-hidden="true" />
+            <h3>Geen toegang</h3>
+            <p>Alleen platform_admin en platform_support kunnen dit overzicht openen.</p>
+          </div>
+        ) : !platformAdminOverview ? (
+          <div className="empty-state">
+            <Activity className={isPlatformAdminOverviewLoading ? "spin" : ""} aria-hidden="true" />
+            <h3>Platform overzicht laden</h3>
+            <p>Open of refresh het overzicht om supportdata op te halen.</p>
+          </div>
+        ) : (
+          <>
+            <div className="platform-admin-kpi-grid" aria-label="Platform totals">
+              <article>
+                <span>Customers</span>
+                <strong>{platformAdminOverview.totals.customers_count}</strong>
+              </article>
+              <article>
+                <span>Organizations</span>
+                <strong>{platformAdminOverview.totals.organizations_count}</strong>
+              </article>
+              <article>
+                <span>Connector configs</span>
+                <strong>{platformAdminOverview.totals.connector_configs_count}</strong>
+              </article>
+              <article>
+                <span>Scan runs</span>
+                <strong>{platformAdminOverview.totals.scan_runs_count}</strong>
+              </article>
+              <article>
+                <span>Audit events</span>
+                <strong>{platformAdminOverview.totals.audit_events_count}</strong>
+              </article>
+            </div>
+
+            <section className="platform-admin-table-card">
+              <div className="platform-admin-section-heading">
+                <h3>Customer overview</h3>
+                <p>Customers, gekoppelde organisaties, connectorconfigs en recente activiteit.</p>
+              </div>
+              {platformAdminOverview.customers.length === 0 ? (
+                <div className="mini-empty-state">Nog geen customers beschikbaar.</div>
+              ) : (
+                <div className="platform-admin-table-wrap">
+                  <table className="platform-admin-table">
+                    <thead>
+                      <tr>
+                        <th>Customer</th>
+                        <th>Status</th>
+                        <th>Organizations</th>
+                        <th>Connector configs</th>
+                        <th>Last scan</th>
+                        <th>Last audit event</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {platformAdminOverview.customers.map((customer) => (
+                        <tr key={customer.id}>
+                          <td>
+                            <strong>{customer.name}</strong>
+                            <span>{customer.slug}</span>
+                          </td>
+                          <td>
+                            <span className="status-pill">{customer.status}</span>
+                          </td>
+                          <td>{customer.organization_count}</td>
+                          <td>{customer.connector_config_count}</td>
+                          <td>{formatNullableDateTime(customer.last_scan_run_at)}</td>
+                          <td>{formatNullableDateTime(customer.last_audit_event_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section className="platform-admin-table-card">
+              <div className="platform-admin-section-heading">
+                <h3>Connector status</h3>
+                <p>Configuratiemetadata. Er worden geen secrets of credentials getoond.</p>
+              </div>
+              {platformAdminOverview.connector_configs.length === 0 ? (
+                <div className="mini-empty-state">Nog geen connectorconfigs beschikbaar.</div>
+              ) : (
+                <div className="platform-admin-table-wrap">
+                  <table className="platform-admin-table">
+                    <thead>
+                      <tr>
+                        <th>Customer</th>
+                        <th>Organization</th>
+                        <th>Connector type</th>
+                        <th>Status</th>
+                        <th>Primary domain</th>
+                        <th>Last tested</th>
+                        <th>Last error</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {platformAdminOverview.connector_configs.map((connectorConfig) => (
+                        <tr key={connectorConfig.id}>
+                          <td>{connectorConfig.customer_name ?? "-"}</td>
+                          <td>{connectorConfig.organization_name}</td>
+                          <td>{connectorConfig.connector_type.replace(/_/g, " ")}</td>
+                          <td>
+                            <span
+                              className={`connector-status connector-status-${connectorConfig.status.replace(
+                                "_",
+                                "-"
+                              )}`}
+                            >
+                              {connectorConfig.status.replace(/_/g, " ")}
+                            </span>
+                          </td>
+                          <td>{connectorConfig.primary_domain ?? "-"}</td>
+                          <td>{formatNullableDateTime(connectorConfig.last_tested_at)}</td>
+                          <td>{connectorConfig.last_error ?? "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section className="platform-admin-table-card">
+              <div className="platform-admin-section-heading">
+                <h3>Recent scan runs</h3>
+                <p>Laatste 10 scan runs voor troubleshooting.</p>
+              </div>
+              {platformAdminOverview.recent_scan_runs.length === 0 ? (
+                <div className="mini-empty-state">Nog geen scan runs beschikbaar.</div>
+              ) : (
+                <div className="platform-admin-table-wrap">
+                  <table className="platform-admin-table">
+                    <thead>
+                      <tr>
+                        <th>Customer</th>
+                        <th>Organization</th>
+                        <th>Assessment</th>
+                        <th>Status</th>
+                        <th>Findings</th>
+                        <th>Completed</th>
+                        <th>Summary</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {platformAdminOverview.recent_scan_runs.map((scanRun) => (
+                        <tr key={scanRun.id}>
+                          <td>{scanRun.customer_name ?? "-"}</td>
+                          <td>{scanRun.organization_name}</td>
+                          <td>{scanRun.assessment_title}</td>
+                          <td>
+                            <span className={`status-pill status-${scanRun.status}`}>
+                              {scanRun.status}
+                            </span>
+                          </td>
+                          <td>{scanRun.findings_created}</td>
+                          <td>{formatNullableDateTime(scanRun.completed_at)}</td>
+                          <td>{scanRun.summary ?? "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section className="platform-admin-table-card">
+              <div className="platform-admin-section-heading">
+                <h3>Recent audit events</h3>
+                <p>Laatste 10 audit events zonder metadata of secretvelden.</p>
+              </div>
+              {platformAdminOverview.recent_audit_events.length === 0 ? (
+                <div className="mini-empty-state">Nog geen audit events beschikbaar.</div>
+              ) : (
+                <div className="platform-admin-table-wrap">
+                  <table className="platform-admin-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Actor</th>
+                        <th>Customer</th>
+                        <th>Action</th>
+                        <th>Object type</th>
+                        <th>Outcome</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {platformAdminOverview.recent_audit_events.map((auditEvent) => (
+                        <tr key={auditEvent.id}>
+                          <td>{formatDateTime(auditEvent.created_at)}</td>
+                          <td>
+                            <strong>{auditEvent.actor_email ?? "system"}</strong>
+                            <span>{auditEvent.actor_role ?? "-"}</span>
+                          </td>
+                          <td>{auditEvent.customer_name ?? "-"}</td>
+                          <td>{auditEvent.action}</td>
+                          <td>{auditEvent.object_type}</td>
+                          <td>
+                            <span className={`status-pill status-${auditEvent.outcome}`}>
+                              {auditEvent.outcome}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
         )}
       </section>
 

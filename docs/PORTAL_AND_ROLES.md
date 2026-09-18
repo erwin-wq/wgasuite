@@ -2,7 +2,7 @@
 
 ## Doel
 
-De DREAD Risk Assessment Tool krijgt uiteindelijk twee logische portalen:
+AdminDeck krijgt uiteindelijk twee logische portalen:
 
 1. Customer Portal
 2. Platform Admin Portal
@@ -193,23 +193,24 @@ Leg vast:
 
 Wat we nu al hebben:
 
-- eerste login/auth foundation
-- eerste Customer model
-- organization/customer koppeling
-- Google Workspace connector metadata
-- mock Google Workspace scan
-- check catalog
-- rapportage
-- navigatiestructuur
+- development login/auth foundation
+- Customer model en organization/customer koppeling
+- customer memberships en rolchecks
+- backend customer data scoping
+- support-access audit events voor geselecteerde read-acties
+- read-only Platform Admin overview voor platformrollen
+- Google Workspace connector metadata en statusoverzicht
+- mock Google Workspace scan en check catalog
+- DREAD-rapportage en navigatiestructuur
 
 Wat we nog niet hebben:
 
-- volledige tenant-isolatie
-- echte rollenmatrix
-- customer membership model
-- audit logging
-- support access logging
-- echte platform admin portal
+- volledige productie-harde tenant-isolatie
+- volledige visuele splitsing tussen Customer Portal en Platform Admin Portal
+- user invitations en accountbeheer
+- customer impersonation of een volledige supportmodus
+- billing of abonnementenbeheer
+- volledige auditdekking voor alle mutaties
 - echte Google Workspace API-koppeling
 
 ## Aanbevolen implementatiefases

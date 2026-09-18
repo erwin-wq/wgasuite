@@ -7,7 +7,14 @@ from app.core.config import get_settings
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title=settings.app_name, version="0.1.0")
+    app = FastAPI(
+        title=settings.app_name,
+        description=(
+            "AdminDeck is an open-source web console for Google Workspace administration, "
+            "security assessments and operational workflows."
+        ),
+        version="0.1.0",
+    )
 
     app.add_middleware(
         CORSMiddleware,
@@ -19,7 +26,7 @@ def create_app() -> FastAPI:
 
     @app.get("/health", tags=["system"])
     def health_check() -> dict[str, str]:
-        return {"status": "ok", "service": "dread-api"}
+        return {"status": "ok", "service": "admindeck-api"}
 
     app.include_router(api_router, prefix="/api/v1")
     return app

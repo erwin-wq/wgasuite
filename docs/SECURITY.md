@@ -14,7 +14,9 @@
 
 ## Applicatiebeveiliging
 
-- Voeg authenticatie en autorisatie toe voordat de tool buiten development wordt gebruikt.
+- De huidige development-authenticatie en rollenfoundation zijn niet geschikt als productie
+  identity management. Voeg voor productie sterkere authenticatie, accountbeheer, rate limiting en
+  session policies toe.
 - Valideer DREAD-waarden server-side; huidige API beperkt waarden tot 0 t/m 10.
 - Houd database-migraties reviewbaar en klein.
 - Beperk CORS per omgeving via `BACKEND_CORS_ORIGINS`.
@@ -27,6 +29,9 @@
 
 ## CI/CD
 
-- CI voert basis lint/test/build uit.
-- Voeg later dependency scanning, container scanning en secret scanning toe.
-- Gebruik GitLab CI variables voor echte omgevingsconfiguratie.
+- GitLab CI en GitHub Actions voeren backend lint/tests en frontend lint/build uit.
+- Frontend CI controleert npm dependencies; secret scans worden tijdens public-readiness reviews
+  uitgevoerd.
+- Gebruik CI secrets/variables voor echte omgevingsconfiguratie en print die waarden nooit.
+- Zie `/SECURITY.md` voor het publieke disclosurebeleid. GitHub Private Vulnerability Reporting moet
+  vóór publicatie als repositorysetting worden ingeschakeld.

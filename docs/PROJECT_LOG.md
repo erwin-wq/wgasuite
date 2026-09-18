@@ -1,5 +1,713 @@
 # Project Log
 
+## 2026-09-18 - Apache License 2.0 toegevoegd
+
+### Opdracht
+
+Selecteer Apache-2.0 voor de open-source release van AdminDeck, voeg de standaardlicentietekst toe
+en documenteer de licentie in de README zonder applicatiefunctionaliteit te wijzigen.
+
+### Uitgevoerd
+
+- `LICENSE` bevat de ongewijzigde standaardtekst van Apache License 2.0.
+- De README linkt naar `LICENSE` en noemt Apache-2.0 als projectlicentie.
+- Er is geen copyright-holder verzonnen of toegevoegd omdat tracked projectmetadata geen duidelijke
+  rechthebbende noemt; de appendix van de standaardlicentie blijft daarom ongewijzigd.
+
+### Aangepaste bestanden
+
+- `LICENSE`
+- `README.md`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- Licentietekst vergeleken met de lokale standaardtemplate: identiek.
+- `git diff --check`: geslaagd.
+
+### Resultaat en volgende stap
+
+AdminDeck heeft nu Apache-2.0-licentiedocumentatie. De wijzigingen blijven oncommitted voor
+menselijke review; committen en pushen vereisen een aparte expliciete opdracht.
+
+### Volledige Codex samenvatting
+
+De standaard Apache License 2.0 is als root `LICENSE` toegevoegd en de README verwijst ernaar. Er is
+geen organisatie- of persoonsnaam verzonnen, applicatiefunctionaliteit is niet gewijzigd en er is
+niets gecommit of gepusht.
+
+## 2026-09-18 - AdminDeck public open-source voorbereiding en validatie
+
+### Opdracht
+
+Bereid de bestaande working tree voor op review als het publieke open-sourceproject AdminDeck.
+Rebrand alleen de productidentiteit, behoud DREAD als risicomethodiek en compatibiliteitsgevoelige
+identifiers, voeg publieke projectbestanden en GitHub Actions toe, controleer public-readiness en
+commit of push niets.
+
+### Uitgevoerd
+
+- De genegeerde lokale `.env` is veilig aangevuld met afzonderlijke cryptografisch willekeurige
+  developmentwaarden en staat op permissie `0600`. Geen waarde of afgeleide daarvan is gelogd,
+  getrackt of naar voorbeeld-/bronbestanden gekopieerd.
+- Zichtbare productbranding is gewijzigd van DREAD Risk Assessment naar AdminDeck in frontend,
+  browser title, frontend package metadata, backend metadata, healthservice en voorbeeldconfiguratie.
+- Het frontend auth-token gebruikt nu de versiegebonden key `admindeck.authToken:v1`. Browser
+  storage reads/writes/removals zijn defensief afgevangen; de oude key wordt niet gemigreerd, zodat
+  opnieuw inloggen nodig is.
+- DREAD is behouden voor de risk assessment-methodiek, scores, rapporten, CSS/datafields, API-
+  schemas, modellen, tests en historische migraties.
+- Interne PostgreSQL database/user `dread` en DREAD-schema-identifiers zijn bewust niet hernoemd om
+  bestaande lokale databases en de migratieketen compatibel te houden.
+- `README.md` is herschreven als publieke projectintroductie met actuele implemented/mock/planned
+  status, architectuur, veilige quick start, configuratie, development, security, roadmap,
+  licentiestatus en de onafhankelijke/niet-door-Google-onderschreven disclaimer.
+- `CONTRIBUTING.md` en een publieke root `SECURITY.md` zijn toegevoegd. De security policy verzint
+  geen contactadres en vermeldt dat GitHub Private Vulnerability Reporting vóór publicatie als
+  repositorysetting moet worden ingeschakeld.
+- GitHub PR- en issue-templates zijn toegevoegd zonder velden die om secrets of klantdata vragen.
+- GitHub Actions CI is toegevoegd voor pull requests en pushes naar `main`, met gescheiden backend-
+  en frontendjobs, test-only backendconfiguratie, Ruff, pytest, npm audits, lint en build.
+- GitLab CI is behouden. Frontendinstallaties in GitLab CI, Docker en `make frontend-install`
+  gebruiken nu reproduceerbaar `npm ci`.
+- Actieve PRD-, architectuur-, portal/rollen-, roadmap- en securitydocumentatie is bijgewerkt zonder
+  historische projectlogregels te herschrijven.
+- Geen bestaande Alembic-migratie is gewijzigd. `0003_auth_foundation.py` is identiek aan HEAD en
+  de nieuwe remediationmigratie `0009_public_auth_cleanup.py` bereikt de Alembic head.
+- De lokale AdminDeck frontend, health endpoint en API-docs zijn bereikbaar gecontroleerd. De
+  OpenAPI-title en -description tonen de nieuwe productidentiteit.
+- Na validatie zijn de drie Compose-containers en het Compose-netwerk gestopt/verwijderd. Het
+  PostgreSQL-volume en alle developmentdata zijn behouden. De tijdelijke bron-snapshot en het
+  tijdelijke TruffleHog-log onder `/tmp` zijn exact opgeruimd.
+
+### Aangepaste/toegevoegde bestanden voor deze opdracht
+
+- `.env.example`
+- `.gitignore`
+- `.gitlab-ci.yml`
+- `Makefile`
+- `README.md`
+- `CONTRIBUTING.md`
+- `SECURITY.md`
+- `.github/workflows/ci.yml`
+- `.github/pull_request_template.md`
+- `.github/ISSUE_TEMPLATE/bug_report.yml`
+- `.github/ISSUE_TEMPLATE/feature_request.yml`
+- `.github/ISSUE_TEMPLATE/config.yml`
+- `backend/app/__init__.py`
+- `backend/app/core/config.py`
+- `backend/app/main.py`
+- `backend/tests/test_health.py`
+- `docs/ARCHITECTURE.md`
+- `docs/PORTAL_AND_ROLES.md`
+- `docs/PRD.md`
+- `docs/ROADMAP.md`
+- `docs/SECURITY.md`
+- `docs/PROJECT_LOG.md`
+- `frontend/Dockerfile`
+- `frontend/index.html`
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/src/App.tsx`
+- `frontend/src/api/client.ts`
+
+### Tests / checks
+
+- GitHub workflow- en issue-template-YAML: geslaagd met PyYAML. Een eerste ongequote SQLite-URL
+  veroorzaakte een parsefout en is gecorrigeerd; daarna parseerden alle vier YAML-bestanden.
+- Workflowstructuur: gecontroleerd; triggers zijn pull requests en pushes naar `main`, jobs zijn
+  `backend` en `frontend`; echte repository- of Google-credentials zijn niet nodig.
+- `make check-env`: geslaagd (Python, Docker, Docker Compose, Node en npm aanwezig).
+- `make docker-up`: geslaagd; PostgreSQL, backend en frontend zijn gebouwd en gestart.
+- Alembic/setup: geslaagd; head is `0009_public_auth_cleanup`, `0003` matcht HEAD, de historische
+  seedcredential verifieert niet, de geconfigureerde credential is gehasht en de tweede setup was
+  idempotent zonder rehash.
+- `make smoke-api`: geslaagd, alle 17 stappen.
+- Ruff: geslaagd.
+- Backendtests: 99 passed, één upstream Starlette/httpx-deprecationwaarschuwing.
+- Python compilecheck: geslaagd.
+- Schone frontend `npm ci`: geslaagd in een tijdelijke map buiten de repository.
+- Volledige `npm audit`: 0 vulnerabilities.
+- `npm audit --omit=dev`: 0 vulnerabilities.
+- Frontend lint: geslaagd.
+- Frontend productiebuild: geslaagd met Vite 6.4.3; 1.578 modules getransformeerd.
+- Frontendtests: niet aanwezig (0 testbestanden); dit blijft een bekende quality gap.
+- Frontend, backend health en API-docs: HTTP 200; browser title en OpenAPI metadata zijn AdminDeck.
+- Legacy-search: geen onverklaarde oude productbranding. Resterende DREAD-termen zijn methodiek,
+  data/API-identifiers, historische migraties/logtekst of gedocumenteerde databasecompatibiliteit.
+- Repository hygiene: geslaagd; `.env`, venv, node_modules, dist en scanrapporten zijn niet tracked.
+- `git diff --check`: geslaagd.
+- Gitleaks all-refs/full-history: 19 commits en circa 649,66 KB gescand, 0 leaks.
+- TruffleHog 3.97.5 source snapshot: 128 bestanden, 172 chunks en 818.977 bytes gescand,
+  0 verified en 0 unverified secrets.
+
+### Resultaat
+
+De lokale working tree is technisch gevalideerd en gereed voor menselijke review als AdminDeck.
+De repository is nog niet klaar om daadwerkelijk openbaar te maken zolang geen open-source-
+`LICENSE` is gekozen/toegevoegd en GitHub Private Vulnerability Reporting niet is ingeschakeld.
+
+### Volgende stap
+
+Voer menselijke diffreview uit, kies een open-source-licentie, voeg echte maar gesanitized
+screenshots toe indien gewenst en configureer na repositorycreatie GitHub metadata, private
+vulnerability reporting en branch protection. Commit/push/publicatie blijven aparte expliciete
+handelingen.
+
+### Volledige Codex samenvatting
+
+AdminDeck-branding, publieke documentatie, GitHub communitybestanden en GitHub Actions CI zijn in de
+lokale working tree toegevoegd zonder DREAD-methodiek, migratiegeschiedenis of compatibiliteits-
+gevoelige databasevelden te hernoemen. De lokale environment is veilig en ongetrackt geconfigureerd.
+Migraties, development-admin setup, 17-staps smoke test, 99 backendtests, Ruff, schone frontend-
+installatie, beide npm audits, lint, build, legacy-review, hygiene, Gitleaks en TruffleHog zijn
+geslaagd. Validatiecontainers en tijdelijke scanbestanden zijn gestopt/opgeruimd terwijl het
+databasevolume behouden bleef. Er is niets gecommit, gepusht, remote gewijzigd, openbaar gemaakt
+of in Git-history herschreven. De working tree is klaar voor menselijke review; licentiekeuze en
+GitHub-accountinstellingen blijven verplichte menselijke publicatiestappen.
+
+## 2026-09-18 - Frontend development-tooling vulnerabilities opgelost
+
+### Opdracht
+
+Los de zes npm-auditbevindingen in de frontend developmenttooling conservatief op, zonder
+`npm audit fix --force`, major upgrades, productrebranding, wijzigingen aan gegenereerde inhoud,
+commit of push.
+
+### Bevindingen en dependencyketens
+
+- `baseline-browser-mapping@2.10.38` (moderate, `GHSA-w5vr-8v7q-w6rv`): process termination/DoS
+  bij ongeldige invoer. Keten: `@vitejs/plugin-react -> @babel/core ->
+  @babel/helper-compilation-targets -> browserslist -> baseline-browser-mapping`.
+- `brace-expansion@1.1.15` en `5.0.6` (high, `GHSA-3jxr-9vmj-r5cp`,
+  `GHSA-mh99-v99m-4gvg` en `GHSA-rgw5-rvv9-x895`): exponentiële of onbegrensde expansie kan
+  CPU-/memory-DoS veroorzaken. Ketens: `eslint -> minimatch -> brace-expansion` (ook via
+  `@eslint/config-array` en `@eslint/eslintrc`) en `typescript-eslint ->
+  @typescript-eslint/typescript-estree -> minimatch -> brace-expansion`.
+- `browserslist@4.28.2` (high, `GHSA-c83g-rgw3-j3cx` en `GHSA-73wf-gq98-2v4g`):
+  onbegrensde cachegroei en crash/prototype-write via onbetrouwbare custom stats. Keten:
+  `@vitejs/plugin-react -> @babel/core -> @babel/helper-compilation-targets -> browserslist`.
+- `js-yaml@4.2.0` (high, `GHSA-52cp-r559-cp3m`, `GHSA-5p4m-2wfm-xmqj` en
+  `GHSA-2883-xcg3-v3hh`): verschillende YAML merge-/omap-paden kunnen kwadratisch CPU-verbruik
+  veroorzaken. Keten: `eslint -> @eslint/eslintrc -> js-yaml`.
+- `nanoid@3.3.13` (high, `GHSA-28wg-ghj8-5hjv` en `GHSA-2v37-7h3g-55p8`): niet-veilige/custom
+  generators kunnen bij negatieve of nul-lengte oneindig blijven draaien. Keten: `vite ->
+  postcss -> nanoid`.
+- `postcss@8.5.15` (high, `GHSA-r28c-9q8g-f849`; tevens moderate
+  `GHSA-fxqj-rqcc-2cmp`): source-map autoloading kan willekeurige `.map`-bestanden lezen. Keten:
+  `vite -> postcss`.
+
+### Uitgevoerd
+
+- Alleen `frontend/package-lock.json` is gericht ververst binnen de bestaande semver-ranges:
+  `baseline-browser-mapping` 2.10.38 -> 2.11.25, `brace-expansion` 1.1.15 -> 1.1.21 en 5.0.6 ->
+  5.0.12, `browserslist` 4.28.2 -> 4.29.0, `js-yaml` 4.2.0 -> 4.3.2, `nanoid` 3.3.13 ->
+  3.3.19 en `postcss` 8.5.15 -> 8.5.28.
+- Bijbehorende Browserslist-datahelpers zijn mee ververst: `caniuse-lite` 1.0.30001799 ->
+  1.0.30001810, `electron-to-chromium` 1.5.376 -> 1.5.431, `node-releases` 2.0.48 -> 2.0.56
+  en `update-browserslist-db` 1.2.3 -> 1.3.3.
+- `frontend/package.json` hoefde niet te wijzigen: alle veilige versies vallen al binnen de
+  bestaande directe dependency-ranges. Er was geen major upgrade nodig.
+- Een schone validatie-installatie en build zijn uitgevoerd in een tijdelijke map onder `/tmp`.
+  Daardoor bleven `frontend/node_modules` en `frontend/dist` onaangeroerd.
+- Er is geen frontendtestscript en er zijn geen frontendtestbestanden aanwezig; daarom waren er
+  geen frontendtests om uit te voeren.
+
+### Aangepaste bestanden
+
+- `frontend/package-lock.json`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `npm audit`: geslaagd, 0 vulnerabilities.
+- `npm audit --omit=dev`: geslaagd, 0 vulnerabilities.
+- Schone `npm ci` vanuit de bijgewerkte lockfile: geslaagd, audit 0 vulnerabilities.
+- `npm run lint`: geslaagd.
+- `npm run build`: geslaagd met Vite 6.4.3; 1.578 modules getransformeerd.
+- Frontendtests: niet aanwezig.
+- `git diff --check`: geslaagd.
+
+### Resultaat
+
+De volledige frontend dependencyboom en de productie-only boom zijn vrij van npm-auditbevindingen.
+De remediation bestaat uitsluitend uit transitieve patch/minor-upgrades en verandert geen
+applicatiefunctionaliteit of DREAD-terminologie.
+
+### Volgende stap
+
+Review de nog niet gecommitte wijzigingen en commit of push alleen na een aparte expliciete
+opdracht.
+
+### Volledige Codex samenvatting
+
+Alle zes oorspronkelijke development-toolingbevindingen zijn opgelost door de kwetsbare
+transitieve packages binnen hun bestaande semver-ranges bij te werken. Er was geen major upgrade
+en geen wijziging aan directe dependencies nodig. Zowel de volledige als productie-only audit is
+nu groen; een schone tijdelijke installatie lint en bouwt succesvol. De repositoryversies van
+`node_modules` en `dist` zijn niet aangepast, DREAD is niet gerebrand en er is niets gecommit of
+gepusht.
+
+## 2026-09-18 - TruffleHog source snapshot scan
+
+### Opdracht
+
+Maak buiten de repository een schone snapshot van alle tracked en niet-genegeerde untracked
+bronbestanden en scan die read-only met de officiële TruffleHog-container op verified en unknown
+secrets.
+
+### Uitgevoerd
+
+- `/tmp/admindeck-source-scan` is gecontroleerd, leeggemaakt en opnieuw opgebouwd met
+  `git ls-files -co --exclude-standard`; 121 bestanden zijn gekopieerd.
+- Genegeerde lokale/generated inhoud, waaronder `gitleaks-report.json`, is niet in de nieuwe
+  snapshot opgenomen.
+- De snapshot is read-only gemount op `/repo` in `ghcr.io/trufflesecurity/trufflehog:latest` en
+  gescand met `filesystem /repo --results=verified,unknown --fail`.
+- Scanneruitvoer is buiten de repository opgeslagen om te voorkomen dat een eventuele secret in
+  terminal- of chatuitvoer terechtkomt.
+
+### Aangepaste bestanden
+
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- TruffleHog 3.97.5: geslaagd (exitcode 0); 163 chunks en 789.254 bytes gescand, 0 verified en
+  0 unverified/unknown secrets gevonden.
+- `git diff --check`: geslaagd.
+
+### Resultaat
+
+De huidige publiceerbare bronsnapshot bevat volgens TruffleHog geen verified of unknown secrets.
+De repository zelf is door de scan niet gewijzigd en er is niet gecommit of gepusht.
+
+### Volgende stap
+
+Review de openstaande wijzigingen en commit ze alleen na een aparte expliciete commitopdracht.
+
+### Volledige Codex samenvatting
+
+De tijdelijke scanmap is veilig opnieuw opgebouwd uit precies de bestanden die Git als tracked of
+niet-genegeerd untracked ziet. De officiële TruffleHog-container heeft deze snapshot via een
+read-only mount gescand en eindigde succesvol zonder verified of unknown vondsten. Alleen dit
+projectlogboek is voor deze opdracht aangepast; er is niets gecommit of gepusht.
+
+## 2026-09-18 - Gitleaks history scan
+
+### Opdracht
+
+Voer de officiële gitleaks Docker-container uit tegen de volledige Git-geschiedenis met redactie en
+een read-only repositorymount.
+
+### Uitgevoerd
+
+De repository is read-only gemount op `/repo` en gescand met `gitleaks git --log-opts="--all"
+--redact`. De scanner heeft geen bestanden in de repository kunnen wijzigen.
+
+### Aangepaste bestanden
+
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- Gitleaks: geslaagd, 19 commits en circa 649,66 KB gescand, geen leaks gevonden.
+- `git diff --check`: geslaagd.
+
+### Resultaat
+
+De volledige bereikbare Git-geschiedenis bevat volgens deze scan geen door gitleaks herkende leaks.
+
+### Volledige Codex samenvatting
+
+De officiële `ghcr.io/gitleaks/gitleaks:latest` container heeft met een read-only mount alle 19
+commits gescand. Redactie was ingeschakeld. De scan eindigde succesvol met `no leaks found`. Er is
+niet gecommit en niet gepusht.
+
+## 2026-09-18 - Review en refinement public-security cleanup
+
+### Opdracht
+
+Review de nog niet gecommitte public-security cleanup vóór commit. Herstel historische migratie
+`0003`, concentreer de remediation in `0009`, vereenvoudig environment- en smokeconfiguratie,
+ignore lokale secret-scanrapporten, verifieer de development-admin setup en test zowel een lege
+database als een bestaande installatie met de oude seed. Voer geen AdminDeck-rebrand uit en commit
+of push niets.
+
+### Uitgevoerd
+
+- `backend/alembic/versions/0003_auth_foundation.py` is exact hersteld naar de `HEAD`-versie.
+- `0009_public_auth_cleanup` is deterministisch gemaakt en leest geen runtimecredentials. De migratie
+  zoekt de historische user via vaste UUID of voorbeeldmailadres, maar past deze alleen aan als de
+  opgeslagen hash nog exact de historische vaste seedhash is. In dat geval wordt `is_active=false`
+  en de hash vervangen door `disabled-legacy-development-credential`. Een al geroteerde hash blijft
+  onaangeroerd. Downgrade herstelt de onveilige credential niet.
+- Docker Compose vereist `POSTGRES_PASSWORD` en `AUTH_SECRET_KEY` expliciet. De backend krijgt
+  `POSTGRES_DB`, `POSTGRES_USER` en `POSTGRES_PASSWORD` apart en bouwt met SQLAlchemy `URL.create`
+  een correct ge-escapete database-URL. `DATABASE_URL` blijft alleen een expliciete override voor
+  tests of runtimes buiten Compose.
+- Backend settings gebruiken `SecretStr` voor database- en signing-secrets, vereisen minimaal 32
+  tekens voor `AUTH_SECRET_KEY`, falen bij ontbrekende databaseconfiguratie en weigeren ongewijzigde
+  `replace-with-*` secretplaceholders.
+- `.env.example` bevat alleen één set placeholders voor Postgres, auth en de development-admin.
+  Aparte `SMOKE_API_*` waarden zijn verwijderd.
+- `make smoke-api` haalt dezelfde `DEVELOPMENT_ADMIN_EMAIL` en `DEVELOPMENT_ADMIN_PASSWORD` uit de
+  draaiende backendcontainer, zonder het wachtwoord te tonen. Het script gebruikt dezelfde
+  variabelen en weigert te starten als ze ontbreken.
+- `gitleaks-report.json` en `gitleaks-report.sarif` in de repositoryroot zijn smal toegevoegd aan
+  `.gitignore`; andere JSON- of rapportbestanden blijven zichtbaar.
+- Developmentcredentials gebruiken een immutable dataclass waarvan het passwordveld niet in `repr`
+  verschijnt. De setup logt alleen het emailadres, hasht vóór persistence en herhasht niet wanneer
+  dezelfde passwordconfiguratie opnieuw wordt uitgevoerd.
+- API-tests controleren dat login alleen tokenvelden retourneert en `/auth/me` geen password- of
+  hashveld bevat. De setup wordt uitsluitend door de expliciete `make db-upgrade`-stap uitgevoerd,
+  niet bij gewone applicatiestart.
+- README documenteert één workflow: `.env` invullen, `make docker-up`, `make db-upgrade` en
+  `make smoke-api`.
+
+### Aangepaste security-bestanden
+
+- `.env.example`
+- `.gitignore`
+- `.gitlab-ci.yml`
+- `Makefile`
+- `README.md`
+- `backend/alembic.ini`
+- `backend/alembic/env.py`
+- `backend/alembic/versions/0009_public_auth_cleanup.py`
+- `backend/app/api/deps.py`
+- `backend/app/api/v1/router.py`
+- `backend/app/configure_development_admin.py`
+- `backend/app/core/config.py`
+- `backend/app/db/session.py`
+- `backend/app/services/development_admin.py`
+- `backend/app/services/development_credentials.py`
+- `backend/tests/test_auth.py`
+- `backend/tests/test_config.py`
+- `backend/tests/test_development_admin.py`
+- `backend/tests/test_development_credentials.py`
+- `docker-compose.yml`
+- `frontend/src/App.tsx`
+- `frontend/src/app.css`
+- `scripts/dev/smoke_api.sh`
+- `docs/PROJECT_LOG.md`
+
+`0003_auth_foundation.py` staat bewust niet in deze lijst: het bestand is hersteld en heeft geen diff
+meer tegen `HEAD`. Bestaande Platform Admin-wijzigingen in overlappende bestanden zijn behouden.
+
+### Tests / checks
+
+- `make check-env`: geslaagd.
+- `make docker-up`: geslaagd; backend/frontend gebouwd en postgres gezond gestart.
+- `make db-upgrade`: geslaagd; setup logde alleen `Development admin configured:` plus email.
+- `make smoke-api`: geslaagd met de developmentcredentials uit de backendcontainer; 17 API-stappen
+  inclusief Platform Admin-overview geslaagd.
+- Lege migratiedatabase, `0001` tot en met `0009`: geslaagd. Eindstatus legacy user:
+  `is_active=false`, disabled marker aanwezig, historische hash afwezig.
+- Bestaande-installatietest tot `0008`: vóór `0009` was de legacy user actief met de historische
+  hash; na `0009` was deze inactief met de disabled marker en zonder historische hash.
+- Extra migratiecontrole met een al geroteerde hash: `0009` liet user, active status en hash
+  onaangeroerd.
+- Backendtests: 99 passed; één bestaande Starlette `TestClient` deprecation warning.
+- Ruff: geslaagd na het corrigeren van drie formatteringsmeldingen.
+- Frontend lint: geslaagd.
+- Frontend production build: geslaagd; 1.578 modules getransformeerd.
+- `git diff --check`: geslaagd na afronding.
+- De expliciet benoemde tijdelijke migratiedatabases zijn na elke test verwijderd.
+- Tijdens runtimecontrole waren postgres gezond en gaven frontend en backend docs HTTP 200.
+- `npm audit --omit=dev`: 0 production vulnerabilities. Volledige audit: 6 meldingen in dev tooling
+  (1 moderate, 5 high).
+- Na validatie is het tijdelijke validation-account gedeactiveerd en zijn de containers verwijderd;
+  het databasevolume is behouden.
+
+### Resterende testcredentials
+
+De fictieve vaste login blijft uitsluitend in geïsoleerde backendtestfixtures. De historische
+migratie `0003` bevat conform het verzoek nog de oorspronkelijke seedhash, maar `0009` maakt die
+credential aan het einde van de migratieketen onbruikbaar. Runtimecode, frontenddefaults,
+deploymentconfiguratie en README leveren geen bruikbaar vast wachtwoord.
+
+### Problemen / publicatieblokkades
+
+- De volledige npm-audit uit de voorafgaande cleanup meldt nog 6 development-toolingkwetsbaarheden
+  (1 moderate, 5 high), terwijl de production audit 0 meldingen gaf. Werk deze dev-dependencies bij
+  vóór publicatie of documenteer bewust waarom publicatie zonder update acceptabel is.
+- `gitleaks` is lokaal niet geïnstalleerd. Voer vóór publicatie een verse secret scan uit; het lokale
+  rapport wordt nu correct genegeerd maar is geen vervanging voor een actuele scan.
+- Iedere bestaande installatie moet daadwerkelijk tot `0009` migreren. Een installatie die bewust
+  op `0003` tot en met `0008` blijft staan, behoudt de historische demo credential.
+- Auth heeft nog geen volledige productiehardening zoals rate limiting, password reset en externe
+  identity provider-integratie.
+
+### Volgende aanbevolen stap
+
+Vul echte lokale waarden in `.env`, draai `make docker-up`, `make db-upgrade` en `make smoke-api`,
+voer daarna een verse secret scan en dependency-update uit, en review pas dan de volledige diff voor
+een expliciete commit. Push niet automatisch.
+
+### Volledige Codex samenvatting
+
+De historische Alembic-migratie `0003_auth_foundation.py` is exact teruggezet naar `HEAD`.
+Remediation staat volledig in de nieuwe deterministische migratie `0009_public_auth_cleanup`: alleen
+een legacy account dat nog de oorspronkelijke vaste hash heeft wordt gedeactiveerd en krijgt een
+niet-verifieerbare marker; een eerder geroteerd account wordt niet gewijzigd. Hierdoor eindigt een
+verse migratieketen veilig en wordt ook een bestaande ongewijzigde legacy seed veilig geremedieerd.
+
+Lokale configuratie heeft nu één bron. De ontwikkelaar kiest in `.env` Postgres-, signing- en
+development-adminwaarden. Compose vereist de secrets, de backend construeert de database-URL veilig
+zonder passwordduplicatie, `make db-upgrade` voert expliciet de idempotente gehashte adminsetup uit
+en `make smoke-api` hergebruikt die containerconfiguratie zonder het wachtwoord te loggen. API's
+retourneren geen passwordvelden en gewone applicatiestart roteert niets.
+
+Alle gevraagde functionele checks zijn geslaagd: 99 backendtests, Ruff, frontend lint, frontend
+build, whitespacecheck, lege-database-migratie, bestaande-legacy-migratie en een extra controle dat
+een reeds geroteerde account-hash behouden blijft. Er is niet gecommit en niet gepusht.
+
+## 2026-09-18 - Public-security cleanup voor credentials
+
+### Opdracht
+
+Voer een gerichte security-cleanup uit voor publicatie als open-sourceproject. Verwijder ingebouwde
+logincredentials uit de frontend, maak development-auth en databasecredentials expliciet
+environmentgestuurd, harden Docker Compose, `.env.example`, smoke test en README, behoud alle
+DREAD-methodologiebenamingen, valideer de bestaande frontend/backend en commit niets.
+
+### Uitgevoerd
+
+- De loginvelden in `frontend/src/App.tsx` starten leeg, logout wist het wachtwoord, de zichtbare
+  demo-credentialkaart en bijbehorende CSS zijn verwijderd en de password-placeholder is generiek.
+- De historische vaste adminseed is uit migratie `0003_auth_foundation` verwijderd.
+- Migratie `0009_public_auth_cleanup` vervangt of deactiveert een bestaand legacy demo-account en
+  gebruikt alleen expliciete `DEVELOPMENT_ADMIN_EMAIL` en `DEVELOPMENT_ADMIN_PASSWORD`.
+- Een herhaalbare development-admin configuratiestap is aan `make db-upgrade` toegevoegd, met
+  backendtests voor configuratie, rotatie en het uitschakelen van een legacy account.
+- `DATABASE_URL` en `AUTH_SECRET_KEY` hebben geen backend-default meer. De CI-backendtest krijgt
+  uitsluitend testwaarden.
+- Docker Compose vereist `POSTGRES_PASSWORD`, `DATABASE_URL` en `AUTH_SECRET_KEY` expliciet en geeft
+  development-adminwaarden door zonder ingebouwde loginfallback.
+- `.env.example` bevat alleen herkenbare placeholders en toelichting over alle verplichte waarden.
+- De API-smoke test vereist `SMOKE_API_PASSWORD`, geeft bij ontbreken een bruikbare fout en bouwt de
+  login-JSON veilig met Python zodat speciale tekens correct worden ge-escaped.
+- README documenteert de environmentgestuurde lokale configuratie en bevat geen vast wachtwoord.
+- Oude vermeldingen van het vaste developmentwachtwoord zijn uit dit logboek verwijderd. DREAD als
+  risicomethodologie, score, dimensies, findings en rapportage is niet hernoemd.
+
+### Aangepaste bestanden
+
+- `.env.example`
+- `.gitlab-ci.yml`
+- `Makefile`
+- `README.md`
+- `backend/alembic.ini`
+- `backend/alembic/versions/0003_auth_foundation.py`
+- `backend/alembic/versions/0009_public_auth_cleanup.py`
+- `backend/app/configure_development_admin.py`
+- `backend/app/core/config.py`
+- `backend/app/services/development_admin.py`
+- `backend/app/services/development_credentials.py`
+- `backend/tests/test_development_admin.py`
+- `backend/tests/test_development_credentials.py`
+- `docker-compose.yml`
+- `frontend/src/App.tsx`
+- `frontend/src/app.css`
+- `scripts/dev/smoke_api.sh`
+- `docs/PROJECT_LOG.md`
+
+De al aanwezige, niet-gecommitte wijzigingen voor het Platform Admin-overzicht in enkele van deze
+bestanden zijn behouden.
+
+### Tests / checks
+
+- `make check-env`: geslaagd.
+- `make docker-up`: geslaagd; backend en frontend zijn opnieuw gebouwd en alle drie containers
+  startten.
+- Eerste `make db-upgrade`: stopte vóór Alembic omdat de lokale `.env` de nieuw verplichte
+  `AUTH_SECRET_KEY` nog niet bevatte. Herhaald met expliciete tijdelijke validatie-environment:
+  geslaagd; migratie `0009_public_auth_cleanup` en development-adminconfiguratie zijn uitgevoerd.
+- `make smoke-api` met expliciete smokecredentials: geslaagd, inclusief 17 API-stappen en Platform
+  Admin-overview.
+- Smoke test zonder `SMOKE_API_PASSWORD`: verwachte exit 1 met een duidelijke configuratiefout.
+- Eerste backendcheck: twee lintregels waren te lang; gecorrigeerd.
+- Tweede backendcheck: 89 tests geslaagd en één nieuwe randcasetest gefaald; legacy-detectie is
+  uitgebreid van alleen UUID naar UUID of voorbeeldmailadres.
+- Definitieve `make backend-checks`: geslaagd; Ruff schoon, 90 tests passed, Python compilecheck en
+  whitespacecheck geslaagd. Eén bestaande Starlette `TestClient` deprecation warning.
+- `npm --prefix frontend run build`: geslaagd, 1.578 modules getransformeerd.
+- `npm --prefix frontend run lint`: geslaagd.
+- `git diff --check`: geslaagd.
+- Tijdens de runtimecontrole waren postgres gezond, backend/frontend actief en zowel
+  `http://localhost:5173` als `http://localhost:8000/docs` HTTP 200.
+- `npm audit --omit=dev`: 0 production vulnerabilities.
+- Volledige `npm audit`: 6 dev-toolingkwetsbaarheden (1 moderate, 5 high); geen automatische fix
+  uitgevoerd omdat geen software/dependency-update was toegestaan.
+- `gitleaks` is lokaal niet geïnstalleerd. Het al aanwezige, untracked `gitleaks-report.json` bevat
+  0 findings, maar is niet opnieuw gegenereerd.
+- De voor validatie gebruikte containers zijn na de checks verwijderd zodat de tijdelijke bekende
+  test-signing-key en testlogin niet actief achterblijven. Het databasevolume is behouden.
+
+### Bewust behouden testcredentials
+
+De eerder gebruikte duidelijk fictieve developmentcredential blijft alleen als testfixture in:
+
+- `backend/tests/conftest.py`
+- `backend/tests/test_auth.py`
+- `backend/tests/test_audit_events.py`
+- `backend/tests/test_customer_data_scoping.py`
+- `backend/tests/test_customer_membership_roles.py`
+- `backend/tests/test_platform_admin_overview.py`
+
+De twee nieuwe development-admin testbestanden gebruiken eveneens herkenbare `test-only-*`
+wachtwoorden. `.gitlab-ci.yml` bevat alleen een test-only signing key voor de geïsoleerde CI-testjob.
+
+### Problemen / beperkingen
+
+- De eerder gecommitte vaste credentials kunnen nog in de gitgeschiedenis staan. Controleer en
+  herschrijf de geschiedenis waar nodig en behandel alle oude waarden als gecompromitteerd vóór
+  publieke publicatie.
+- De volledige npm-audit meldt 6 kwetsbaarheden in development tooling. Update de lockfile en
+  dependencies in een aparte, reviewbare dependencytaak.
+- Voer vóór publicatie een verse secret scan uit met een geïnstalleerde scanner; voeg het untracked
+  `gitleaks-report.json` niet onbedoeld toe.
+- De lokale `.env` mist de nieuw verplichte auth/developmentwaarden. Vul die zelf in voordat de
+  containers opnieuw worden gestart; echte secrets zijn niet door Codex aangemaakt of opgeslagen.
+- Auth mist nog productiehardening zoals rate limiting, password reset, accountbeheer en externe
+  identity provider-integratie.
+
+### Volgende aanbevolen stap
+
+Vul de verplichte waarden in `.env` in, start opnieuw met `make docker-up`, draai
+`make db-upgrade`, log handmatig in met het zelfgekozen development-account en controleer dat de
+loginvelden leeg starten, geen credentials worden getoond en logout het wachtwoord wist.
+
+### Volledige Codex samenvatting
+
+De publieke working tree bevat geen ingebouwd frontendwachtwoord, zichtbaar credentialblok,
+databasewachtwoordfallback, auth-signing-keyfallback of vaste backend-adminhash meer. Lokale
+database-, signing- en development-loginwaarden moeten expliciet via `.env`/environment worden
+geconfigureerd. Een remediërende migratie en herhaalbare configuratiestap vervangen of deactiveren
+het oude demo-account. De smoke test weigert zonder expliciet wachtwoord en README plus
+`.env.example` begeleiden een nieuwe developer door de vereiste configuratie.
+
+Alle definitieve functionele checks zijn geslaagd: Docker build/start, migratie, 17-staps API smoke,
+Ruff, 90 backendtests, compilecheck, frontend production build, frontend lint en `git diff --check`.
+Production npm-dependencies hebben 0 bekende auditmeldingen; development tooling heeft nog 6
+meldingen. Frontend en backend docs gaven tijdens de controle HTTP 200. Containers zijn daarna
+bewust gestopt omdat alleen tijdelijke publieke validatiewaarden zijn gebruikt; volumes bleven
+behouden.
+
+De bestaande GitLab remote `origin` bestaat. Er is niet gecommit en niet gepusht. De werkboom blijft
+dirty met zowel deze security-cleanup als reeds aanwezige Platform Admin-wijzigingen.
+
+## 2026-06-21 21:34 - Platform Admin overview
+
+### Opdracht
+
+Bouw een eerste read-only Platform Admin overview view vanaf `main` op branch
+`feature/platform-admin-overview`. Voeg een backend endpoint, schemas, backend tests, frontend
+menu-item, frontend read-only overview, README-uitleg en smoke-testuitbreiding toe. Commit en push
+niet.
+
+### Uitgevoerd
+
+De bestaande rollenhelpers, customer data scoping, audit endpoints, Customer, Organization,
+ConnectorConfig, ScanRun, Assessment, AuditEvent en tests zijn gecontroleerd.
+
+Er is een nieuw read-only backend endpoint toegevoegd:
+
+- `GET /api/v1/platform-admin/overview`
+
+Dit endpoint is toegankelijk voor `platform_admin` en `platform_support`. Customerrollen krijgen
+403. De response bevat totals, customer summaries, connectorconfiguraties, recente scan runs en
+recente audit events. Audit metadata en secretvelden worden niet teruggegeven.
+
+Er zijn Pydantic schemas toegevoegd voor het platform-admin overzicht en summaries. De backendtests
+controleren authenticatie, autorisatie per rol, totals, customers, connector configs, scan runs,
+audit events en dat de response geen secret/private_key/token/metadata velden bevat.
+
+De frontend heeft een nieuw menu-item `Platform Admin` gekregen, alleen zichtbaar voor
+`platform_admin` en `platform_support`. De nieuwe view is read-only en toont KPI-cards, een customer
+overview tabel, connector status tabel, recente scan runs en recente audit events. Het dashboard
+toont voor platformrollen kort dat de Platform Admin overview beschikbaar is.
+
+De API smoke test controleert nu ook dat `GET /api/v1/platform-admin/overview` werkt voor de demo
+`platform_admin` en totals teruggeeft.
+
+README is bijgewerkt met uitleg over de read-only Platform Admin overview, toegang voor
+platformrollen, geen secrets, geen customer impersonation en bestaande audit/scoping foundation.
+
+### Aangepaste bestanden
+
+- `backend/app/api/v1/router.py`
+- `backend/app/schemas/platform_admin.py`
+- `backend/tests/test_platform_admin_overview.py`
+- `frontend/src/App.tsx`
+- `frontend/src/api/client.ts`
+- `frontend/src/app.css`
+- `frontend/src/types.ts`
+- `scripts/dev/smoke_api.sh`
+- `README.md`
+- `docs/PROJECT_LOG.md`
+
+### Tests / checks
+
+- `make check-env`: geslaagd
+- `make docker-up`: geslaagd, backend en frontend opnieuw gebouwd en containers gestart
+- `make db-upgrade`: geslaagd, Alembic staat op head
+- `make smoke-api`: geslaagd, inclusief `role=platform_admin`, `checks=7`,
+  `connector_test_status=not_implemented`, `findings_created=7`,
+  `audit_events_report_viewed>=1` en `platform_admin_overview=ok`
+- `make backend-checks`: geslaagd, 84 tests passed, 1 bestaande TestClient warning
+- `npm --prefix frontend run build`: geslaagd
+- `npm --prefix frontend run lint`: geslaagd
+- `git diff --check`: geslaagd
+- `docker compose ps`: backend, frontend en postgres draaien
+- `curl -I http://localhost:5173`: HTTP 200
+- `curl -I http://localhost:8000/docs`: HTTP 200
+
+### Resultaat
+
+Gelukt. Er is nu een eerste read-only Platform Admin overview voor support en troubleshooting.
+Platformrollen kunnen totals, customers, connectorstatus, scan runs en audit events bekijken zonder
+beheeracties of secretdata.
+
+### Problemen / beperkingen
+
+- Geen browser-screenshot tooling gebruikt; de gebruiker moet de nieuwe Platform Admin view nog
+  handmatig in de browser nalopen.
+- Backend tests tonen nog de bekende niet-blokkerende FastAPI/Starlette `TestClient` warning.
+- Er is niet gecommit en niet gepusht, volgens opdracht.
+
+### Volgende aanbevolen stap
+
+Review handmatig in de browser met de demo admin: open `Platform Admin`, controleer de tabellen en
+bevestig dat customerrollen het menu-item niet zien.
+
+### Volledige Codex samenvatting
+
+Ik heb op branch `feature/platform-admin-overview` een eerste read-only Platform Admin overview
+gebouwd. Nieuw backend endpoint: `GET /api/v1/platform-admin/overview`, toegankelijk voor
+`platform_admin` en `platform_support`; customerrollen krijgen 403. De response bevat totals,
+customer summaries, connectorconfiguraties, recente scan runs en recente audit events, zonder audit
+metadata of secretvelden.
+
+Nieuwe schemas/types: `PlatformAdminOverview`, `PlatformAdminCustomerSummary`,
+`PlatformAdminConnectorSummary`, `PlatformAdminScanRunSummary` en
+`PlatformAdminAuditEventSummary`, plus frontend TypeScript types en API client functie
+`getPlatformAdminOverview()`.
+
+Frontend: er is een menu-item `Platform Admin` toegevoegd voor platformrollen. De nieuwe view toont
+KPI-cards, customer overview, connector status, recent scan runs en recent audit events. Dashboard
+toont voor platformrollen kort: `Platform Admin overview available.`
+
+Checks zijn uitgevoerd en geslaagd: `make check-env`, `make docker-up`, `make db-upgrade`,
+`make smoke-api`, `make backend-checks`, `npm --prefix frontend run build`,
+`npm --prefix frontend run lint`, `git diff --check`, `docker compose ps`, plus HTTP 200 checks op
+`http://localhost:5173` en `http://localhost:8000/docs`. Backend tests: 84 passed met 1 bestaande
+TestClient warning. Smoke test: `role=platform_admin`, `checks=7`,
+`connector_test_status=not_implemented`, `findings_created=7`,
+`audit_events_report_viewed>=1` en `platform_admin_overview=ok`. Containers draaien: backend,
+frontend en postgres. Er is niet gecommit en niet gepusht.
+
 ## 2026-06-21 14:06 - Audit log foundation
 
 ### Opdracht
@@ -283,8 +991,8 @@ data-scoping in een volgende stap wordt afgedwongen. De smoke-test controleert n
 ### Resultaat
 
 Gelukt. De foundation voor platformrollen en customer memberships staat klaar, zonder volledige
-tenant-isolatie af te dwingen. De demo login blijft werken met
-`admin@example.local` / `ChangeMe123!` en role `platform_admin`.
+tenant-isolatie af te dwingen. De destijds ingebouwde demo login gebruikte
+`admin@example.local` met een vast developmentwachtwoord; die vaste credential is later verwijderd.
 
 ### Problemen / beperkingen
 
@@ -919,7 +1627,8 @@ Branch `feature/auth-foundation` is aangemaakt vanaf up-to-date `main`. De besta
 
 Backend: er is een `User` model toegevoegd met email, full name, hashed password, role, active flag en timestamps. Er is PBKDF2 wachtwoordhashing toegevoegd en een simpele HMAC-signed bearer/JWT-achtige token service op basis van `AUTH_SECRET_KEY`. Nieuwe endpoints zijn `POST /api/v1/auth/login` en `GET /api/v1/auth/me`. Bestaande organization, assessment, asset, finding en report endpoints zijn beschermd met bearer auth. `/health` blijft publiek.
 
-Er is een Alembic migratie toegevoegd voor de `users` tabel en een development/demo admin seed. De demo login is `admin@example.local` met wachtwoord `ChangeMe123!`; dit is expliciet als dev-only gedocumenteerd.
+Er is een Alembic migratie toegevoegd voor de `users` tabel en een development/demo admin seed. Deze
+gebruikte destijds een vast dev-only wachtwoord; die vaste credential is later verwijderd.
 
 Frontend: er is een login scherm toegevoegd, tokenopslag in `localStorage`, Authorization headers in de API client, logout, sessie-herstel via `/auth/me`, terugval naar login bij 401 en weergave van de ingelogde gebruiker in de header.
 
@@ -980,11 +1689,12 @@ Gelukt. De app heeft nu een eerste MVP auth foundation met development login, pr
 
 ### Volgende aanbevolen stap
 
-Review de loginflow in de browser: log in met `admin@example.local` / `ChangeMe123!`, controleer dat de workspace laadt, test logout, en controleer dat een rapport openen na login werkt.
+Review de loginflow in de browser met het geconfigureerde development-account, controleer dat de
+workspace laadt, test logout, en controleer dat een rapport openen na login werkt.
 
 ### Volledige Codex samenvatting
 
-Ik heb branch `feature/auth-foundation` aangemaakt vanaf `main` en een eerste auth/login foundation gebouwd. Backend heeft nu een `User` model, PBKDF2 password hashing, een HMAC-signed bearer-token service met `AUTH_SECRET_KEY`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, en protected organization/assessment/asset/finding/report endpoints. Health blijft publiek. Er is een Alembic migratie toegevoegd die de `users` tabel maakt en een dev-only demo admin seedt: `admin@example.local` / `ChangeMe123!`.
+Ik heb branch `feature/auth-foundation` aangemaakt vanaf `main` en een eerste auth/login foundation gebouwd. Backend heeft nu een `User` model, PBKDF2 password hashing, een HMAC-signed bearer-token service met `AUTH_SECRET_KEY`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, en protected organization/assessment/asset/finding/report endpoints. Health blijft publiek. Er is een Alembic migratie toegevoegd die de `users` tabel maakt en destijds een dev-only admin met een vast wachtwoord seedde; die vaste credential is later verwijderd.
 
 De frontend heeft nu een development login scherm, tokenopslag in `localStorage`, Authorization headers in de API client, sessie-herstel via `/auth/me`, logout, terugval naar login bij 401 en weergave van de ingelogde gebruiker in de header. De smoke test logt nu eerst in en gebruikt daarna de bearer token. README documenteert de demo login en vermeldt dat dit MVP/dev auth is en productie hardening later nodig heeft.
 

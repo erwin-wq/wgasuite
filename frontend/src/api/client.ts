@@ -13,6 +13,7 @@ import type {
   FindingCreate,
   GoogleWorkspaceCheck,
   LoginRequest,
+  PlatformAdminOverview,
   ScanRun,
   TokenResponse,
   Organization,
@@ -21,7 +22,7 @@ import type {
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-const AUTH_TOKEN_STORAGE_KEY = "dread.authToken";
+const AUTH_TOKEN_STORAGE_KEY = "admindeck.authToken:v1";
 
 export class ApiError extends Error {
   status: number;
@@ -34,15 +35,27 @@ export class ApiError extends Error {
 }
 
 export function getStoredAuthToken(): string | null {
-  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+  try {
+    return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function setStoredAuthToken(token: string): void {
-  window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  try {
+    window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  } catch {
+    // Storage can be unavailable in private browsing or hardened browser configurations.
+  }
 }
 
 export function clearStoredAuthToken(): void {
-  window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  try {
+    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  } catch {
+    // There is no local session to clear when browser storage is unavailable.
+  }
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -77,6 +90,10 @@ export function login(payload: LoginRequest): Promise<TokenResponse> {
 
 export function getCurrentUser(): Promise<User> {
   return request<User>("/api/v1/auth/me");
+}
+
+export function getPlatformAdminOverview(): Promise<PlatformAdminOverview> {
+  return request<PlatformAdminOverview>("/api/v1/platform-admin/overview");
 }
 
 export function listCustomers(): Promise<Customer[]> {
