@@ -10,8 +10,8 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         description=(
-            "AdminDeck is an open-source web console for Google Workspace administration, "
-            "security assessments and operational workflows."
+            "WGASuite is an open-source web platform for Google Workspace administration, "
+            "security checks, assessments, and operational workflows."
         ),
         version="0.1.0",
     )
@@ -26,7 +26,7 @@ def create_app() -> FastAPI:
 
     @app.get("/health", tags=["system"])
     def health_check() -> dict[str, str]:
-        return {"status": "ok", "service": "admindeck-api"}
+        return {"status": "ok", "service": "wgasuite-api"}
 
     app.include_router(api_router, prefix="/api/v1")
     return app

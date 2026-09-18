@@ -1,6 +1,6 @@
 # Roadmap
 
-AdminDeck is in early development. This roadmap describes direction, not delivery dates or
+WGASuite is in early development. This roadmap describes direction, not delivery dates or
 commitments. The README is authoritative for current capabilities.
 
 ## Foundations available today
@@ -24,7 +24,7 @@ commitments. The README is authoritative for current capabilities.
 - improve authentication and session security beyond the development foundation
 - document production deployment, backups, monitoring and recovery
 - add security headers and rate limiting
-- complete public project governance and choose an open-source license
+- maintain public project governance and release processes
 
 ## Product workflow
 
@@ -56,5 +56,4 @@ Potential areas:
 - operational alerts and scheduled workflows
 - production-ready SSO and identity-provider integration
 
-AdminDeck will remain independent software and must not imply affiliation with or endorsement by
-Google.
+WGASuite is an independent open-source project and is not affiliated with or endorsed by Google.

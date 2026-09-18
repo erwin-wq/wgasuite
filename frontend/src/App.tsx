@@ -952,7 +952,7 @@ function App() {
       <main className="app-shell login-shell">
         <section className="login-panel">
           <LockKeyhole aria-hidden="true" />
-          <h1>AdminDeck</h1>
+          <h1>WGASuite</h1>
           <p>Authenticatie controleren.</p>
           <div className="login-loading">
             <Loader2 className="spin" aria-hidden="true" />
@@ -969,7 +969,7 @@ function App() {
         <section className="login-panel">
           <LockKeyhole aria-hidden="true" />
           <span className="eyebrow">Development login</span>
-          <h1>AdminDeck</h1>
+          <h1>WGASuite</h1>
           <p>
             Gebruik het lokaal geconfigureerde development-account om de MVP auth foundation te
             testen. Dit is geen productie-authenticatie.
@@ -1048,7 +1048,7 @@ function App() {
               <header className="report-header">
                 <div>
                   <span className="eyebrow">Assessment export</span>
-                  <h1>AdminDeck DREAD Risk Assessment Report</h1>
+                  <h1>WGASuite DREAD Risk Assessment Report</h1>
                   <p>{buildExecutiveSummary(report)}</p>
                 </div>
                 {report.highest_risk_level ? (
@@ -1257,7 +1257,7 @@ function App() {
         <div className="sidebar-brand">
           <ShieldAlert aria-hidden="true" />
           <div>
-            <strong>AdminDeck</strong>
+            <strong>WGASuite</strong>
             <span>Admin &amp; security ops</span>
           </div>
         </div>
@@ -1333,7 +1333,7 @@ function App() {
         <header className="app-topbar no-print">
           <div>
             <span className="eyebrow">Administration &amp; security workspace</span>
-            <h1>AdminDeck</h1>
+            <h1>WGASuite</h1>
           </div>
           <div className="user-session">
             <div>

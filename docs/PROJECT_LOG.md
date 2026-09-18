@@ -1,10 +1,165 @@
 # Project Log
 
+## 2026-09-18 - Finale WGASuite pre-commitreview en releasevoorbereidingscommit
+
+### Opdracht
+
+Voer een laatste releasegerichte review uit op alle ongestagede WGASuite-wijzigingen, herhaal de
+volledige backend-, frontend-, Docker-, migratie- en secretscanvalidatie en maak alleen bij een
+volledig groene uitkomst exact één lokale commit met onderwerp
+`feat: prepare WGASuite for open-source release`. Push, tag, remotewijziging, history rewrite en
+branchwijziging zijn uitgesloten.
+
+### Uitgevoerd
+
+- Alle 18 gewijzigde tracked bestanden en de volledige diff zijn handmatig op scope, branding,
+  publieke positionering, compatibiliteit en gegenereerde/private inhoud beoordeeld.
+- Actieve branding gebruikt `WGASuite` en technische metadata gebruikt `wgasuite`. Verboden
+  slugvarianten en een uitbreiding van WGA komen niet voor.
+- De resterende tijdelijke productnaam staat alleen in de browser-storagecompatibiliteitskey en
+  chronologische projectloghistorie. DREAD-termen blijven behouden voor methodiek, rapportage,
+  databasecompatibiliteit en historische opdrachten.
+- README en publieke documentatie onderscheiden geïmplementeerde foundations duidelijk van mock,
+  geplande en nog niet productieklare Google Workspace-functionaliteit.
+- GitHub Actions en issue-template-YAML parsen correct; gewone CI heeft geen private
+  repositorysecrets nodig. README, Apache-2.0-licentie, contributing/securitybeleid, templates en
+  `.gitignore` zijn aanwezig.
+- `.env`, venv, `node_modules`, buildoutput, caches, scanrapporten, IDE- en tijdelijke bestanden
+  zijn niet tracked of gestaged. De genegeerde lokale `.env` is niet getoond.
+- De 18 bedoelde bestanden zijn na alle controles als één releasevoorbereidingscommit vastgelegd
+  met het voorgeschreven onderwerp. De bestaande GitLab-remote en branch zijn niet gewijzigd.
+
+### Tests / checks
+
+- `make check-env`: geslaagd met Python 3.13.7, Docker 29.7.2, Docker Compose 5.4.0, Node 22.23.2
+  en npm 10.9.8.
+- Dockerbuild/start, PostgreSQL health, Alembic upgrade en development-admin setup: geslaagd;
+  Alembic current/head is `0009_public_auth_cleanup (head)`.
+- API-smoke: alle 17 stappen geslaagd. Live OpenAPI-, health-, browser-title- en frontendbrandcheck:
+  geslaagd.
+- Ruff en Python compilecheck: geslaagd. Backend: 99 tests geslaagd met één bekende upstream
+  Starlette/httpx-deprecationwaarschuwing.
+- Schone frontend `npm ci`: 175 packages geïnstalleerd; volledige en productie-audit: beide
+  0 kwetsbaarheden; Vite-productiebuild: geslaagd met 1.578 modules; ESLint: geslaagd. Er is geen
+  frontend testscript en er zijn geen frontend testbestanden.
+- `git diff --check`, Apache-2.0-bytevergelijking, ongewijzigde Alembic-migraties, YAML-validatie,
+  ignore/trackingcontrole en branding/slug-search: geslaagd.
+- Gitleaks volledige Git-history vóór de nieuwe commit: 20 commits en circa 785,60 KB gescand,
+  0 leaks. Gitleaks definitieve tracked/non-ignored bronboom: 0 leaks.
+- TruffleHog 3.97.5 definitieve tracked/non-ignored bronboom: 0 verified en 0 unverified secrets.
+- Na runtimevalidatie zijn containers en het Compose-netwerk verwijderd; het PostgreSQL-volume is
+  behouden en alle tijdelijke validatie-/scansnapshots zijn verwijderd.
+
+### Resultaat en volgende stap
+
+De lokale releasevoorbereidingscommit is gereed zonder push. Voor openbare publicatie moeten later
+handmatig de GitHub-repository/slug en beschrijving, zichtbaarheid, Private Vulnerability Reporting,
+branch protection, topics en eventueel gesanitized screenshots worden ingesteld.
+
+### Volledige Codex samenvatting
+
+De finale diffreview vond geen releaseblokker. WGASuite-branding, accurate statusdocumentatie,
+GitHub OSS-bestanden, auth/storagecompatibiliteit en repositoryhygiëne zijn gecontroleerd. De
+volledige backend-, frontend-, Docker-, migratie-, audit- en secretscans zijn groen. Alle 18 bedoelde
+tracked bestanden zijn in exact één lokale commit opgenomen; geen push, tag, remotewijziging,
+history rewrite, branch rename of wijziging aan historische migraties is uitgevoerd.
+
+## 2026-09-18 - Definitieve WGASuite productnaam doorgevoerd
+
+### Opdracht
+
+Vervang de tijdelijke productnaam AdminDeck door de definitieve publieke naam WGASuite in de
+volledige actieve bronboom. Behoud de DREAD-risicomethodiek, databasecompatibiliteit, historische
+migraties en Apache-2.0-licentietekst. Valideer de complete applicatie en security-gates zonder te
+committen, pushen, remotes te wijzigen of Git-history te herschrijven.
+
+### Uitgevoerd
+
+- Frontendlogin, laadstatus, sidebar, topbar, DREAD-assessmentrapport en browsertitel tonen
+  `WGASuite`; de frontend package metadata gebruikt de slug `wgasuite`.
+- Het auth-token gebruikt exact `wgasuite.authToken`. Bestaande lokale sessies onder de tijdelijke
+  key `admindeck.authToken:v1` worden eenmalig gelezen, naar de nieuwe key verplaatst en uit de oude
+  namespace verwijderd. Nieuwe login en logout ruimen de oude key eveneens op.
+- FastAPI/OpenAPI gebruikt `WGASuite API`, de vastgestelde productbeschrijving en healthservice
+  `wgasuite-api`. Voorbeeldconfiguratie en de genegeerde lokale runtimeconfiguratie gebruiken
+  dezelfde API-naam; overige lokale `.env`-waarden zijn niet gelezen of getoond.
+- README, contributing/securitybeleid, roadmap, PRD, portal/rollendocumentatie en het GitHub
+  feature-requestformulier gebruiken WGASuite, de exacte korte tagline en waar relevant de
+  onafhankelijke/niet-door-Google-onderschreven disclaimer.
+- DREAD-scores, assessmentterminologie, rapportinhoud, API/data-identifiers, PostgreSQL-naam `dread`,
+  bestaande migraties en historische projectlogteksten zijn bewust behouden. `LICENSE` is
+  byte-identiek gebleven aan de standaard Apache License 2.0-tekst.
+- De enige actieve AdminDeck-referentie is de tijdelijke localStorage-key die nodig is voor de
+  eenmalige sessiemigratie. Overige treffers staan uitsluitend in historische projectlogregels die
+  eerdere opdrachten, tijdelijke branding, scanpaden of de ongewijzigde GitLab-remote vastleggen.
+
+### Aangepaste bestanden
+
+- `.env.example`
+- `.github/ISSUE_TEMPLATE/feature_request.yml`
+- `CONTRIBUTING.md`
+- `README.md`
+- `SECURITY.md`
+- `backend/app/__init__.py`
+- `backend/app/core/config.py`
+- `backend/app/main.py`
+- `backend/tests/test_health.py`
+- `docs/PORTAL_AND_ROLES.md`
+- `docs/PRD.md`
+- `docs/PROJECT_LOG.md`
+- `docs/ROADMAP.md`
+- `frontend/index.html`
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/src/App.tsx`
+- `frontend/src/api/client.ts`
+
+### Tests / checks
+
+- `make check-env`: geslaagd met Python 3.13.7, Docker 29.7.2, Docker Compose 5.4.0, Node
+  22.23.2 en npm 10.9.8.
+- Dockerbuild/start: geslaagd; PostgreSQL was healthy en backend/frontend draaiden op respectievelijk
+  `http://localhost:8000` en `http://localhost:5173`.
+- Alembic upgrade en current/head: geslaagd op `0009_public_auth_cleanup (head)`; geen
+  migratiebestand is gewijzigd.
+- Development-admin setup: geslaagd via de expliciete setupoperatie; de 17-staps API-smoke test is
+  volledig geslaagd.
+- Ruff: geslaagd. Backend: 99 tests geslaagd met één bekende upstream
+  Starlette/httpx-deprecationwaarschuwing. Python compilecheck: geslaagd.
+- Schone tijdelijke frontendinstallatie met `npm ci`: 175 packages geïnstalleerd; volledige audit
+  en productie-audit: beide 0 kwetsbaarheden; lint: geslaagd; productiebuild: geslaagd met Vite
+  6.4.3 en 1.578 modules. Er is geen frontend testscript en er zijn geen frontend testbestanden.
+- Live metadata: OpenAPI-title/-description, `wgasuite-api`, browsertitel en zichtbare frontendbrand
+  zijn gecontroleerd en correct.
+- YAML, repository-hygiene, ignore/trackingcontroles, ongewijzigde Apache-2.0-licentie,
+  ongewijzigde migraties en `git diff --check`: geslaagd.
+- Gitleaks volledige Git-history: 20 commits en circa 785,60 KB gescand, 0 leaks.
+- Gitleaks definitieve tracked/non-ignored bronsnapshot: 0 leaks.
+- TruffleHog definitieve tracked/non-ignored bronsnapshot: 0 verified en 0 unverified secrets.
+- Na validatie zijn containers en het Compose-netwerk verwijderd, het PostgreSQL-volume is behouden
+  en de tijdelijke validatie- en scansnapshotbestanden zijn opgeruimd.
+
+### Resultaat en volgende stap
+
+De actieve repository-identiteit is consistent WGASuite zonder functionele herbouw. De working
+tree blijft voor menselijke review ongestaged. Voor openbare publicatie blijven de menselijke
+repositoryinstellingen nodig, waaronder GitHub Private Vulnerability Reporting, branch protection,
+repositorynaam/-beschrijving en eventueel gesanitized screenshots.
+
+### Volledige Codex samenvatting
+
+WGASuite is doorgevoerd in frontend, backendmetadata, documentatie, OSS-metadata en
+voorbeeldconfiguratie. De tijdelijke browsersessie wordt veilig eenmalig gemigreerd, terwijl DREAD
+als risicomethodiek en alle database-/migratiecompatibiliteit behouden blijven. Docker, migraties,
+de 17-staps smoke test, 99 backendtests, Ruff, compilecheck, schone frontendinstallatie, beide npm
+audits, lint, build, metadata-, hygiene- en secretscans zijn geslaagd. De GitLab-remote bleef
+ongewijzigd; er is niets gestaged, gecommit, gepusht, getagd of in Git-history herschreven.
+
 ## 2026-09-18 - Apache License 2.0 toegevoegd
 
 ### Opdracht
 
-Selecteer Apache-2.0 voor de open-source release van AdminDeck, voeg de standaardlicentietekst toe
+Selecteer Apache-2.0 voor de open-source release van WGASuite, voeg de standaardlicentietekst toe
 en documenteer de licentie in de README zonder applicatiefunctionaliteit te wijzigen.
 
 ### Uitgevoerd
@@ -27,7 +182,7 @@ en documenteer de licentie in de README zonder applicatiefunctionaliteit te wijz
 
 ### Resultaat en volgende stap
 
-AdminDeck heeft nu Apache-2.0-licentiedocumentatie. De wijzigingen blijven oncommitted voor
+WGASuite heeft nu Apache-2.0-licentiedocumentatie. De wijzigingen blijven oncommitted voor
 menselijke review; committen en pushen vereisen een aparte expliciete opdracht.
 
 ### Volledige Codex samenvatting
@@ -37,6 +192,10 @@ geen organisatie- of persoonsnaam verzonnen, applicatiefunctionaliteit is niet g
 niets gecommit of gepusht.
 
 ## 2026-09-18 - AdminDeck public open-source voorbereiding en validatie
+
+> Historische notitie: AdminDeck was tijdens deze afgeronde voorbereiding de tijdelijke
+> productnaam. De daaropvolgende WGASuite-rebrand hierboven vervangt alle actieve branding; deze
+> entry blijft als chronologisch werklog ongewijzigd waar zij de toenmalige toestand beschrijft.
 
 ### Opdracht
 

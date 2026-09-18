@@ -1,10 +1,10 @@
-# Contributing to AdminDeck
+# Contributing to WGASuite
 
-Thanks for helping improve AdminDeck. The project is in early development, so focused bug fixes,
+Thanks for helping improve WGASuite. The project is in early development, so focused bug fixes,
 security improvements, documentation corrections and well-scoped feature foundations are
 especially useful.
 
-AdminDeck currently combines Google Workspace administration foundations with security assessment
+WGASuite currently combines Google Workspace administration foundations with security assessment
 workflows. DREAD remains the name of the risk-scoring methodology used by the application; it is
 not the product name.
 

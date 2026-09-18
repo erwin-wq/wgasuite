@@ -2,7 +2,7 @@
 
 ## Supported status
 
-AdminDeck is an early-development, pre-release project. There are no supported production releases
+WGASuite is an early-development, pre-release project. There are no supported production releases
 yet. Security fixes are handled on a best-effort basis in the active development branch.
 
 The current bearer-token authentication and environment-configured development administrator are

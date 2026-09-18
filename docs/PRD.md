@@ -5,7 +5,7 @@
 
 ## Doel
 
-Bouw binnen AdminDeck een webbased assessmentworkflow waarmee security teams risico's volgens de
+Bouw binnen WGASuite een webbased assessmentworkflow waarmee security teams risico's volgens de
 DREAD-methodiek consistent kunnen vastleggen, scoren en opvolgen.
 
 ## Oorspronkelijke MVP-scope

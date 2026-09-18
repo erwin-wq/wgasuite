@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest a focused AdminDeck improvement or workflow.
+description: Suggest a focused WGASuite improvement or workflow.
 title: "[Feature]: "
 labels:
   - enhancement
@@ -20,7 +20,7 @@ body:
     id: proposal
     attributes:
       label: Proposed outcome
-      description: What should AdminDeck make possible?
+      description: What should WGASuite make possible?
     validations:
       required: true
   - type: dropdown

@@ -1,1 +1,1 @@
-"""AdminDeck backend application."""
+"""WGASuite backend application."""

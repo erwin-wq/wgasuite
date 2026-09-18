@@ -22,7 +22,8 @@ import type {
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-const AUTH_TOKEN_STORAGE_KEY = "admindeck.authToken:v1";
+const AUTH_TOKEN_STORAGE_KEY = "wgasuite.authToken";
+const LEGACY_AUTH_TOKEN_STORAGE_KEY = "admindeck.authToken:v1";
 
 export class ApiError extends Error {
   status: number;
@@ -36,7 +37,19 @@ export class ApiError extends Error {
 
 export function getStoredAuthToken(): string | null {
   try {
-    return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+    const token = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+    if (token) {
+      return token;
+    }
+
+    const legacyToken = window.localStorage.getItem(LEGACY_AUTH_TOKEN_STORAGE_KEY);
+    if (!legacyToken) {
+      return null;
+    }
+
+    window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, legacyToken);
+    window.localStorage.removeItem(LEGACY_AUTH_TOKEN_STORAGE_KEY);
+    return legacyToken;
   } catch {
     return null;
   }
@@ -45,6 +58,7 @@ export function getStoredAuthToken(): string | null {
 export function setStoredAuthToken(token: string): void {
   try {
     window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+    window.localStorage.removeItem(LEGACY_AUTH_TOKEN_STORAGE_KEY);
   } catch {
     // Storage can be unavailable in private browsing or hardened browser configurations.
   }
@@ -53,6 +67,7 @@ export function setStoredAuthToken(token: string): void {
 export function clearStoredAuthToken(): void {
   try {
     window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_AUTH_TOKEN_STORAGE_KEY);
   } catch {
     // There is no local session to clear when browser storage is unavailable.
   }

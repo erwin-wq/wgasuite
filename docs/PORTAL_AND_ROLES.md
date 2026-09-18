@@ -2,7 +2,7 @@
 
 ## Doel
 
-AdminDeck krijgt uiteindelijk twee logische portalen:
+WGASuite krijgt uiteindelijk twee logische portalen:
 
 1. Customer Portal
 2. Platform Admin Portal

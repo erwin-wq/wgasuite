@@ -1,21 +1,21 @@
-# AdminDeck
+# WGASuite
 
-**Open-source administration and security operations for Google Workspace.**
+**Open-source administration and security for Google Workspace.**
 
-AdminDeck is an open-source web console for Google Workspace administration, security
-assessments and operational workflows. It aims to make common administration and security tasks
+WGASuite is an open-source web platform for Google Workspace administration, security checks,
+assessments, and operational workflows. It aims to make common administration and security tasks
 more approachable through a web interface instead of requiring every workflow to be performed in
 an admin console or custom script.
 
 > **Project status:** early development / pre-release. The current repository provides a working
 > local foundation, but real Google Workspace API administration is not implemented yet.
 
-AdminDeck is an independent open-source project and is not affiliated with or endorsed by Google.
+WGASuite is an independent open-source project and is not affiliated with or endorsed by Google.
 
 ## Overview
 
 Google Workspace teams often combine the Google Admin console, API scripts and command-line tools
-to operate their environments. AdminDeck is exploring a focused web-based layer for those
+to operate their environments. WGASuite is exploring a focused web-based layer for those
 workflows, with customer scoping, security assessment data and auditable operational context in one
 application.
 
@@ -56,7 +56,7 @@ Not implemented today:
 
 ## Google Workspace status
 
-AdminDeck does not currently connect to a real Google Workspace tenant. Connector records store
+WGASuite does not currently connect to a real Google Workspace tenant. Connector records store
 non-secret configuration metadata such as display name, primary domain, chosen auth method and
 status. The mock scanner reads only the in-repository check catalog and generates fictional
 findings; it does not call Google APIs or access customer data.
@@ -83,7 +83,7 @@ email addresses, credentials or customer data.
 
 The backend currently keeps assessment and administration foundations in one API. PostgreSQL names
 such as the default development database/user `dread` and DREAD schema fields are retained for
-backwards compatibility; they do not represent the AdminDeck product name.
+backwards compatibility; they do not represent the WGASuite product name.
 
 ## Requirements
 
@@ -101,8 +101,8 @@ The Docker workflow is the simplest way to run the full stack.
 Clone the repository and create local configuration:
 
 ```sh
-git clone YOUR_REPOSITORY_URL admindeck
-cd admindeck
+git clone YOUR_REPOSITORY_URL wgasuite
+cd wgasuite
 cp .env.example .env
 ```
 
@@ -148,7 +148,7 @@ make docker-down
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `APP_NAME` | No | API title; defaults to `AdminDeck API` in the example. |
+| `APP_NAME` | No | API title; defaults to `WGASuite API` in the example. |
 | `ENVIRONMENT` | No | Runtime environment label. |
 | `POSTGRES_DB` | Yes for Compose | Local database name; `dread` is retained for compatibility. |
 | `POSTGRES_USER` | Yes for Compose | Local database user; `dread` is retained for compatibility. |
@@ -223,7 +223,7 @@ roadmap item.
 
 ## Project status
 
-AdminDeck is in early development and is not production-ready. The assessment, scoping, audit and
+WGASuite is in early development and is not production-ready. The assessment, scoping, audit and
 mock-scan foundations can be exercised locally. Real Google Workspace administration and production
 operations remain future work.
 
@@ -251,9 +251,9 @@ setup, validation and pull-request expectations.
 
 ## License
 
-AdminDeck is licensed under the [Apache License 2.0](LICENSE).
+WGASuite is licensed under the [Apache License 2.0](LICENSE).
 
 ## Disclaimer
 
-AdminDeck is an independent open-source project and is not affiliated with or endorsed by Google.
+WGASuite is an independent open-source project and is not affiliated with or endorsed by Google.
 Google Workspace and related product names are trademarks of Google LLC.

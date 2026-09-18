@@ -8,7 +8,7 @@ from sqlalchemy import URL
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "AdminDeck API"
+    app_name: str = "WGASuite API"
     environment: str = "development"
     database_url: str | None = None
     postgres_db: str | None = None
