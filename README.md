@@ -171,8 +171,13 @@ Create the backend development environment once:
 
 ```sh
 python3 -m venv backend/.venv
-backend/.venv/bin/pip install -r backend/requirements-dev.txt
+backend/.venv/bin/pip install -r backend/requirements-dev.txt \
+  -c backend/requirements-dev.lock
 ```
+
+`requirements.txt` and `requirements-dev.txt` express direct dependency intent. Their corresponding
+`.lock` constraints pin the tested Python 3.12 resolution used by Docker, CI and local development.
+See [CONTRIBUTING.md](CONTRIBUTING.md#backend-dependency-locks) for regeneration instructions.
 
 Run backend lint, tests, compile checks and whitespace validation:
 

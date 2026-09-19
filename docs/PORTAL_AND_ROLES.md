@@ -2,22 +2,23 @@
 
 ## Doel
 
-WGASuite krijgt uiteindelijk twee logische portalen:
+WGASuite gebruikt één applicatie met twee logische verantwoordelijkheden:
 
 1. Customer Portal
 2. Platform Admin Portal
 
-Het Customer Portal is voor klanten die hun eigen risico-assessments, Google Workspace checks,
-scans, findings en rapportages beheren.
+Het customer-gedeelte is voor klanten die binnen hun eigen scope risico-assessments, Google
+Workspace checks, scans, findings en rapportages beheren. Een volledig afzonderlijke Customer
+Portal-frontend is nog niet geïmplementeerd.
 
-Het Platform Admin Portal is voor de platformbeheerder/SaaS-beheerder om klanten te beheren,
-support te leveren en troubleshooting te doen.
+Het Platform Admin-gedeelte is voor platformbeheer en support. De huidige frontend bevat een
+read-only overzicht; een volledig afzonderlijke beheerportal en supportmodus zijn nog gepland.
 
 ## Customer Portal
 
 De klant ziet alleen de eigen omgeving.
 
-De klant kan straks beheren/bekijken:
+De huidige API-rollen kunnen binnen hun customer scope, afhankelijk van hun rechten:
 
 - eigen klantomgeving
 - eigen organisaties / tenants
@@ -26,7 +27,9 @@ De klant kan straks beheren/bekijken:
 - scans
 - findings
 - rapportages
-- eventueel later eigen gebruikers
+- eigen customer memberships bekijken
+
+User invitations en volledig accountbeheer zijn nog niet geïmplementeerd.
 
 Belangrijke regels:
 
@@ -39,7 +42,8 @@ Belangrijke regels:
 
 ## Platform Admin Portal
 
-De platform-admin kan straks alle klanten en omgevingen beheren en ondersteunen.
+De huidige `platform_admin`-rol kan klanten en omgevingen beheren. `platform_admin` en
+`platform_support` hebben daarnaast toegang tot het read-only Platform Admin-overzicht.
 
 De platform-admin kan zien/beheren:
 
@@ -49,10 +53,12 @@ De platform-admin kan zien/beheren:
 - connectorstatussen
 - foutmeldingen
 - support/troubleshooting informatie
-- later: klant aanmaken
-- later: gebruiker uitnodigen
-- later: support access
-- later: audit log
+- customers aanmaken
+- customer memberships beheren (`platform_admin`)
+- geselecteerde audit events bekijken
+
+User invitations, expliciete support-sessies en volledige auditdekking zijn nog niet
+geïmplementeerd.
 
 Belangrijke regels:
 
@@ -101,7 +107,7 @@ dat later aantoonbaar zijn.
 
 ## Rollen
 
-Definieer deze toekomstige rollen:
+De backend kent de volgende rollen:
 
 ### platform_admin
 
@@ -178,16 +184,16 @@ Mag niet:
 
 ## Data access regels
 
-Leg vast:
+De API dwingt de volgende regels af:
 
 - platform_admin ziet alles
 - platform_support ziet supportinformatie, maar acties worden gelogd
 - customer_admin ziet alleen eigen customer data
 - customer_user ziet alleen eigen customer data
 - customer_viewer ziet alleen eigen customer data
-- organizations, assessments, assets, findings, connector configs en scan runs moeten uiteindelijk
-  customer-scoped zijn
-- API endpoints moeten later customer scoping afdwingen
+- organizations, assessments, assets, findings, connector configs en scan runs zijn
+  customer-scoped
+- dedicated backendtests controleren cross-customer toegang en rolgrenzen
 
 ## MVP status
 
@@ -213,15 +219,15 @@ Wat we nog niet hebben:
 - volledige auditdekking voor alle mutaties
 - echte Google Workspace API-koppeling
 
-## Aanbevolen implementatiefases
+## Implementatiestatus
 
-### Fase 1 - Documentatie en terminologie
+### Afgerond: documentatie en terminologie
 
 Customer Portal en Platform Admin Portal vastleggen.
 
-### Fase 2 - Rollen uitbreiden
+### Afgerond: rollen
 
-User roles uitbreiden naar:
+De volgende rollen zijn geïmplementeerd:
 
 - platform_admin
 - platform_support
@@ -229,9 +235,9 @@ User roles uitbreiden naar:
 - customer_user
 - customer_viewer
 
-### Fase 3 - Customer membership model
+### Afgerond: customer memberships
 
-Toevoegen:
+Het membershipmodel bevat:
 
 - user_id
 - customer_id
@@ -239,29 +245,28 @@ Toevoegen:
 
 Hiermee kan één user aan één of meer customers gekoppeld worden.
 
-### Fase 4 - API data scoping
+### Afgerond: API data scoping
 
-Afdwingen:
+De API dwingt af:
 
 - customer users zien alleen eigen customer data
 - platform_admin ziet alles
 - platform_support krijgt supporttoegang met logging
 
-### Fase 5 - Frontend splitsen
+### Gepland: frontend verder splitsen
 
 Navigatie splitsen in:
 
 - Customer Portal
 - Platform Admin Portal
 
-### Fase 6 - Support tooling
+### Gedeeltelijk geïmplementeerd: support tooling
 
-Toevoegen:
+Beschikbaar zijn een read-only Platform Admin-overzicht, geselecteerde audit events, scan runs en
+connectorstatus. Nog gepland zijn:
 
 - supportmodus
-- audit log
-- scan runs bekijken
-- connectorstatus bekijken
+- volledige auditdekking
 - foutmeldingen bekijken
 
 ### Fase 7 - Echte Google Workspace integratie
@@ -279,5 +284,4 @@ Leg deze open vragen vast:
 - Willen we "view as customer" of alleen supportdetails?
 - Moet de klant kunnen zien wanneer support heeft meegekeken?
 - Welke audit events zijn minimaal nodig voor MVP?
-- Wanneer voegen we tenant-isolation tests toe?
 - Wanneer bouwen we echte user invitations?

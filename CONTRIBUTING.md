@@ -17,7 +17,8 @@ Create backend dependencies:
 
 ```sh
 python3 -m venv backend/.venv
-backend/.venv/bin/pip install -r backend/requirements-dev.txt
+backend/.venv/bin/pip install -r backend/requirements-dev.txt \
+  -c backend/requirements-dev.lock
 ```
 
 Install frontend dependencies from the lockfile:
@@ -28,6 +29,30 @@ npm --prefix frontend ci
 
 Copy `.env.example` to `.env` for local runtime configuration and replace every required
 placeholder. Never commit `.env`.
+
+### Backend dependency locks
+
+`backend/requirements.txt` and `backend/requirements-dev.txt` remain the human-maintained direct
+dependency lists. The matching lock files are generated constraints for Python 3.12 on Linux.
+Docker uses `requirements.lock`; CI and host-side development use `requirements-dev.lock`.
+
+After intentionally changing a direct backend requirement, regenerate both locks from the
+repository root:
+
+```sh
+docker run --rm -v "$PWD/backend:/app:ro" -w /app python:3.12-slim \
+  sh -c 'python -m pip install --disable-pip-version-check --quiet -r requirements.txt && \
+  python -m pip freeze --exclude pip --exclude setuptools --exclude wheel' \
+  | sort > backend/requirements.lock
+
+docker run --rm -v "$PWD/backend:/app:ro" -w /app python:3.12-slim \
+  sh -c 'python -m pip install --disable-pip-version-check --quiet -r requirements-dev.txt && \
+  python -m pip freeze --exclude pip --exclude setuptools --exclude wheel' \
+  | sort > backend/requirements-dev.lock
+```
+
+Review the lockfile diff and run the complete backend checks after regeneration. Do not refresh
+locks merely to pick up unrelated upgrades.
 
 ## Working on a change
 
