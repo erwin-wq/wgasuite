@@ -6,83 +6,75 @@
 - Frontend: React + TypeScript + Vite
 - Database: PostgreSQL
 - Migrations: Alembic
-- Lokaal draaien via Docker Compose
+- Local runtime: Docker Compose
 
 ## Backend
 
-- Nieuwe backend logica moet tests hebben.
-- Gebruik SQLAlchemy voor database interactie.
-- Gebruik Alembic voor schemawijzigingen.
-- Houd API routes klein en duidelijk.
-- Plaats domeinlogica in services wanneer routes te groot worden.
+- Add tests for new backend behavior.
+- Use SQLAlchemy for database access and Alembic for schema changes.
+- Keep API routes focused and move substantial domain logic into services.
+- Preserve customer scoping and role checks when changing data access or endpoints.
 
 ## Frontend
 
-- Gebruik React met TypeScript.
-- Gebruik Vite voor development en build.
-- Houd componenten duidelijk en gericht op de gebruikerstaak.
-- Voeg geen onnodige UI of marketingpagina's toe aan de MVP tool.
+- Use React with TypeScript and Vite.
+- Keep components focused on the user workflow.
+- Do not present planned or mock-only behavior as implemented functionality.
 
-## Database en migraties
+## Database and migrations
 
-- PostgreSQL is de primaire database.
-- Elke schemawijziging krijgt een Alembic migratie.
-- Migraties moeten klein en reviewbaar blijven.
+- PostgreSQL is the primary database.
+- Every schema change requires a small, reviewable Alembic migration.
+- Do not destructively edit historical migrations; add a new remediation migration instead.
+- Preserve compatibility identifiers such as `dread`, `dread_scores` and `dread_score` unless an
+  explicit migration plan requires otherwise.
+- DREAD remains the product's risk-assessment methodology and data model terminology.
 
-## Development omgeving
+## Configuration and local development
 
-- Gebruik Docker Compose voor lokaal draaien.
-- Gebruik `.env` lokaal en commit dit bestand nooit.
-- Commit alleen `.env.example` met veilige voorbeeldwaarden.
-- Codex mag geen software installeren zonder expliciete toestemming.
+- Use Docker Compose for the local stack.
+- Keep local secrets in `.env` and never commit that file.
+- Keep `.env.example` limited to safe placeholders and non-secret examples.
+- Do not commit virtual environments, dependency directories, build output, caches or scan reports.
 
-## Feature workflow
+## Validation
 
-Codex mag code aanpassen voor de gevraagde feature of frontend/backend wijziging. Na elke feature voert Codex zelf de lokale Docker build en smoke checks uit waar mogelijk. De vaste volgorde is:
+Run the checks relevant to a change. The standard source checks are:
 
-1. `make check-env`
-2. `make docker-up`
-3. `make db-upgrade`
-4. `make smoke-api`
-5. `make backend-checks`
-6. `npm --prefix frontend run build`
-7. `npm --prefix frontend run lint`
-8. `git diff --check`
+```sh
+make backend-checks
+npm --prefix frontend audit
+npm --prefix frontend audit --omit=dev
+npm --prefix frontend run lint
+npm --prefix frontend run build
+git diff --check
+```
 
-Regels:
+For stack, configuration or integration changes, also run:
 
-- Docker, Node en npm zijn beschikbaar in de juiste VS Code omgeving en mogen voor deze checks gebruikt worden.
-- Als Docker al draait, mag `docker compose up -d --build` gebruikt worden.
-- Als iets faalt, stopt Codex en vat de fout duidelijk samen.
-- Als containers opnieuw gebouwd zijn, meldt Codex welke containers draaien.
-- Codex meldt of database migraties gelukt zijn.
-- Codex meldt of de API smoke test gelukt is.
-- Codex controleert en meldt of de frontend bereikbaar is op `http://localhost:5173`.
-- Codex controleert en meldt of de backend docs bereikbaar zijn op `http://localhost:8000/docs`.
-- Codex meldt wat de gebruiker handmatig in de browser moet controleren.
-- De gebruiker hoeft zo min mogelijk losse terminalcommando's te plakken.
+```sh
+make check-env
+make docker-up
+make db-upgrade
+make smoke-api
+make docker-down
+```
 
-## Committen en pushen
+Document checks that could not be run. See `CONTRIBUTING.md` for contribution and pull-request
+expectations, and `AGENTS.md` for coding-agent guidance.
 
-- Codex mag na een feature niet automatisch committen.
-- Codex werkt `docs/PROJECT_LOG.md` wel bij tijdens de feature.
-- De logboekwijziging blijft uncommitted totdat de gebruiker expliciet vraagt om te committen.
-- Codex stopt na een feature met een duidelijke clean/dirty git status en een samenvatting.
-- Committen gebeurt alleen via een aparte expliciete commit-opdracht.
-- Codex mag nooit automatisch pushen na een feature.
-- Pushen gebeurt alleen via een aparte expliciete push-opdracht.
+## Connectors
 
-## Connectoren
-
-- Geen echte Google Workspace koppeling in MVP fase 1.
-- Gebruik eerst een mock connector.
-- Connectoren moeten read-only zijn waar mogelijk.
-- Secrets lopen via environment variables of een secrets manager, niet via code of git.
+- Real Google Admin SDK/API integration is not implemented.
+- Keep connector behavior mock-only unless an explicitly reviewed integration is in scope.
+- Prefer read-only, least-privilege access.
+- Store secrets through environment configuration or an appropriate secret manager, never in code
+  or Git.
 
 ## Security
 
-- Werk security-by-design.
-- Gebruik read-only toegang waar mogelijk.
-- Log geen secrets, tokens of gevoelige request bodies.
-- Houd configuratie per omgeving gescheiden.
-- Gebruik environment variables voor gevoelige configuratie.
+- Apply security-by-design and least privilege.
+- Do not log secrets, tokens, credentials or sensitive request bodies.
+- Keep environment-specific configuration separated.
+- Use synthetic data in tests, examples, logs and screenshots.
+- Treat changes to authentication, authorization and customer scoping as security-sensitive.

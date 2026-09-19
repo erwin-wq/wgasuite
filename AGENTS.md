@@ -1,60 +1,70 @@
 # AGENTS.md
 
-Werkafspraken voor Codex in deze repository.
+Repository guidance for coding agents contributing to WGASuite.
 
-## Basisregels
+## Repository context
 
-- Werk in kleine logische stappen.
-- Controleer eerst de huidige git status voordat je bestanden wijzigt.
-- Maak geen secrets, wachtwoorden, tokens of API keys aan.
-- Commit nooit `.env` bestanden.
-- Gebruik `.env.example` alleen met veilige voorbeeldwaarden.
-- Overschrijf bestaande bestanden niet onnodig.
-- Houd taal simpel en duidelijk.
+- The backend uses FastAPI, SQLAlchemy, Alembic and PostgreSQL.
+- The frontend uses React, TypeScript and Vite.
+- `README.md` is authoritative for current, mock-only and planned capabilities.
+- `CONTRIBUTING.md` describes the human contribution workflow.
+- `docs/DEVELOPMENT_RULES.md` contains durable engineering constraints.
+- DREAD is the risk-assessment methodology used by the product, not the product name.
 
-## Logboek
+## Working rules
 
-- Update na elke opdracht `docs/PROJECT_LOG.md`.
-- Schrijf in het logboek wat er is aangepast, waarom, welke tests zijn uitgevoerd en wat de volgende stap is.
-- Zet de volledige eindsamenvatting ook in het logboek.
-- Als iets niet getest kon worden, vermeld duidelijk waarom.
+- Inspect the current Git status and read relevant files before editing.
+- Keep changes focused, small and reviewable; preserve unrelated work in the tree.
+- Add or update tests for new backend behavior.
+- Do not create or commit secrets, credentials, tokens, private keys or real customer data.
+- Never commit `.env`; keep `.env.example` limited to safe placeholders and non-secret examples.
+- Do not commit generated dependencies, build output, caches or scan reports.
+- Keep documentation clear about what is implemented, mock-only and planned.
 
-## Werkwijze
+## Architecture and compatibility
 
-- Lees bestaande bestanden voordat je ze wijzigt.
-- Houd wijzigingen klein en reviewbaar.
-- Voeg tests toe bij nieuwe backend logica.
-- Maak geen echte Google Workspace koppeling in MVP fase 1.
-- Gebruik eerst een mock connector of placeholder voor connectorwerk.
-- Meld duidelijk of er een GitLab remote bestaat.
-- Push niet automatisch naar GitLab zonder dit eerst duidelijk te melden.
+- Keep API routes focused; move substantial domain logic into services.
+- Use SQLAlchemy for persistence and Alembic for schema changes.
+- Add a new migration for schema changes. Do not destructively rewrite historical migrations.
+- Preserve compatibility identifiers such as `dread`, `dread_scores` and `dread_score` unless an
+  explicit migration plan requires otherwise.
+- Preserve customer scoping and role boundaries when changing data access or API behavior.
 
-## Automatische validatie na features
+## Google Workspace integration
 
-- Codex mag code aanpassen voor de gevraagde feature of frontend/backend wijziging.
-- Na elke feature of frontend/backend wijziging probeert Codex zelf de lokale Docker build en smoke checks uit te voeren.
-- Codex mag deze checks uitvoeren omdat Docker, Node en npm beschikbaar zijn in de juiste VS Code omgeving.
-- Codex mag geen software installeren zonder expliciete toestemming.
-- Als Docker al draait, mag Codex `docker compose up -d --build` gebruiken.
-- Voer de checks in deze volgorde uit:
-  1. `make check-env`
-  2. `make docker-up`
-  3. `make db-upgrade`
-  4. `make smoke-api`
-  5. `make backend-checks`
-  6. `npm --prefix frontend run build`
-  7. `npm --prefix frontend run lint`
-  8. `git diff --check`
-- Als iets faalt, stop dan en vat de fout duidelijk samen.
-- Als containers opnieuw gebouwd zijn, meld duidelijk welke containers draaien, of migraties gelukt zijn, of de smoke test gelukt is, of de frontend bereikbaar is op `http://localhost:5173`, en of de backend docs bereikbaar zijn op `http://localhost:8000/docs`.
-- Meld na de checks ook wat de gebruiker handmatig in de browser moet controleren.
-- De gebruiker moet zo min mogelijk losse terminalcommando's hoeven plakken.
+- Real Google Admin SDK/API integration is not implemented.
+- Keep connector and scan behavior mock-only unless a change explicitly introduces a reviewed,
+  least-privilege integration and secure credential design.
+- Never store Google credentials or OAuth tokens in source control or ordinary connector metadata.
 
-## Committen en pushen
+## Validation
 
-- Codex mag na een feature niet automatisch committen.
-- Codex werkt `docs/PROJECT_LOG.md` wel bij tijdens de feature, maar laat deze wijziging uncommitted totdat de gebruiker expliciet om een commit vraagt.
-- Codex stopt na een feature met een duidelijke clean/dirty git status en een samenvatting.
-- Committen gebeurt alleen via een aparte expliciete commit-opdracht.
-- Codex mag nooit automatisch pushen na een feature.
-- Pushen gebeurt alleen via een aparte expliciete push-opdracht.
+Run checks relevant to the files changed. The standard checks are:
+
+```sh
+make backend-checks
+npm --prefix frontend audit
+npm --prefix frontend audit --omit=dev
+npm --prefix frontend run lint
+npm --prefix frontend run build
+git diff --check
+```
+
+For stack, configuration or integration changes, also run:
+
+```sh
+make check-env
+make docker-up
+make db-upgrade
+make smoke-api
+make docker-down
+```
+
+Report checks that were not run and why. Preserve the development database volume unless a task
+explicitly requires destructive database cleanup.
+
+## Git and review safety
+
+- Do not rewrite history, force-push, alter remotes or discard unrelated changes.
+- Stage and commit only files that belong to the requested change.
+- Follow `CONTRIBUTING.md` for branches, pull requests and review expectations.

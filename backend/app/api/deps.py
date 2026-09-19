@@ -93,11 +93,7 @@ def get_customer_membership_for_user(
     user: User,
     customer_id: UUID,
 ) -> CustomerMembership | None:
-    """Return a user's active customer membership.
-
-    TODO: Use this helper to enforce customer-scoped access on existing API endpoints in the next
-    tenant-scoping feature.
-    """
+    """Return a user's active customer membership from the database."""
     statement = select(CustomerMembership).where(
         CustomerMembership.user_id == user.id,
         CustomerMembership.customer_id == customer_id,

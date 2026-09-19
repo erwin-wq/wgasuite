@@ -69,7 +69,7 @@ Support access is belangrijk en moet expliciet gelogd worden.
 Voorbeeld audit event:
 
 ```text
-Admin support access gestart door Erwin
+Platform admin support access gestart
 Customer: X
 Tijdstip: Y
 Actie: scan run bekeken / connector status bekeken / rapport geopend
