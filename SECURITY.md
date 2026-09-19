@@ -13,14 +13,11 @@ development foundations. They are not a production identity or session-managemen
 Do not open a public issue containing an active vulnerability, exploit details, credentials,
 tokens, private keys, customer data or sensitive Google Workspace information.
 
-Once the GitHub repository exists and GitHub Private Vulnerability Reporting has been enabled, use
-the repository's **Security → Report a vulnerability** flow. Private Vulnerability Reporting is
-not claimed to be enabled yet; enabling it is a required repository-setting task before public
-release.
+Use the repository's **Security → Report a vulnerability** flow. GitHub Private Vulnerability
+Reporting is enabled for this repository.
 
-If the private reporting flow is not available, do not publish vulnerability details in an issue.
-The repository owner must first provide a verified private contact path. This project does not
-currently publish a dedicated security email address.
+If that flow is temporarily unavailable, do not publish vulnerability details in an issue. Contact
+the repository owner through a non-sensitive channel to request a private reporting path.
 
 Include only the information needed to reproduce and assess the issue:
 
