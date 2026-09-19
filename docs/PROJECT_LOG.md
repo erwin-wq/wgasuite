@@ -1,5 +1,59 @@
 # Project Log
 
+## 2026-09-19 - WGASuite als private GitHub-stagingrepository ingericht
+
+### Opdracht
+
+Push de gevalideerde WGASuite-releasecommit naar de bestaande private GitHub-stagingrepository
+`erwin-wq/wgasuite`, configureer accurate metadata en kosteloze securityfuncties, controleer de
+GitHub-presentatie en CI en laat GitLab en publieke zichtbaarheid ongemoeid.
+
+### Uitgevoerd
+
+- De actieve GitHub CLI-login `erwin-wq` bevat nu de benodigde `workflow`-scope.
+- Releasecommit `af82d62a5afb3a9bffedf2cbd9c8e13b54881a1e` is zonder force, tags of andere branches naar
+  GitHub `main` gepusht; `main` is de default branch.
+- Repositorybeschrijving en negen accurate topics zijn ingesteld. Er is geen homepage,
+  Discussions staat uit en Issues staat aan.
+- GitHub herkent README, Apache-2.0-licentie, contributing/securitybeleid, workflow, issue-templates
+  en pull-requesttemplate. README-links, actieve branding en uitsluiting van generated/private
+  bestanden zijn opnieuw gecontroleerd.
+- Workflow `CI` op de releasecommit is geslaagd met jobs `Frontend checks` en `Backend checks`;
+  alle audit-, lint-, build-, Ruff- en pyteststappen waren groen zonder repositorysecrets.
+- Dependency graph, Dependabot alerts en Dependabot security updates zijn beschikbaar/ingeschakeld.
+  Private Vulnerability Reporting is in de private toestand niet beschikbaar en blijft een
+  publicatiestap.
+- Branch protection en rulesets zijn bewust nog niet ingesteld om de laatste private voorbereiding
+  niet te blokkeren. Aanbevolen voor publicatie: force-push en deletion blokkeren, pull requests
+  vereisen en de exacte checks `Frontend checks` en `Backend checks` verplicht stellen.
+- Remote `origin` is ongewijzigd en er is niets naar GitLab gepusht. GitHub blijft **PRIVATE**.
+
+### Tests / checks
+
+- Lokale preflight: schone boom, verwachte releasecommit/branch en beide remotes bevestigd.
+- GitHub remote `main`: releasecommit exact bevestigd; default branch `main` bevestigd.
+- GitHub Actions run `35446544806`: `CI` geslaagd; beide jobs en alle stappen geslaagd.
+- Repository tree/communitybestanden, Apache-2.0-herkenning en relatieve README-links: geslaagd.
+- Actieve legacy-brandingcontrole: alleen `admindeck.authToken:v1` als sessiecompatibiliteitskey;
+  overige oude branding uitsluitend historisch in dit projectlog.
+- Securitystatus: dependency graph/SBOM beschikbaar, Dependabot alerts aan en security updates aan.
+- `git diff --check` en actuele tracked/non-ignored secretscans: geslaagd.
+
+### Resultaat en volgende stap
+
+De private GitHub-staging is technisch gereed voor een afzonderlijke menselijke publicatiereview.
+Configureer vóór of bij publicatie de definitieve branchregels en Private Vulnerability Reporting,
+controleer repositoryzichtbaarheid/metadata nogmaals en maak de repository alleen via een aparte
+expliciete opdracht publiek.
+
+### Volledige Codex samenvatting
+
+WGASuite staat veilig op GitHub `main` met correcte metadata, communitybestanden, groene CI en
+kosteloze dependencysecurity. Er zijn geen releaseblokkers gevonden en geen applicatiecodefixes
+nodig geweest. Deze verplichte logboekregistratie wordt als aparte documentatiecommit toegevoegd;
+GitHub blijft private en GitLab-`origin`, GitLab-inhoud, lokale branch en bestaande history zijn
+niet gewijzigd of herschreven.
+
 ## 2026-09-18 - Finale WGASuite pre-commitreview en releasevoorbereidingscommit
 
 ### Opdracht
