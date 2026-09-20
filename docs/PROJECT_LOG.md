@@ -5,6 +5,29 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-09-20 — v0.2 product strategy
+
+- Competitive and product-gap research was promoted into a concise public product strategy without
+  copying time-sensitive competitor statistics into the repository.
+- Direct official Google APIs were selected as the primary integration architecture. GAM remains a
+  respected coverage benchmark; it is not the WGASuite execution engine or part of the `v0.2.0`
+  roadmap. An isolated optional adapter may be reconsidered for long-tail workflows later.
+- The first integration vertical was defined as read-only Google Workspace user inventory with
+  search, detail and related group membership context. Guarded suspend/restore follows only after
+  the read path and its security boundaries are proven.
+- The `v0.2.0` roadmap was focused on eight dependency-ordered deliverables: production identity,
+  secure connector credentials, connector validation, a direct Directory API foundation, user
+  inventory, group membership context, guarded suspend/restore and selected evidence-based checks.
+- README positioning remains explicit that `v0.1.0` is early, mock-only for Google Workspace and
+  not production-ready. Architecture and original PRD documentation now link to the strategy as
+  the source of truth for future integration direction.
+- This documentation-only change was validated with Markdown link checks, terminology and claim
+  review, `git diff --check`, and repository status checks. No application code, dependencies,
+  database schema or migrations changed.
+
+Next step: implement the roadmap through separately reviewed vertical slices, beginning with the
+production identity and secure connector trust boundaries rather than Google administration code.
+
 ## 2026-09-19 — Private GitHub staging and public-release hardening
 
 - The validated open-source release candidate was staged in a private GitHub repository while the

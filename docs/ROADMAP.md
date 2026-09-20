@@ -17,43 +17,82 @@ commitments. The README is authoritative for current capabilities.
 - connector configuration metadata
 - Google Workspace check catalog and mock scans
 
-## Near-term quality and security
+## v0.2.0 — Directory integration foundation
 
-- add focused frontend automated tests
-- expand audit coverage for relevant write operations
-- improve authentication and session security beyond the development foundation
-- document production deployment, backups, monitoring and recovery
-- add security headers and rate limiting
-- maintain public project governance and release processes
+The objective for `v0.2.0` is to prove WGASuite's production-oriented Google integration
+architecture with a real, tenant-scoped Directory API workflow. This is a focused direction, not a
+promise of broad Google Workspace administration coverage. The architecture decision and product
+principles are documented in [PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md).
 
-## Product workflow
+### 1. Production identity foundation
 
-- clearer Customer Portal and Platform Admin Portal separation
-- assessment status workflows, filtering and sorting
-- improved report export and management views
-- user invitation and account lifecycle foundations
-- explicit support workflows with customer-visible auditability
+- define and implement the production OIDC direction;
+- add revocable server-side session behavior;
+- preserve a clear boundary between local development authentication and deployed identity.
 
-## Google Workspace integration
+### 2. Secure Google connector credentials
 
-Real Google Workspace access is not implemented. Future work should proceed with least-privilege,
-read-only scopes first and secure credential storage before enabling operational changes.
+- store credentials through an encrypted or external secret-provider boundary rather than ordinary
+  connector metadata;
+- define the service-account and Domain-Wide Delegation model where required;
+- support credential rotation and deletion without returning secrets through the API or UI;
+- preserve a path to keyless deployment where the hosting environment supports it.
 
-Potential areas:
+### 3. Real connector validation
 
-- connector health and consent validation
-- read-only tenant and user inventory
-- security posture checks backed by real APIs
-- user and group administration
-- organizational-unit and license administration
-- ChromeOS and device administration
-- Google Workspace audit/event workflows
+- validate credentials and the delegated administrator identity;
+- verify the intended tenant/domain, required scopes and API access;
+- return structured, actionable failure states without exposing sensitive values.
 
-## Integrations and operations
+### 4. Direct Directory API foundation
 
-- secure webhooks and ticketing integrations
-- management dashboards
-- operational alerts and scheduled workflows
-- production-ready SSO and identity-provider integration
+- introduce a tenant-bound abstraction for official Admin SDK Directory API access;
+- define pagination, quota handling, error classification and test boundaries;
+- keep read-only and mutation scopes separable.
+
+### 5. User directory inventory
+
+- list and search Workspace users;
+- show a selected user's relevant directory details;
+- expose freshness, loading and structured error states clearly.
+
+### 6. Group membership context
+
+- retrieve and show relevant group memberships for a selected user;
+- document API limitations such as nested membership behavior;
+- avoid unbounded per-user fan-out.
+
+### 7. Audited, guarded suspend and restore
+
+This mutation follows the proven read workflow; it is not a prerequisite for initial connector
+validation or inventory.
+
+- authorize and revalidate the operation in the correct customer/organization context;
+- show an explicit preview and require confirmation;
+- behave idempotently where possible;
+- record structured success and failure audit events;
+- return a structured operation result or error.
+
+### 8. Evidence-based Workspace checks
+
+- replace a small, selected subset of mock checks with evidence retrieved from Google APIs;
+- record evidence source, freshness and check version;
+- keep unsupported checks clearly marked as mock or planned rather than implying broad coverage.
+
+## Later themes
+
+The following themes remain directional and are not release commitments:
+
+- frontend automated tests and broader production hardening;
+- bulk operations and CSV planning;
+- durable background jobs with retries, progress, cancellation and per-target results;
+- approval and separation-of-duty workflows;
+- ChromeOS, mobile and endpoint inventory and administration;
+- Gmail, Drive, organizational-unit, admin-role and license administration;
+- expanded security posture, audit-event and remediation workflows;
+- just-in-time administration;
+- notifications, automation and scheduling;
+- broader delegated MSP workflows;
+- production deployment, backup, monitoring and recovery guidance.
 
 WGASuite is an independent open-source project and is not affiliated with or endorsed by Google.

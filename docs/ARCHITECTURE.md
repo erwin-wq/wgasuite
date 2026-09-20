@@ -1,5 +1,9 @@
 # Architectuur
 
+Dit document beschrijft de huidige technische foundation. Zie
+[PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md) voor de gekozen direct-API richting voor toekomstige
+Google Workspace integraties. Die richting is nog niet geïmplementeerd in `v0.1.0`.
+
 ## Overzicht
 
 De applicatie bestaat uit een FastAPI backend, PostgreSQL database en React/Vite frontend. Alembic beheert schemawijzigingen. Docker Compose verbindt de services in development.
@@ -54,4 +58,6 @@ Findings hebben een optionele koppeling naar een asset. De DREAD-score staat in 
 Connectoren staan onder `backend/app/connectors`. De huidige implementatie bevat configuratiemetadata,
 een check catalog en een mock scanner die fictieve findings genereert. Er zijn geen echte Google
 API-calls en er worden geen connectorcredentials opgeslagen. Toekomstige connectoren moeten tokens
-buiten git houden en encrypted storage of een secrets manager gebruiken.
+buiten git houden en encrypted storage of een secrets manager gebruiken. De primaire
+integratiestrategie gebruikt officiële Google APIs rechtstreeks; GAM is geen execution engine in de
+huidige architectuur of `v0.2.0` roadmap.

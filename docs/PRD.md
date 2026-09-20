@@ -1,7 +1,8 @@
 # Product Requirements Document
 
-> Dit document beschrijft de oorspronkelijke MVP-foundation. Zie `README.md` voor de actuele
-> productstatus en huidige capabilities.
+> Dit document beschrijft de oorspronkelijke MVP-foundation. Zie [README.md](../README.md) voor de
+> actuele productstatus en huidige capabilities, en [PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md) voor
+> de gekozen product- en integratierichting.
 
 ## Doel
 

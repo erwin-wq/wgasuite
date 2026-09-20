@@ -247,7 +247,9 @@ Potential future work includes:
 - production deployment, backup and monitoring guidance.
 
 Roadmap items are directional and have no committed delivery dates. See
-[docs/ROADMAP.md](docs/ROADMAP.md) for the working project roadmap.
+[docs/ROADMAP.md](docs/ROADMAP.md) for the working project roadmap and
+[docs/PRODUCT_STRATEGY.md](docs/PRODUCT_STRATEGY.md) for the direct-API architecture decision and
+product direction.
 
 ## Contributing
 
