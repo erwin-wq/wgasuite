@@ -1,6 +1,10 @@
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models import AuditEvent
 
 
 def create_organization(
@@ -30,6 +34,8 @@ def create_google_workspace_config(
             "primary_domain": "example.local",
             "admin_subject_email": "admin@example.local",
             "auth_method": "service_account_domain_wide_delegation",
+            "credential_provider": "file",
+            "credential_ref": "test-workspace",
             "status": "configured",
             "notes": "Metadata only; no secrets stored.",
             "private_key": "must-not-be-accepted",
@@ -62,6 +68,9 @@ def test_create_google_workspace_config_with_token(
     assert connector_config["display_name"] == "Primary Google Workspace"
     assert connector_config["primary_domain"] == "example.local"
     assert connector_config["admin_subject_email"] == "admin@example.local"
+    assert connector_config["credential_provider"] == "file"
+    assert connector_config["credentials_configured"] is True
+    assert "credential_ref" not in connector_config
 
 
 def test_list_detail_and_patch_connector_config(
@@ -135,6 +144,8 @@ def test_duplicate_post_updates_existing_google_workspace_config(
     assert updated["admin_subject_email"] is None
     assert updated["auth_method"] == "manual_import"
     assert updated["status"] == "not_configured"
+    assert updated["credentials_configured"] is True
+    assert "credential_ref" not in updated
 
 
 def test_test_endpoint_returns_not_implemented(
@@ -202,5 +213,30 @@ def test_connector_config_response_has_no_secret_fields(
         "refresh_token",
         "service_account_json",
         "token",
+        "credential_ref",
     }
     assert forbidden_fields.isdisjoint(connector_config.keys())
+
+
+def test_connector_credential_reference_change_is_audited_without_value(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    db_session: Session,
+) -> None:
+    organization = create_organization(client, auth_headers)
+
+    connector_config = create_google_workspace_config(client, auth_headers, organization["id"])
+
+    event = db_session.scalar(
+        select(AuditEvent)
+        .where(
+            AuditEvent.object_id == connector_config["id"],
+            AuditEvent.action == "connector_config.created",
+        )
+        .order_by(AuditEvent.created_at.desc())
+    )
+    assert event is not None
+    assert event.metadata_json is not None
+    assert event.metadata_json["credential_reference_changed"] is True
+    assert "credential_ref" not in event.metadata_json["changed_fields"]
+    assert "test-workspace" not in str(event.metadata_json)

@@ -15,6 +15,8 @@ commitments. The README is authoritative for current capabilities.
 - selected support-access audit events
 - read-only Platform Admin overview
 - connector configuration metadata
+- tenant-scoped file credential provider, service-account Domain-Wide Delegation and generic,
+  explicitly scoped Google API client factory
 - Google Workspace check catalog and mock scans
 
 ## v0.2.0 — Directory integration foundation
@@ -32,10 +34,10 @@ principles are documented in [PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md).
 
 ### 2. Secure Google connector credentials
 
-- store credentials through an encrypted or external secret-provider boundary rather than ordinary
-  connector metadata;
-- define the service-account and Domain-Wide Delegation model where required;
+- build on the available external file-provider boundary and service-account Domain-Wide Delegation
+  model without moving credential material into connector metadata;
 - support credential rotation and deletion without returning secrets through the API or UI;
+- add managed secret-provider options for deployed environments;
 - preserve a path to keyless deployment where the hosting environment supports it.
 
 ### 3. Real connector validation

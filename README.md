@@ -8,7 +8,8 @@ more approachable through a web interface instead of requiring every workflow to
 an admin console or custom script.
 
 > **Project status:** early development / pre-release. The current repository provides a working
-> local foundation, but real Google Workspace API administration is not implemented yet.
+> local foundation and a service-account authentication/client layer, but real Google Workspace
+> API administration is not implemented yet.
 
 WGASuite is an independent open-source project and is not affiliated with or endorsed by Google.
 
@@ -36,6 +37,8 @@ Implemented today:
 - support-access audit events for selected customer, connector, scan and report reads;
 - a read-only Platform Admin overview for platform administrators and support roles;
 - Google Workspace connector configuration metadata and status overview;
+- a tenant-scoped file credential provider plus reusable service-account Domain-Wide Delegation
+  and explicitly scoped Google API client factories;
 - a catalog of Google Workspace security checks;
 - mock scan runs, generated demo findings and recent scan-run history.
 
@@ -48,21 +51,23 @@ Mock/demo-only today:
 
 Not implemented today:
 
-- real Google Workspace Admin SDK or other Google API access;
-- storage or use of service-account keys, OAuth access tokens or refresh tokens;
+- real Google Workspace connection tests or administrative API operations;
+- OAuth admin-consent authentication or managed secret-store providers;
 - production identity management, SSO, account recovery or hardened session management;
 - user, group, ChromeOS/device, organizational-unit or license administration;
 - a complete production deployment and operations model.
 
 ## Google Workspace status
 
-WGASuite does not currently connect to a real Google Workspace tenant. Connector records store
-non-secret configuration metadata such as display name, primary domain, chosen auth method and
-status. The mock scanner reads only the in-repository check catalog and generates fictional
-findings; it does not call Google APIs or access customer data.
+WGASuite does not yet perform a connection test or a Google Workspace administration operation.
+The backend can load an organization-scoped service-account file, apply explicit OAuth scopes and
+Domain-Wide Delegation, and construct a generic Google discovery client for later features.
+Connector records store only non-secret metadata and an opaque credential reference; service-account
+JSON remains outside the database and API. The mock scanner remains entirely local and fictional.
 
-Future Google Workspace integrations will require explicit API scope design, secure credential
-storage, auditability and a production-ready identity model before they can be enabled safely.
+See [Google Workspace connector foundation](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup and
+security details. GW-002 will add the first real connection test. User search and Gmail delegation
+remain later work.
 
 ## Screenshots
 
@@ -159,7 +164,8 @@ make docker-down
 | `DEVELOPMENT_ADMIN_PASSWORD` | Yes for local login | Explicit local development password; no default is provided. |
 | `BACKEND_CORS_ORIGINS` | No | Comma-separated allowed frontend origins. |
 | `VITE_API_BASE_URL` | No | API base URL used by the frontend. |
-| `GOOGLE_WORKSPACE_CONNECTOR_ENABLED` | No | Placeholder feature setting; no real API connector exists yet. |
+| `GOOGLE_WORKSPACE_CONNECTOR_ENABLED` | No | Reserved feature setting; no real API operation is exposed yet. |
+| `GOOGLE_WORKSPACE_CREDENTIALS_DIRECTORY` | No | Read-only root for organization-partitioned service-account files. |
 
 Outside Docker Compose, `DATABASE_URL` can be supplied as an explicit alternative to the three
 `POSTGRES_*` connection values. Do not duplicate a password in both forms unless a separate runtime
@@ -228,22 +234,22 @@ roadmap item.
 
 ## Project status
 
-WGASuite is in early development and is not production-ready. The assessment, scoping, audit and
-mock-scan foundations can be exercised locally. Real Google Workspace administration and production
-operations remain future work.
+WGASuite is in early development and is not production-ready. The assessment, scoping, audit,
+mock-scan and Google authentication/client foundations can be exercised locally. Real Google
+Workspace administration and production operations remain future work.
 
 ## Roadmap
 
 Potential future work includes:
 
-- real, least-privilege Google Workspace Admin SDK integrations;
+- a real, least-privilege Google Workspace connection test and feature-specific API operations;
 - user and group administration workflows;
 - ChromeOS and device administration;
 - organizational-unit and license management;
 - expanded security posture checks and audit/event workflows;
 - production-ready authentication, SSO and authorization administration;
 - frontend automated tests;
-- secure connector credential storage and rotation;
+- managed secret-store providers and credential rotation;
 - production deployment, backup and monitoring guidance.
 
 Roadmap items are directional and have no committed delivery dates. See

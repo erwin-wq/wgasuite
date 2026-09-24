@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import make_url
@@ -35,6 +37,9 @@ def test_settings_accept_explicit_database_url_override() -> None:
     )
 
     assert settings.sqlalchemy_database_url == "sqlite+pysqlite:///:memory:"
+    assert settings.google_workspace_credentials_directory == Path(
+        "/run/secrets/wgasuite/google"
+    )
 
 
 def test_settings_fail_closed_without_database_configuration() -> None:

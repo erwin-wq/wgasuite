@@ -155,6 +155,8 @@ export interface ConnectorConfig {
   display_name: string;
   primary_domain: string | null;
   admin_subject_email: string | null;
+  credential_provider: "file";
+  credentials_configured: boolean;
   notes: string | null;
   created_at: string;
   updated_at: string;

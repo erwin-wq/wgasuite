@@ -27,6 +27,7 @@ services:
       AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:?Set AUTH_SECRET_KEY in .env}
       DEVELOPMENT_ADMIN_EMAIL: ${DEVELOPMENT_ADMIN_EMAIL:-}
       DEVELOPMENT_ADMIN_PASSWORD: ${DEVELOPMENT_ADMIN_PASSWORD:-}
+      GOOGLE_WORKSPACE_CREDENTIALS_DIRECTORY: /run/secrets/wgasuite/google
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       postgres:
@@ -37,6 +38,7 @@ services:
       - ./backend/app:/app/app
       - ./backend/alembic:/app/alembic
       - ./backend/alembic.ini:/app/alembic.ini
+      - ./secrets/google:/run/secrets/wgasuite/google:ro
 
   frontend:
     build:

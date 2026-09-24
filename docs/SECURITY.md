@@ -8,9 +8,14 @@
 
 ## Connectoren
 
-- Er is nog geen echte Google Workspace koppeling.
-- Toekomstige OAuth tokens mogen niet in git, logs of onbeveiligde JSON velden terechtkomen.
-- Connector metadata mag alleen niet-gevoelige statusinformatie bevatten.
+- De Google Workspace foundation ondersteunt service accounts met Domain-Wide Delegation, maar
+  voert nog geen connection test of beheeroperatie uit.
+- Service-account JSON staat buiten database, API-responses, frontend, logs en git.
+- De file provider partitioneert credentials op organization-id en accepteert alleen opaque
+  references; het runtimepad wordt read-only gemount.
+- Elke feature moet scopes expliciet en minimaal aanvragen. Clients worden niet tussen tenants of
+  scope-sets gecachet.
+- OAuth tokens mogen niet in git, logs of onbeveiligde JSON velden terechtkomen.
 
 ## Applicatiebeveiliging
 

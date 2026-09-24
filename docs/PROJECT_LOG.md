@@ -5,6 +5,19 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-09-24 — GW-001 Google Workspace connector foundation
+
+- Added an organization-partitioned, read-only file credential provider and a provider abstraction
+  for future secret backends. Connector rows store only provider/reference metadata.
+- Added supported Google service-account credential construction, explicit scope normalization,
+  Domain-Wide Delegation and an uncached generic discovery-client factory.
+- Reused customer connector-operation authorization before credential resolution and added typed,
+  secret-safe Google authentication and API errors.
+- Added reversible migration `0010_google_credentials`, secret-free configuration audit metadata,
+  Docker secret-directory mounting guidance and comprehensive isolation/regression tests.
+- Kept connection testing, account search and Gmail delegate operations out of scope; GW-002 is the
+  next connector task.
+
 ## 2026-09-20 — v0.2 product strategy
 
 - Competitive and product-gap research was promoted into a concise public product strategy without
