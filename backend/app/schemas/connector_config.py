@@ -16,6 +16,7 @@ ConnectorStatus = Literal[
     "connected",
     "connection_failed",
 ]
+CredentialProviderName = Literal["file"]
 
 
 class ConnectorConfigCreate(BaseModel):
@@ -23,6 +24,13 @@ class ConnectorConfigCreate(BaseModel):
     primary_domain: str | None = Field(default=None, max_length=255)
     admin_subject_email: str | None = Field(default=None, max_length=255)
     auth_method: ConnectorAuthMethod = "service_account_domain_wide_delegation"
+    credential_provider: CredentialProviderName = "file"
+    credential_ref: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
     status: ConnectorStatus = "configured"
     notes: str | None = None
 
@@ -32,6 +40,13 @@ class ConnectorConfigUpdate(BaseModel):
     primary_domain: str | None = Field(default=None, max_length=255)
     admin_subject_email: str | None = Field(default=None, max_length=255)
     auth_method: ConnectorAuthMethod | None = None
+    credential_provider: CredentialProviderName = "file"
+    credential_ref: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
     status: ConnectorStatus | None = None
     notes: str | None = None
 
@@ -47,6 +62,8 @@ class ConnectorConfigRead(BaseModel):
     display_name: str
     primary_domain: str | None
     admin_subject_email: str | None
+    credential_provider: CredentialProviderName
+    credentials_configured: bool
     notes: str | None
     created_at: datetime
     updated_at: datetime

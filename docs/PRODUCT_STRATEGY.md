@@ -18,12 +18,15 @@ The current release provides:
 - customer and organization records;
 - assessments, assets, findings and DREAD risk scoring;
 - assessment reports and selected structured audit events;
-- connector configuration metadata, a Workspace check catalog and mock scan history.
+- connector configuration metadata, a Workspace check catalog and mock scan history;
+- a tenant-scoped external-file credential provider, service-account Domain-Wide Delegation and a
+  generic least-privilege Google API client factory for later features.
 
 Current Google Workspace scans and findings are mock/demo functionality. WGASuite does not yet
-connect to Google APIs, manage Google users or groups, store connector credentials, or provide a
-production identity and session model. The [README](../README.md) remains authoritative for the
-detailed current capability boundary.
+test a real connection, execute Google API operations, manage Google users or groups, provide a
+managed secret store, or provide a production identity and session model. Service-account material
+stays outside connector metadata, the database and API. The [README](../README.md) remains
+authoritative for the detailed current capability boundary.
 
 ## Product principles
 

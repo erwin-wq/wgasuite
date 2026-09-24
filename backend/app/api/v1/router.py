@@ -875,22 +875,45 @@ def upsert_google_workspace_connector_config(
         ConnectorConfig.connector_type == "google_workspace",
     )
     connector_config = db.scalar(statement)
+    is_created = connector_config is None
     payload_data = payload.model_dump()
 
-    if connector_config is None:
+    if is_created:
         connector_config = ConnectorConfig(
             organization_id=organization_id,
             connector_type="google_workspace",
             **payload_data,
         )
         db.add(connector_config)
+        changed_fields = list(payload_data)
     else:
+        payload_data = payload.model_dump(exclude_unset=True)
+        changed_fields = [
+            field
+            for field, value in payload_data.items()
+            if getattr(connector_config, field) != value
+        ]
         for field, value in payload_data.items():
             setattr(connector_config, field, value)
         db.add(connector_config)
 
     db.commit()
     db.refresh(connector_config)
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action="connector_config.created" if is_created else "connector_config.updated",
+        object_type="connector_config",
+        object_id=connector_config.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "connector_type": connector_config.connector_type,
+            "changed_fields": [
+                field for field in changed_fields if field != "credential_ref"
+            ],
+            "credential_reference_changed": "credential_ref" in changed_fields,
+        },
+    )
     return connector_config
 
 
@@ -961,6 +984,9 @@ def update_connector_config(
     connector_config = get_connector_config_or_404(db, connector_config_id)
     require_connector_config_write_access(current_user, connector_config)
     update_data = payload.model_dump(exclude_unset=True)
+    changed_fields = [
+        field for field, value in update_data.items() if getattr(connector_config, field) != value
+    ]
 
     for field, value in update_data.items():
         setattr(connector_config, field, value)
@@ -968,6 +994,19 @@ def update_connector_config(
     db.add(connector_config)
     db.commit()
     db.refresh(connector_config)
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action="connector_config.updated",
+        object_type="connector_config",
+        object_id=connector_config.id,
+        customer_id=connector_config.organization.customer_id,
+        metadata={
+            "connector_type": connector_config.connector_type,
+            "changed_fields": [field for field in changed_fields if field != "credential_ref"],
+            "credential_reference_changed": "credential_ref" in changed_fields,
+        },
+    )
     return connector_config
 
 

@@ -55,8 +55,19 @@ class ConnectorConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     primary_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
     admin_subject_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    credential_provider: Mapped[str] = mapped_column(
+        String(80),
+        default="file",
+        server_default="file",
+        nullable=False,
+    )
+    credential_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     organization: Mapped["Organization"] = relationship(back_populates="connector_configs")
+
+    @property
+    def credentials_configured(self) -> bool:
+        return bool(self.credential_provider and self.credential_ref)

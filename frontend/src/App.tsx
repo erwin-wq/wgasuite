@@ -1738,7 +1738,8 @@ function App() {
             </div>
 
             <p className="connector-disclaimer">
-              No secrets are stored. Real Google Workspace API access will be added later.
+              Credential files stay outside the database and frontend. Connection testing and
+              Google Workspace operations are not implemented yet.
             </p>
 
             <form className="form-stack connector-form" onSubmit={handleSaveConnectorConfig}>

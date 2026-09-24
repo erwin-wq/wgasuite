@@ -32,3 +32,6 @@ coverage/
 # Local secret-scan output (never commit findings that may contain secret context).
 /gitleaks-report.json
 /*.sarif
+
+# Local connector credential material. Mount read-only at runtime; never commit it.
+/secrets/

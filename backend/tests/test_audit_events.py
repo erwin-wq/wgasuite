@@ -221,7 +221,11 @@ def test_customer_admin_can_read_own_customer_audit_events(
     )
 
     assert response.status_code == 200
-    assert [event["customer_id"] for event in response.json()] == [workspace["customer"]["id"]]
+    assert response.json()
+    assert all(
+        event["customer_id"] == workspace["customer"]["id"] for event in response.json()
+    )
+    assert any(event["action"] == "customer.viewed" for event in response.json())
 
 
 def test_customer_user_and_viewer_cannot_read_audit_events(

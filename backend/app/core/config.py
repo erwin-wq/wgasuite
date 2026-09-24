@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,6 +19,7 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
     backend_cors_origins: str = "http://localhost:5173"
     google_workspace_connector_enabled: bool = False
+    google_workspace_credentials_directory: Path = Path("/run/secrets/wgasuite/google")
     auth_secret_key: SecretStr = Field(min_length=32)
     auth_token_expires_minutes: int = 480
 
