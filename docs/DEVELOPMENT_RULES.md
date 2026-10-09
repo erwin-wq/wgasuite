@@ -65,8 +65,9 @@ expectations, and `AGENTS.md` for coding-agent guidance.
 
 ## Connectors
 
-- Real Google Admin SDK/API integration is not implemented.
-- Keep connector behavior mock-only unless an explicitly reviewed integration is in scope.
+- The real Google API surface is limited to the reviewed read-only connection test; security scans
+  and administrative operations remain mock-only or unimplemented.
+- Keep new connector behavior mock-only unless an explicitly reviewed integration is in scope.
 - Prefer read-only, least-privilege access.
 - Store secrets through environment configuration or an appropriate secret manager, never in code
   or Git.

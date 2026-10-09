@@ -40,6 +40,18 @@ def test_settings_accept_explicit_database_url_override() -> None:
     assert settings.google_workspace_credentials_directory == Path(
         "/run/secrets/wgasuite/google"
     )
+    assert settings.google_workspace_request_timeout_seconds == 20.0
+
+
+@pytest.mark.parametrize("timeout", [0, -1, 61])
+def test_settings_reject_unbounded_google_request_timeout(timeout: float) -> None:
+    with pytest.raises(ValidationError, match="google_workspace_request_timeout_seconds"):
+        Settings(
+            _env_file=None,
+            database_url="sqlite+pysqlite:///:memory:",
+            auth_secret_key="test-only-auth-key-with-32-characters",
+            google_workspace_request_timeout_seconds=timeout,
+        )
 
 
 def test_settings_fail_closed_without_database_configuration() -> None:

@@ -4,6 +4,7 @@ from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
+from google.auth.exceptions import RefreshError, TransportError
 from googleapiclient.errors import HttpError
 from httplib2 import Response
 from sqlalchemy import select
@@ -218,7 +219,14 @@ def test_delegated_credentials_require_explicit_scopes(tmp_path: Path) -> None:
             False,
         ),
         (403, b"{}", "google_forbidden", False),
+        (
+            403,
+            b'{"error":{"errors":[{"reason":"accessNotConfigured"}]}}',
+            "google_api_unavailable",
+            False,
+        ),
         (429, b"{}", "google_rate_limited", True),
+        (404, b"{}", "google_subject_not_found", False),
         (503, b"{}", "google_service_unavailable", True),
         (400, b"{}", "google_api_error", False),
     ],
@@ -234,6 +242,36 @@ def test_google_api_errors_are_mapped_without_upstream_content(
     assert mapped.code == expected_code
     assert mapped.retryable is retryable
     assert "insufficientPermissions" not in str(mapped)
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_code", "retryable"),
+    [
+        (TimeoutError("secret timeout detail"), "google_timeout", True),
+        (
+            TransportError(TimeoutError("secret nested timeout detail")),
+            "google_timeout",
+            True,
+        ),
+        (OSError("secret network detail"), "google_network_error", True),
+        (
+            RefreshError("secret description", {"error": "unauthorized_client"}),
+            "delegation_rejected",
+            False,
+        ),
+        (RefreshError("secret description"), "google_authentication_rejected", False),
+    ],
+)
+def test_transport_and_refresh_errors_are_mapped_safely(
+    error: Exception,
+    expected_code: str,
+    retryable: bool,
+) -> None:
+    mapped = map_google_api_error(error)
+
+    assert mapped.code == expected_code
+    assert mapped.retryable is retryable
+    assert "secret" not in str(mapped)
 
 
 class InMemoryCredentialProvider:
@@ -362,7 +400,8 @@ def test_client_factory_uses_requested_service_version_scopes_and_fresh_clients(
     assert provider.organization_ids == [organization_a.id, organization_b.id]
     assert [call[0] for call in builder_calls] == [("admin", "directory_v1"), ("gmail", "v1")]
     assert all(call[1]["cache_discovery"] is False for call in builder_calls)
-    assert builder_calls[0][1]["credentials"].subject == "admin@example.com"
+    assert builder_calls[0][1]["http"].credentials.subject == "admin@example.com"
+    assert builder_calls[0][1]["http"].http.timeout == 20.0
     assert credential_constructor.call_args_list[0].kwargs["scopes"] == (
         "scope:users.readonly",
     )

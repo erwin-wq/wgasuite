@@ -8,13 +8,15 @@
 
 ## Connectoren
 
-- De Google Workspace foundation ondersteunt service accounts met Domain-Wide Delegation, maar
-  voert nog geen connection test of beheeroperatie uit.
+- De Google Workspace connector ondersteunt een echte, read-only Directory API-connection test via
+  service accounts met Domain-Wide Delegation; beheeroperaties zijn nog niet geïmplementeerd.
 - Service-account JSON staat buiten database, API-responses, frontend, logs en git.
 - De file provider partitioneert credentials op organization-id en accepteert alleen opaque
   references; het runtimepad wordt read-only gemount.
 - Elke feature moet scopes expliciet en minimaal aanvragen. Clients worden niet tussen tenants of
   scope-sets gecachet.
+- Connection-testresultaten en audit events bevatten alleen gesaniteerde foutcodes en meldingen;
+  ruwe Google-responses en profielen worden niet opgeslagen.
 - OAuth tokens mogen niet in git, logs of onbeveiligde JSON velden terechtkomen.
 
 ## Applicatiebeveiliging

@@ -64,6 +64,11 @@ from app.schemas.report import AssessmentReportRead, RiskLevelCounts
 from app.schemas.scan_run import ScanRunRead
 from app.services.audit import record_audit_event
 from app.services.dread import calculate_dread_score
+from app.services.google_workspace_connection import (
+    CONNECTION_CRITICAL_FIELDS,
+    GoogleWorkspaceConnectionTester,
+    invalidate_connection_result,
+)
 from app.services.passwords import verify_password
 from app.services.tokens import encode_access_token
 
@@ -884,6 +889,7 @@ def upsert_google_workspace_connector_config(
             connector_type="google_workspace",
             **payload_data,
         )
+        connector_config.status = "configured"
         db.add(connector_config)
         changed_fields = list(payload_data)
     else:
@@ -895,6 +901,8 @@ def upsert_google_workspace_connector_config(
         ]
         for field, value in payload_data.items():
             setattr(connector_config, field, value)
+        if CONNECTION_CRITICAL_FIELDS.intersection(changed_fields):
+            invalidate_connection_result(connector_config)
         db.add(connector_config)
 
     db.commit()
@@ -990,6 +998,8 @@ def update_connector_config(
 
     for field, value in update_data.items():
         setattr(connector_config, field, value)
+    if CONNECTION_CRITICAL_FIELDS.intersection(changed_fields):
+        invalidate_connection_result(connector_config)
 
     db.add(connector_config)
     db.commit()
@@ -1021,31 +1031,49 @@ def test_connector_config(
     current_user: CurrentUser,
 ) -> ConnectorConfigTestRead:
     connector_config = get_connector_config_or_404(db, connector_config_id)
-    require_connector_config_operation_access(current_user, connector_config)
-    connector_config.last_tested_at = datetime.now(UTC)
-    connector_config.last_error = "Real Google Workspace connection testing is not implemented yet."
-    db.add(connector_config)
-    db.commit()
-    db.refresh(connector_config)
-    record_platform_audit_event(
+    customer_id = connector_config.organization.customer_id
+    try:
+        require_connector_config_operation_access(current_user, connector_config)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action="connector_config.tested",
+            object_type="connector_config",
+            object_id=connector_config.id,
+            customer_id=customer_id,
+            outcome="failure",
+            reason="organization_access_denied",
+            metadata={
+                "connector_type": connector_config.connector_type,
+                "status": "authorization_denied",
+                "error_code": "organization_access_denied",
+            },
+        )
+        raise
+
+    result = GoogleWorkspaceConnectionTester.from_settings(db).test(
+        actor=current_user,
+        connector_config=connector_config,
+    )
+    record_audit_event(
         db=db,
-        current_user=current_user,
+        actor=current_user,
         action="connector_config.tested",
         object_type="connector_config",
         object_id=connector_config.id,
-        customer_id=connector_config.organization.customer_id,
-        outcome="success",
-        metadata={"status": "not_implemented"},
+        customer_id=customer_id,
+        outcome="success" if result.status == "connected" else "failure",
+        reason=result.error_code,
+        metadata={
+            "connector_type": connector_config.connector_type,
+            "status": result.status,
+            "error_code": result.error_code,
+            "persisted": result.persisted,
+        },
     )
 
-    return ConnectorConfigTestRead(
-        status="not_implemented",
-        message="Real Google Workspace connection testing is not implemented yet.",
-        recommended_next_step=(
-            "Configure service account domain-wide delegation or OAuth admin consent in a future "
-            "release."
-        ),
-    )
+    return ConnectorConfigTestRead(**result.__dict__)
 
 
 @api_router.post(

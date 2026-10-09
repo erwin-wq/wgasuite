@@ -1,10 +1,13 @@
-from uuid import uuid4
+from unittest.mock import patch
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import AuditEvent
+from app.models import AuditEvent, ConnectorConfig
+from app.services.google_workspace_connection import GoogleWorkspaceConnectionTester
+from tests.test_google_workspace_connection import FakeClientFactory, FakeGoogleClient
 
 
 def create_organization(
@@ -112,7 +115,7 @@ def test_list_detail_and_patch_connector_config(
     assert patched["primary_domain"] == "workspace.example.local"
     assert patched["admin_subject_email"] == "workspace-admin@example.local"
     assert patched["auth_method"] == "oauth_admin_consent"
-    assert patched["status"] == "connection_failed"
+    assert patched["status"] == "configured"
     assert patched["notes"] == "Waiting for later OAuth implementation."
 
 
@@ -143,35 +146,36 @@ def test_duplicate_post_updates_existing_google_workspace_config(
     assert updated["primary_domain"] == "updated.example.local"
     assert updated["admin_subject_email"] is None
     assert updated["auth_method"] == "manual_import"
-    assert updated["status"] == "not_configured"
+    assert updated["status"] == "configured"
     assert updated["credentials_configured"] is True
     assert "credential_ref" not in updated
 
 
-def test_test_endpoint_returns_not_implemented(
+def test_test_endpoint_returns_real_structured_result_and_audits_attempt(
     client: TestClient,
     auth_headers: dict[str, str],
+    db_session: Session,
 ) -> None:
     organization = create_organization(client, auth_headers)
     connector_config = create_google_workspace_config(client, auth_headers, organization["id"])
+    google_client = FakeGoogleClient({"primaryEmail": "admin@example.local"})
+    client_factory = FakeClientFactory(google_client)
 
-    response = client.post(
-        f"/api/v1/connector-configs/{connector_config['id']}/test",
-        headers=auth_headers,
-    )
+    with patch(
+        "app.api.v1.router.GoogleWorkspaceConnectionTester.from_settings",
+        side_effect=lambda db: GoogleWorkspaceConnectionTester(db, client_factory),
+    ):
+        response = client.post(
+            f"/api/v1/connector-configs/{connector_config['id']}/test",
+            headers=auth_headers,
+        )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "not_implemented"
-    assert body["message"] == "Real Google Workspace connection testing is not implemented yet."
-    expected_next_step = (
-        "Configure service account domain-wide delegation or OAuth admin consent in a future "
-        "release."
-    )
-    assert (
-        body["recommended_next_step"]
-        == expected_next_step
-    )
+    assert body["status"] == "connected"
+    assert body["tested_at"] is not None
+    assert body["error_code"] is None
+    assert body["persisted"] is True
 
     detail_response = client.get(
         f"/api/v1/connector-configs/{connector_config['id']}",
@@ -180,8 +184,58 @@ def test_test_endpoint_returns_not_implemented(
     assert detail_response.status_code == 200
     detail = detail_response.json()
     assert detail["last_tested_at"] is not None
-    expected_error = "Real Google Workspace connection testing is not implemented yet."
-    assert detail["last_error"] == expected_error
+    assert detail["status"] == "connected"
+    assert detail["last_error_code"] is None
+    assert detail["last_error"] is None
+
+    event = db_session.scalar(
+        select(AuditEvent)
+        .where(
+            AuditEvent.object_id == connector_config["id"],
+            AuditEvent.action == "connector_config.tested",
+        )
+        .order_by(AuditEvent.created_at.desc())
+    )
+    assert event is not None
+    assert event.outcome == "success"
+    assert event.metadata_json == {
+        "connector_type": "google_workspace",
+        "status": "connected",
+        "error_code": None,
+        "persisted": True,
+    }
+    assert "test-workspace" not in str(event.metadata_json)
+
+
+def test_connection_critical_update_invalidates_previous_success(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    db_session: Session,
+) -> None:
+    organization = create_organization(client, auth_headers)
+    created = create_google_workspace_config(client, auth_headers, organization["id"])
+    connector = db_session.get(ConnectorConfig, UUID(created["id"]))
+    assert connector is not None
+    connector.status = "connected"
+    connector.last_tested_at = connector.updated_at
+    connector.last_error_code = None
+    connector.last_error = None
+    original_revision = connector.connection_config_revision
+    db_session.commit()
+
+    response = client.patch(
+        f"/api/v1/connector-configs/{created['id']}",
+        json={"admin_subject_email": "new-admin@example.local", "status": "connected"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "configured"
+    assert body["last_tested_at"] is None
+    assert body["last_error_code"] is None
+    db_session.refresh(connector)
+    assert connector.connection_config_revision == original_revision + 1
 
 
 def test_connector_config_for_unknown_organization_returns_404(

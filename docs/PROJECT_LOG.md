@@ -5,6 +5,23 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-09 — GW-002 real Google Workspace connection test
+
+- Replaced the placeholder connector test with one Admin SDK Directory API `users.get` probe for
+  the delegated administrator, using only `admin.directory.user.readonly`, a partial response, a
+  bounded timeout, and no automatic retries.
+- Persisted sanitized success/failure state and machine-readable errors. Configuration revisions
+  and test generations prevent changed configuration or older concurrent tests from being
+  overwritten by stale results.
+- Made connector status server-owned, invalidated prior verification when authentication-critical
+  metadata changes, and audited every authorized test outcome without credential references,
+  profiles, tokens, or raw Google bodies.
+- Updated the connector UI for testing, persisted timestamps and errors, plus setup,
+  troubleshooting, and live-verification documentation.
+- Kept user search, Gmail delegate management, and all broader Google administration out of scope.
+  Automated tests mock Google access; live tenant verification requires separately supplied secure
+  credentials and DWD authorization.
+
 ## 2026-09-24 — GW-001 Google Workspace connector foundation
 
 - Added an organization-partitioned, read-only file credential provider and a provider abstraction

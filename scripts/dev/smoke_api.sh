@@ -279,10 +279,11 @@ assert_json_value "connector_type" "google_workspace"
 assert_json_value "status" "configured"
 printf "   connector_config_id=%s\n" "$connector_config_id"
 
-printf "8. Checking connector test placeholder...\n"
+printf "8. Checking real connector test configuration failure...\n"
 request_json "POST" "/api/v1/connector-configs/$connector_config_id/test"
-assert_json_value "status" "not_implemented"
-printf "   connector_test_status=not_implemented\n"
+assert_json_value "status" "connection_failed"
+assert_json_value "error_code" "credential_reference_missing"
+printf "   connector_test_status=connection_failed (expected: no credential reference)\n"
 
 printf "9. Creating assessment...\n"
 request_json "POST" "/api/v1/assessments" "{

@@ -5,6 +5,8 @@ from collections.abc import Callable, Sequence
 from typing import Any
 from uuid import UUID
 
+import httplib2
+from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -25,6 +27,7 @@ from app.models import ConnectorConfig, Organization, User
 
 logger = logging.getLogger(__name__)
 GoogleClientBuilder = Callable[..., Any]
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 20.0
 
 
 class GoogleWorkspaceClientFactory:
@@ -36,10 +39,12 @@ class GoogleWorkspaceClientFactory:
         credential_providers: CredentialProviderRegistry,
         *,
         client_builder: GoogleClientBuilder = build,
+        request_timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
     ) -> None:
         self.db = db
         self.credential_factory = DelegatedCredentialFactory(credential_providers)
         self.client_builder = client_builder
+        self.request_timeout_seconds = request_timeout_seconds
 
     @classmethod
     def from_settings(
@@ -52,7 +57,12 @@ class GoogleWorkspaceClientFactory:
         providers = CredentialProviderRegistry(
             [FileCredentialProvider(settings.google_workspace_credentials_directory)]
         )
-        return cls(db, providers, client_builder=client_builder)
+        return cls(
+            db,
+            providers,
+            client_builder=client_builder,
+            request_timeout_seconds=settings.google_workspace_request_timeout_seconds,
+        )
 
     def for_organization(
         self,
@@ -80,19 +90,22 @@ class GoogleWorkspaceClientFactory:
         credentials, normalized_scopes = self.credential_factory.create(connector_config, scopes)
         logger.info(
             "Creating Google API client organization_id=%s connector_id=%s service=%s "
-            "version=%s scopes=%s admin_subject=%s",
+            "version=%s scopes=%s",
             organization_id,
             connector_config.id,
             service,
             version,
             list(normalized_scopes),
-            connector_config.admin_subject_email,
         )
         try:
+            authorized_http = AuthorizedHttp(
+                credentials,
+                http=httplib2.Http(timeout=self.request_timeout_seconds),
+            )
             return self.client_builder(
                 service,
                 version,
-                credentials=credentials,
+                http=authorized_http,
                 cache_discovery=False,
             )
         except GoogleWorkspaceError:
