@@ -8,8 +8,8 @@ more approachable through a web interface instead of requiring every workflow to
 an admin console or custom script.
 
 > **Project status:** early development / pre-release. The current repository provides a working
-> local foundation and a service-account authentication/client layer, but real Google Workspace
-> API administration is not implemented yet.
+> local foundation, service-account authentication/client infrastructure, and a real read-only
+> Google Workspace connection test. Google Workspace administration is not implemented yet.
 
 WGASuite is an independent open-source project and is not affiliated with or endorsed by Google.
 
@@ -39,6 +39,8 @@ Implemented today:
 - Google Workspace connector configuration metadata and status overview;
 - a tenant-scoped file credential provider plus reusable service-account Domain-Wide Delegation
   and explicitly scoped Google API client factories;
+- a real, organization-scoped Admin SDK Directory API connection test with persisted status and
+  sanitized audit/error reporting;
 - a catalog of Google Workspace security checks;
 - mock scan runs, generated demo findings and recent scan-run history.
 
@@ -46,12 +48,11 @@ Mock/demo-only today:
 
 - Google Workspace scans use fictitious local data;
 - all check-catalog entries have `mock_only` status;
-- connector testing intentionally returns `not_implemented`;
 - generated findings demonstrate the assessment and DREAD reporting flow only.
 
 Not implemented today:
 
-- real Google Workspace connection tests or administrative API operations;
+- Google Workspace user search or administrative API operations;
 - OAuth admin-consent authentication or managed secret-store providers;
 - production identity management, SSO, account recovery or hardened session management;
 - user, group, ChromeOS/device, organizational-unit or license administration;
@@ -59,15 +60,16 @@ Not implemented today:
 
 ## Google Workspace status
 
-WGASuite does not yet perform a connection test or a Google Workspace administration operation.
-The backend can load an organization-scoped service-account file, apply explicit OAuth scopes and
-Domain-Wide Delegation, and construct a generic Google discovery client for later features.
-Connector records store only non-secret metadata and an opaque credential reference; service-account
-JSON remains outside the database and API. The mock scanner remains entirely local and fictional.
+WGASuite can perform a real connection test through `admin.directory_v1.users.get` for the
+configured delegated administrator, using only the
+`https://www.googleapis.com/auth/admin.directory.user.readonly` scope. The result and timestamp are
+persisted, while the returned Google profile is discarded. Connector records store only non-secret
+metadata and an opaque credential reference; service-account JSON remains outside the database and
+API. The mock scanner remains entirely local and fictional.
 
-See [Google Workspace connector foundation](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup and
-security details. GW-002 will add the first real connection test. User search and Gmail delegation
-remain later work.
+See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup and
+security details and live verification instructions. User search and Gmail delegation remain later
+work.
 
 ## Screenshots
 
@@ -164,8 +166,9 @@ make docker-down
 | `DEVELOPMENT_ADMIN_PASSWORD` | Yes for local login | Explicit local development password; no default is provided. |
 | `BACKEND_CORS_ORIGINS` | No | Comma-separated allowed frontend origins. |
 | `VITE_API_BASE_URL` | No | API base URL used by the frontend. |
-| `GOOGLE_WORKSPACE_CONNECTOR_ENABLED` | No | Reserved feature setting; no real API operation is exposed yet. |
+| `GOOGLE_WORKSPACE_CONNECTOR_ENABLED` | No | Reserved connector rollout setting. |
 | `GOOGLE_WORKSPACE_CREDENTIALS_DIRECTORY` | No | Read-only root for organization-partitioned service-account files. |
+| `GOOGLE_WORKSPACE_REQUEST_TIMEOUT_SECONDS` | No | Bounded Google HTTP timeout; defaults to 20 seconds and must be at most 60. |
 
 Outside Docker Compose, `DATABASE_URL` can be supplied as an explicit alternative to the three
 `POSTGRES_*` connection values. Do not duplicate a password in both forms unless a separate runtime
@@ -235,14 +238,14 @@ roadmap item.
 ## Project status
 
 WGASuite is in early development and is not production-ready. The assessment, scoping, audit,
-mock-scan and Google authentication/client foundations can be exercised locally. Real Google
-Workspace administration and production operations remain future work.
+mock-scan, Google authentication/client foundation, and read-only connection test can be exercised
+locally. Real Google Workspace administration and production operations remain future work.
 
 ## Roadmap
 
 Potential future work includes:
 
-- a real, least-privilege Google Workspace connection test and feature-specific API operations;
+- read-only user search and other feature-specific Google API operations;
 - user and group administration workflows;
 - ChromeOS and device administration;
 - organizational-unit and license management;

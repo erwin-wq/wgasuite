@@ -161,6 +161,7 @@ export interface ConnectorConfig {
   created_at: string;
   updated_at: string;
   last_tested_at: string | null;
+  last_error_code: string | null;
   last_error: string | null;
 }
 
@@ -169,14 +170,17 @@ export interface ConnectorConfigPayload {
   primary_domain: string | null;
   admin_subject_email: string | null;
   auth_method: ConnectorAuthMethod;
-  status: ConnectorStatus;
   notes: string | null;
 }
 
 export interface ConnectorConfigTestResult {
-  status: "not_implemented";
+  status: "connected" | "connection_failed";
+  tested_at: string;
   message: string;
-  recommended_next_step: string;
+  error_code: string | null;
+  error_category: "configuration" | "google" | "network" | "unexpected" | null;
+  retryable: boolean;
+  persisted: boolean;
 }
 
 export interface PlatformAdminTotals {

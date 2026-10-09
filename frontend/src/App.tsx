@@ -755,7 +755,6 @@ function App() {
           primary_domain: connectorPrimaryDomain.trim() || null,
           admin_subject_email: connectorAdminSubjectEmail.trim() || null,
           auth_method: connectorAuthMethod,
-          status: "configured",
           notes: connectorNotes.trim() || null
         }
       );
@@ -789,8 +788,8 @@ function App() {
     try {
       const testResult = await testConnectorConfig(googleWorkspaceConnectorConfig.id);
       setConnectorFeedback({
-        type: "success",
-        message: `${testResult.message} ${testResult.recommended_next_step}`
+        type: testResult.status === "connected" && testResult.persisted ? "success" : "error",
+        message: testResult.message
       });
       await loadOrganizationConnectorConfigs(selectedOrganizationId);
     } catch (connectorError) {
@@ -1678,7 +1677,7 @@ function App() {
               <span className="step-number">G</span>
               <div>
                 <h2>Google Workspace connector</h2>
-                <p>Leg alvast configuratiemetadata vast voor de latere echte koppeling.</p>
+                <p>Configureer en verifieer read-only toegang tot Google Workspace.</p>
               </div>
             </div>
 
@@ -1700,7 +1699,10 @@ function App() {
                         "-"
                       )}`}
                     >
-                      {googleWorkspaceConnectorConfig.status.replace("_", " ")}
+                      {googleWorkspaceConnectorConfig.status === "configured" &&
+                      !googleWorkspaceConnectorConfig.last_tested_at
+                        ? "untested"
+                        : googleWorkspaceConnectorConfig.status.replace("_", " ")}
                     </span>
                   ) : (
                     <span className="connector-status connector-status-not-configured">
@@ -1735,12 +1737,26 @@ function App() {
                 <span>Laatst getest</span>
                 <strong>{formatOptionalDateTime(googleWorkspaceConnectorConfig?.last_tested_at ?? null)}</strong>
               </div>
+              <div>
+                <span>Laatste testfout</span>
+                <strong title={googleWorkspaceConnectorConfig?.last_error ?? "Geen fout"}>
+                  {googleWorkspaceConnectorConfig?.last_error_code ?? "-"}
+                </strong>
+              </div>
             </div>
 
             <p className="connector-disclaimer">
-              Credential files stay outside the database and frontend. Connection testing and
-              Google Workspace operations are not implemented yet.
+              Credential files blijven buiten de database en frontend. De test voert alleen een
+              read-only Directory API-opvraag uit voor de geconfigureerde beheerder; Gmail- en
+              andere beheerrechten worden niet getest.
             </p>
+
+            {!connectorFeedback && googleWorkspaceConnectorConfig?.last_error && (
+              <section className="message connector-message error" aria-live="polite">
+                <AlertCircle aria-hidden="true" />
+                <span>{googleWorkspaceConnectorConfig.last_error}</span>
+              </section>
+            )}
 
             <form className="form-stack connector-form" onSubmit={handleSaveConnectorConfig}>
               <label>
@@ -1814,7 +1830,12 @@ function App() {
                   type="button"
                   className="secondary-button"
                   onClick={handleTestConnectorConfig}
-                  disabled={!googleWorkspaceConnectorConfig || isConnectorTesting}
+                  disabled={
+                    !googleWorkspaceConnectorConfig ||
+                    isConnectorTesting ||
+                    isConnectorSaving
+                  }
+                  aria-busy={isConnectorTesting}
                 >
                   {isConnectorTesting ? (
                     <Loader2 className="spin" aria-hidden="true" />

@@ -1,7 +1,7 @@
-"""Public Google Workspace connector foundation exports.
+"""Public Google Workspace authentication and client-foundation exports.
 
-No API operation or connection test is implemented here. Feature services request explicitly
-scoped clients from ``GoogleWorkspaceClientFactory`` when their own work is implemented.
+The connection-test service requests its exact read-only scope through this foundation. Future
+features must continue to request their own explicitly scoped clients.
 """
 
 from app.connectors.google_workspace_client import GoogleWorkspaceClientFactory

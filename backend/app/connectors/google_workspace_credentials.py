@@ -145,9 +145,10 @@ class DelegatedCredentialFactory:
         if (
             connector_config.auth_method != "service_account_domain_wide_delegation"
             or not connector_config.credential_provider
-            or not connector_config.credential_ref
         ):
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.CONNECTOR_NOT_CONFIGURED)
+        if not connector_config.credential_ref:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.CREDENTIAL_REFERENCE_MISSING)
         if not is_valid_admin_subject(connector_config.admin_subject_email):
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.INVALID_ADMIN_SUBJECT)
 

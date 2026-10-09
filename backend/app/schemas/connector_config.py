@@ -31,7 +31,6 @@ class ConnectorConfigCreate(BaseModel):
         max_length=128,
         pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
     )
-    status: ConnectorStatus = "configured"
     notes: str | None = None
 
 
@@ -47,7 +46,6 @@ class ConnectorConfigUpdate(BaseModel):
         max_length=128,
         pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
     )
-    status: ConnectorStatus | None = None
     notes: str | None = None
 
 
@@ -68,10 +66,15 @@ class ConnectorConfigRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_tested_at: datetime | None
+    last_error_code: str | None
     last_error: str | None
 
 
 class ConnectorConfigTestRead(BaseModel):
-    status: Literal["not_implemented"]
+    status: Literal["connected", "connection_failed"]
+    tested_at: datetime
     message: str
-    recommended_next_step: str
+    error_code: str | None = None
+    error_category: Literal["configuration", "google", "network", "unexpected"] | None = None
+    retryable: bool = False
+    persisted: bool = True
