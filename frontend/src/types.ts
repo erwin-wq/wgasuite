@@ -210,6 +210,39 @@ export interface GoogleWorkspaceUser {
   matched_by: GoogleWorkspaceUserMatchType;
 }
 
+export type GmailDelegateVerificationStatus =
+  | "accepted"
+  | "pending"
+  | "rejected"
+  | "unknown";
+
+export interface GmailDelegate {
+  primary_email: string;
+  verification_status: GmailDelegateVerificationStatus;
+}
+
+export interface GmailDelegateList {
+  owner_primary_email: string;
+  delegates: GmailDelegate[];
+}
+
+export interface GmailDelegateChangePreview {
+  operation: "create" | "remove";
+  owner_primary_email: string;
+  delegate_primary_email: string;
+  confirmation_token: string;
+  expires_at: string;
+  effect: string;
+}
+
+export interface GmailDelegateMutationResult {
+  operation: "create" | "remove";
+  owner_primary_email: string;
+  delegate_primary_email: string;
+  outcome: "created" | "removed";
+  message: string;
+}
+
 export interface PlatformAdminTotals {
   customers_count: number;
   organizations_count: number;

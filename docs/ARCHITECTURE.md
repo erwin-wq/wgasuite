@@ -3,7 +3,8 @@
 Dit document beschrijft de huidige technische foundation. Zie
 [PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md) voor de gekozen direct-API richting voor toekomstige
 Google Workspace integraties. De herbruikbare authenticatie- en clientfoundation is beschikbaar;
-de echte API-operaties zijn beperkt tot read-only connectietests en exacte user/alias lookup.
+de echte API-operaties omvatten read-only connectietests, exacte user/alias lookup en bewaakte Gmail
+mailboxdelegatie.
 
 ## Overzicht
 
@@ -44,6 +45,11 @@ Findings hebben een optionele koppeling naar een asset. De DREAD-score staat in 
 - `GET /api/v1/organizations`
 - `GET /api/v1/organizations/{organization_id}`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/users/lookup`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/list`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create/preview`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove/preview`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove`
 - `POST /api/v1/assessments`
 - `GET /api/v1/assessments`
 - `GET /api/v1/assessments/{assessment_id}`
@@ -68,6 +74,10 @@ geautoriseerde actor + organization
   -> Domain-Wide Delegation admin subject
   -> ongecachete Google discovery client
 ```
+
+Gmail-delegatie voegt na Directory tenant- en identityvalidatie een afzonderlijk, beperkt pad toe:
+canonical mailbox owner als DWD-subject, vaste `gmail/v1` client en exact één read- of write-scope.
+Mutaties gebruiken een database-backed, eenmalige confirmation en worden niet automatisch herhaald.
 
 `connector_configs` bevat alleen metadata, waaronder `credential_provider` en een opaque
 `credential_ref`. Credentialmateriaal staat per organization buiten de database. De file provider

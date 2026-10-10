@@ -12,6 +12,9 @@ import type {
   CustomerCreate,
   Finding,
   FindingCreate,
+  GmailDelegateChangePreview,
+  GmailDelegateList,
+  GmailDelegateMutationResult,
   GoogleWorkspaceCheck,
   GoogleWorkspaceUser,
   LoginRequest,
@@ -239,6 +242,54 @@ export function lookupGoogleWorkspaceUser(
     {
       method: "POST",
       body: JSON.stringify({ email }),
+      signal
+    }
+  );
+}
+
+export function listGmailDelegates(
+  organizationId: string,
+  ownerEmail: string,
+  signal?: AbortSignal
+): Promise<GmailDelegateList> {
+  return request<GmailDelegateList>(
+    `/api/v1/organizations/${organizationId}/google-workspace/gmail-delegates/list`,
+    {
+      method: "POST",
+      body: JSON.stringify({ owner_email: ownerEmail }),
+      signal
+    }
+  );
+}
+
+export function previewGmailDelegateChange(
+  organizationId: string,
+  operation: "create" | "remove",
+  ownerEmail: string,
+  delegateEmail: string,
+  signal?: AbortSignal
+): Promise<GmailDelegateChangePreview> {
+  return request<GmailDelegateChangePreview>(
+    `/api/v1/organizations/${organizationId}/google-workspace/gmail-delegates/${operation}/preview`,
+    {
+      method: "POST",
+      body: JSON.stringify({ owner_email: ownerEmail, delegate_email: delegateEmail }),
+      signal
+    }
+  );
+}
+
+export function executeGmailDelegateChange(
+  organizationId: string,
+  operation: "create" | "remove",
+  confirmationToken: string,
+  signal?: AbortSignal
+): Promise<GmailDelegateMutationResult> {
+  return request<GmailDelegateMutationResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/gmail-delegates/${operation}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
       signal
     }
   );

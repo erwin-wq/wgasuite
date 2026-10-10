@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
@@ -11,7 +12,7 @@ from googleapiclient.discovery import build
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import user_can_operate_customer_connector
+from app.api.deps import user_can_admin_customer, user_can_operate_customer_connector
 from app.connectors.google_workspace_credentials import (
     CredentialProviderRegistry,
     DelegatedCredentialFactory,
@@ -29,6 +30,15 @@ from app.models import ConnectorConfig, Organization, User
 logger = logging.getLogger(__name__)
 GoogleClientBuilder = Callable[..., Any]
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 20.0
+
+
+@dataclass(frozen=True)
+class VerifiedMailboxOwner:
+    """Canonical Directory identity approved by the delegation service."""
+
+    google_user_id: str
+    primary_email: str
+    customer_id: str
 
 
 class GoogleWorkspaceClientFactory:
@@ -124,5 +134,66 @@ class GoogleWorkspaceClientFactory:
                 connector_config.id,
                 service,
                 version,
+            )
+            raise map_google_api_error(error) from None
+
+    def for_gmail_delegates(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        owner: VerifiedMailboxOwner,
+        scopes: Sequence[str],
+    ) -> Any:
+        """Build a fixed Gmail delegate client for one Directory-verified mailbox owner."""
+
+        organization = self.db.get(Organization, organization_id)
+        if organization is None:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.ORGANIZATION_NOT_FOUND)
+        if not user_can_admin_customer(actor, organization.customer_id):
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.ORGANIZATION_ACCESS_DENIED)
+        if not owner.google_user_id or not owner.customer_id:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_USER_LOOKUP_MISMATCH)
+
+        statement = select(ConnectorConfig).where(
+            ConnectorConfig.organization_id == organization_id,
+            ConnectorConfig.connector_type == "google_workspace",
+        )
+        connector_config = self.db.scalar(statement)
+        if connector_config is None:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.CONNECTOR_NOT_CONFIGURED)
+
+        credentials, normalized_scopes = (
+            self.credential_factory.create_for_gmail_mailbox_owner(
+                connector_config,
+                scopes,
+                owner.primary_email,
+            )
+        )
+        logger.info(
+            "Creating owner-impersonated Gmail delegate client organization_id=%s "
+            "connector_id=%s scopes=%s",
+            organization_id,
+            connector_config.id,
+            list(normalized_scopes),
+        )
+        try:
+            authorized_http = AuthorizedHttp(
+                credentials,
+                http=httplib2.Http(timeout=self.request_timeout_seconds),
+            )
+            return self.client_builder(
+                "gmail",
+                "v1",
+                http=authorized_http,
+                cache_discovery=False,
+            )
+        except GoogleWorkspaceError:
+            raise
+        except Exception as error:
+            logger.warning(
+                "Gmail delegate client creation failed organization_id=%s connector_id=%s",
+                organization_id,
+                connector_config.id,
             )
             raise map_google_api_error(error) from None

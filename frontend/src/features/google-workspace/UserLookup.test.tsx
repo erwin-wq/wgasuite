@@ -11,6 +11,12 @@ vi.mock("../../api/client", async (importOriginal) => {
   return { ...actual, lookupGoogleWorkspaceUser: vi.fn() };
 });
 
+vi.mock("./MailboxDelegates", () => ({
+  MailboxDelegates: ({ owner }: { owner: GoogleWorkspaceUser }) => (
+    <div data-testid="mailbox-delegates">Delegates for {owner.primary_email}</div>
+  )
+}));
+
 const connectedConfig: ConnectorConfig = {
   id: "connector-1",
   organization_id: "organization-1",
@@ -51,6 +57,7 @@ function renderLookup(overrides = {}) {
     organizationName: "Primary Workspace",
     connectorConfig: connectedConfig,
     canSearch: true,
+    canManageDelegates: true,
     ...overrides
   };
   return { ...render(<UserLookup {...props} />), props };
@@ -88,6 +95,7 @@ describe("UserLookup", () => {
         organizationName="Primary Workspace"
         connectorConfig={{ ...connectedConfig, status: "configured" }}
         canSearch
+        canManageDelegates
       />
     );
     expect(screen.getByText(/successfully test Google Workspace/)).toBeVisible();
@@ -210,6 +218,7 @@ describe("UserLookup", () => {
         organizationName="Secondary Workspace"
         connectorConfig={{ ...connectedConfig, organization_id: "organization-2" }}
         canSearch
+        canManageDelegates
       />
     );
     const newInput = screen.getByLabelText("Primary email or user alias");

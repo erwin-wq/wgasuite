@@ -5,6 +5,22 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-10 — CORE-002 Gmail mailbox delegation management
+
+- Added Gmail delegate list/create/remove services with canonical Directory resolution, Google
+  customer identity comparison, and mailbox-owner DWD impersonation through a restricted client
+  factory.
+- Kept list and mutation scopes separate (`gmail.settings.basic` and
+  `gmail.settings.sharing`), preserved the Directory scope, and added distinct onboarding status
+  and copyable authorization guidance.
+- Added five-minute, actor/tenant/operation-bound confirmations with atomic one-time consumption,
+  pre-write revalidation, no automatic mutation retries, and sanitized success/failure auditing.
+- Integrated responsive mailbox delegate listing, alias validation, grant/revoke confirmation,
+  stale-response protection, propagation guidance and actionable configuration/error states into
+  the existing user lookup.
+- Mock-tested all write behavior. No real Google tenant delegate creation or deletion was performed
+  without separate human approval.
+
 ## 2026-10-10 — UX-001 Workspace administration interface cleanup
 
 - Refocused standard navigation on Dashboard, Customer Context, Organizations, Google Workspace
