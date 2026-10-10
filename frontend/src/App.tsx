@@ -62,6 +62,7 @@ import type {
   User
 } from "./types";
 import { ConnectionWizard } from "./features/google-workspace/ConnectionWizard";
+import { GmailDelegationAuthorization } from "./features/google-workspace/GmailDelegationAuthorization";
 import { GoogleWorkspaceAdministration } from "./features/google-workspace/GoogleWorkspaceAdministration";
 import { UserLookup } from "./features/google-workspace/UserLookup";
 import { DashboardOverview } from "./features/dashboard/DashboardOverview";
@@ -1515,12 +1516,16 @@ function App() {
                   onCredentialFeedback={setConnectorFeedback}
                 />
               }
+              gmailAuthorization={
+                <GmailDelegationAuthorization connectorConfig={googleWorkspaceConnectorConfig} />
+              }
               userLookup={
                 <UserLookup
                   organizationId={selectedOrganizationId}
                   organizationName={selectedOrganization?.name ?? null}
                   connectorConfig={googleWorkspaceConnectorConfig}
                   canSearch={canManageConnectorCredentials}
+                  canManageDelegates={canManageConnectorCredentials}
                 />
               }
             />

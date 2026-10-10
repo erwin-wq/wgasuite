@@ -28,6 +28,12 @@ REQUIRED_SERVICE_ACCOUNT_FIELDS = {
     "client_email",
     "token_uri",
 }
+GMAIL_DELEGATE_READ_SCOPE = "https://www.googleapis.com/auth/gmail.settings.basic"
+GMAIL_DELEGATE_WRITE_SCOPE = "https://www.googleapis.com/auth/gmail.settings.sharing"
+GMAIL_DELEGATE_ALLOWED_SCOPE_SETS = {
+    (GMAIL_DELEGATE_READ_SCOPE,),
+    (GMAIL_DELEGATE_WRITE_SCOPE,),
+}
 
 
 class CredentialProvider(Protocol):
@@ -147,6 +153,39 @@ class DelegatedCredentialFactory:
         connector_config: ConnectorConfig,
         scopes: Sequence[str],
     ) -> tuple[Credentials, tuple[str, ...]]:
+        if not is_valid_admin_subject(connector_config.admin_subject_email):
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.INVALID_ADMIN_SUBJECT)
+        return self._create_with_subject(
+            connector_config,
+            scopes,
+            connector_config.admin_subject_email,
+        )
+
+    def create_for_gmail_mailbox_owner(
+        self,
+        connector_config: ConnectorConfig,
+        scopes: Sequence[str],
+        owner_subject_email: str,
+    ) -> tuple[Credentials, tuple[str, ...]]:
+        """Create only the fixed-scope Gmail delegate client for a preverified owner."""
+
+        normalized_scopes = normalize_scopes(scopes)
+        if normalized_scopes not in GMAIL_DELEGATE_ALLOWED_SCOPE_SETS:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.MISSING_SCOPE_OR_PERMISSION)
+        if not is_valid_admin_subject(owner_subject_email):
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_USER_LOOKUP_MISMATCH)
+        return self._create_with_subject(
+            connector_config,
+            normalized_scopes,
+            owner_subject_email,
+        )
+
+    def _create_with_subject(
+        self,
+        connector_config: ConnectorConfig,
+        scopes: Sequence[str],
+        subject_email: str,
+    ) -> tuple[Credentials, tuple[str, ...]]:
         normalized_scopes = normalize_scopes(scopes)
         if (
             connector_config.auth_method != "service_account_domain_wide_delegation"
@@ -155,9 +194,6 @@ class DelegatedCredentialFactory:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.CONNECTOR_NOT_CONFIGURED)
         if not connector_config.credential_ref:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.CREDENTIAL_REFERENCE_MISSING)
-        if not is_valid_admin_subject(connector_config.admin_subject_email):
-            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.INVALID_ADMIN_SUBJECT)
-
         provider = self.providers.get(connector_config.credential_provider)
         credential_info = provider.load_service_account_info(
             organization_id=connector_config.organization_id,
@@ -172,7 +208,7 @@ class DelegatedCredentialFactory:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.INVALID_CREDENTIALS) from None
 
         try:
-            delegated_credentials = credentials.with_subject(connector_config.admin_subject_email)
+            delegated_credentials = credentials.with_subject(subject_email)
         except Exception:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.DELEGATION_FAILED) from None
 

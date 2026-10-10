@@ -58,6 +58,15 @@ from app.schemas.customer_membership import (
 )
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
 from app.schemas.google_workspace_check import GoogleWorkspaceCheckRead
+from app.schemas.google_workspace_delegate import (
+    GmailDelegateChangePreviewRead,
+    GmailDelegateChangePreviewRequest,
+    GmailDelegateListRead,
+    GmailDelegateListRequest,
+    GmailDelegateMutationRead,
+    GmailDelegateMutationRequest,
+    GmailDelegateRead,
+)
 from app.schemas.google_workspace_user import (
     GoogleWorkspaceUserLookupRequest,
     GoogleWorkspaceUserRead,
@@ -84,6 +93,10 @@ from app.services.google_workspace_credential_import import (
     CredentialImportError,
     GoogleWorkspaceCredentialImporter,
     ManagedCredentialStore,
+)
+from app.services.google_workspace_gmail_delegation import (
+    DelegateOperation,
+    GoogleWorkspaceGmailDelegationService,
 )
 from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookup
 from app.services.passwords import verify_password
@@ -1352,6 +1365,36 @@ GOOGLE_USER_LOOKUP_HTTP_STATUS = {
     GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE: status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 
+GMAIL_DELEGATE_HTTP_STATUS = {
+    **GOOGLE_USER_LOOKUP_HTTP_STATUS,
+    GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH: status.HTTP_403_FORBIDDEN,
+    GoogleWorkspaceErrorCode.GMAIL_API_UNAVAILABLE: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GMAIL_SCOPE_MISSING: status.HTTP_403_FORBIDDEN,
+    GoogleWorkspaceErrorCode.GMAIL_MAILBOX_NOT_CONFIGURED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GMAIL_USER_INELIGIBLE: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GMAIL_SELF_DELEGATION: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GMAIL_DELEGATE_ALREADY_EXISTS: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GMAIL_DELEGATE_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_INVALID: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_EXPIRED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_USED: status.HTTP_409_CONFLICT,
+}
+GMAIL_DELEGATE_REJECTION_CODES = frozenset(
+    {
+        GoogleWorkspaceErrorCode.GOOGLE_USER_NOT_FOUND,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_LOOKUP_MISMATCH,
+        GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH,
+        GoogleWorkspaceErrorCode.GMAIL_MAILBOX_NOT_CONFIGURED,
+        GoogleWorkspaceErrorCode.GMAIL_USER_INELIGIBLE,
+        GoogleWorkspaceErrorCode.GMAIL_SELF_DELEGATION,
+        GoogleWorkspaceErrorCode.GMAIL_DELEGATE_ALREADY_EXISTS,
+        GoogleWorkspaceErrorCode.GMAIL_DELEGATE_NOT_FOUND,
+        GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_INVALID,
+        GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_EXPIRED,
+        GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_USED,
+    }
+)
+
 
 @api_router.post(
     "/organizations/{organization_id}/google-workspace/users/lookup",
@@ -1414,6 +1457,287 @@ def lookup_google_workspace_user(
         metadata={"matched_by": result.matched_by},
     )
     return GoogleWorkspaceUserRead(**result.__dict__)
+
+
+def require_gmail_delegate_admin(
+    *,
+    db: Session,
+    current_user: User,
+    organization: Organization,
+    action: str,
+) -> None:
+    try:
+        require_customer_admin_access(current_user, organization.customer_id)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_mailbox",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected",
+            reason="organization_access_denied",
+        )
+        raise
+
+
+def gmail_delegate_http_error(error: GoogleWorkspaceError) -> HTTPException:
+    return HTTPException(
+        status_code=GMAIL_DELEGATE_HTTP_STATUS.get(
+            error.code, status.HTTP_502_BAD_GATEWAY
+        ),
+        detail={"code": error.code.value, "message": str(error)},
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/gmail-delegates/list",
+    response_model=GmailDelegateListRead,
+    tags=["google-workspace"],
+)
+def list_google_workspace_gmail_delegates(
+    organization_id: UUID,
+    payload: GmailDelegateListRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GmailDelegateListRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.gmail_delegate.listed"
+    require_gmail_delegate_admin(
+        db=db,
+        current_user=current_user,
+        organization=organization,
+        action=action,
+    )
+    try:
+        result = GoogleWorkspaceGmailDelegationService.from_settings(db).list_delegates(
+            actor=current_user,
+            organization_id=organization.id,
+            owner_email=payload.owner_email,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_mailbox",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+            metadata={"owner_primary_email": payload.owner_email},
+        )
+        raise gmail_delegate_http_error(error) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_mailbox",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "owner_primary_email": result.owner_primary_email,
+            "delegate_count": len(result.delegates),
+        },
+    )
+    return GmailDelegateListRead(
+        owner_primary_email=result.owner_primary_email,
+        delegates=[GmailDelegateRead(**delegate.__dict__) for delegate in result.delegates],
+    )
+
+
+def preview_gmail_delegate_change(
+    *,
+    operation: DelegateOperation,
+    organization_id: UUID,
+    payload: GmailDelegateChangePreviewRequest,
+    db: Session,
+    current_user: User,
+) -> GmailDelegateChangePreviewRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = f"google_workspace.gmail_delegate.{operation}_previewed"
+    require_gmail_delegate_admin(
+        db=db,
+        current_user=current_user,
+        organization=organization,
+        action=action,
+    )
+    try:
+        result = GoogleWorkspaceGmailDelegationService.from_settings(db).preview_change(
+            actor=current_user,
+            organization_id=organization.id,
+            operation=operation,
+            owner_email=payload.owner_email,
+            delegate_email=payload.delegate_email,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_mailbox",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected",
+            reason=error.code.value,
+            metadata={
+                "owner_primary_email": payload.owner_email,
+                "delegate_primary_email": payload.delegate_email,
+            },
+        )
+        raise gmail_delegate_http_error(error) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_mailbox",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "owner_primary_email": result.owner_primary_email,
+            "delegate_primary_email": result.delegate_primary_email,
+        },
+    )
+    return GmailDelegateChangePreviewRead(**result.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/gmail-delegates/create/preview",
+    response_model=GmailDelegateChangePreviewRead,
+    tags=["google-workspace"],
+)
+def preview_google_workspace_gmail_delegate_create(
+    organization_id: UUID,
+    payload: GmailDelegateChangePreviewRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GmailDelegateChangePreviewRead:
+    return preview_gmail_delegate_change(
+        operation="create",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/gmail-delegates/remove/preview",
+    response_model=GmailDelegateChangePreviewRead,
+    tags=["google-workspace"],
+)
+def preview_google_workspace_gmail_delegate_remove(
+    organization_id: UUID,
+    payload: GmailDelegateChangePreviewRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GmailDelegateChangePreviewRead:
+    return preview_gmail_delegate_change(
+        operation="remove",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+def execute_gmail_delegate_change(
+    *,
+    operation: DelegateOperation,
+    organization_id: UUID,
+    payload: GmailDelegateMutationRequest,
+    db: Session,
+    current_user: User,
+) -> GmailDelegateMutationRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = f"google_workspace.gmail_delegate.{operation}d"
+    require_gmail_delegate_admin(
+        db=db,
+        current_user=current_user,
+        organization=organization,
+        action=action,
+    )
+    try:
+        result = GoogleWorkspaceGmailDelegationService.from_settings(db).execute_change(
+            actor=current_user,
+            organization_id=organization.id,
+            operation=operation,
+            confirmation_token=payload.confirmation_token,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_mailbox",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome=(
+                "rejected"
+                if error.code in GMAIL_DELEGATE_REJECTION_CODES
+                else "failure"
+            ),
+            reason=error.code.value,
+        )
+        raise gmail_delegate_http_error(error) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_mailbox",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "owner_primary_email": result.owner_primary_email,
+            "delegate_primary_email": result.delegate_primary_email,
+        },
+    )
+    return GmailDelegateMutationRead(**result.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/gmail-delegates/create",
+    response_model=GmailDelegateMutationRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["google-workspace"],
+)
+def create_google_workspace_gmail_delegate(
+    organization_id: UUID,
+    payload: GmailDelegateMutationRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GmailDelegateMutationRead:
+    return execute_gmail_delegate_change(
+        operation="create",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/gmail-delegates/remove",
+    response_model=GmailDelegateMutationRead,
+    tags=["google-workspace"],
+)
+def remove_google_workspace_gmail_delegate(
+    organization_id: UUID,
+    payload: GmailDelegateMutationRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GmailDelegateMutationRead:
+    return execute_gmail_delegate_change(
+        operation="remove",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
 
 
 @api_router.post(

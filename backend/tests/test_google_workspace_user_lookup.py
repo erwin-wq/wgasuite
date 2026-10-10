@@ -38,6 +38,7 @@ def lookup_response(**overrides: object) -> dict[str, object]:
     response: dict[str, object] = {
         "id": "google-user-123",
         "primaryEmail": "person@primary.example",
+        "customerId": "workspace-customer-123",
         "name": {"fullName": "Example Person"},
         "aliases": ["person.alias@primary.example", "person@secondary.example"],
         "nonEditableAliases": ["person@legacy.example"],

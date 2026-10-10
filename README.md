@@ -8,9 +8,9 @@ more approachable through a web interface instead of requiring every workflow to
 an admin console or custom script.
 
 > **Project status:** early development / pre-release. The current repository provides a working
-> local foundation, service-account authentication/client infrastructure, and a real read-only
-> Google Workspace connection test plus exact user and alias lookup. Write administration is not
-> implemented yet.
+> local foundation, service-account authentication/client infrastructure, a real read-only
+> Google Workspace connection test, exact user and alias lookup, and guarded Gmail mailbox
+> delegation management. This remains pre-production software.
 
 WGASuite is an independent open-source project and is not affiliated with or endorsed by Google.
 
@@ -21,8 +21,8 @@ to operate their environments. WGASuite is exploring a focused web-based layer f
 workflows, with customer scoping, security assessment data and auditable operational context in one
 application.
 
-The default interface now focuses on working customer context, connection management and exact
-Directory user/alias lookup. The earlier assessment workflow and mock Google Workspace security
+The default interface now focuses on working customer context, connection management, exact
+Directory user/alias lookup and guarded Gmail delegate changes. The earlier assessment workflow and mock Google Workspace security
 checks remain in the codebase for future evidence-backed work, but are hidden from standard
 navigation. WGASuite must not yet be treated as a production Google Workspace management platform.
 
@@ -45,6 +45,8 @@ Implemented today:
   sanitized audit/error reporting;
 - exact, read-only Google Directory user lookup by primary email or user alias, with tenant-scoped
   authorization and safe account details;
+- Gmail mailbox delegate listing plus explicit-preview, one-time-confirmation create/remove
+  operations for authorized administrators, with owner impersonation and structured auditing;
 - a catalog of Google Workspace security checks;
 - mock scan runs, generated demo findings and recent scan-run history.
 
@@ -64,7 +66,8 @@ preserved assessment screens locally; it is disabled by default and ignored by p
 
 Not implemented today:
 
-- Google Workspace user mutations, bulk inventory, Group-address lookup or Gmail delegation;
+- Google Workspace user mutations, bulk inventory, Group-address lookup, Gmail message access or
+  broader Gmail settings administration;
 - OAuth admin-consent authentication or external cloud secret-manager integrations;
 - production identity management, SSO, account recovery or hardened session management;
 - user, group, ChromeOS/device, organizational-unit or license administration;
@@ -84,13 +87,17 @@ API. Credential upload is customer-admin-only.
 Authorized administrators can also perform an exact `users.get` lookup using either a primary
 email address or user alias. The result shows the canonical user, aliases, account state,
 organizational unit and mailbox-setup state when Google supplies them. Profiles are not persisted,
-searched addresses are not written to audit metadata, and Group aliases are intentionally outside
-this MVP. The same existing read-only Directory scope is used. The mock scanner remains entirely
-local and fictional.
+searched addresses are not written to lookup audit metadata, and Group aliases are intentionally
+outside this MVP. The same existing read-only Directory scope is used. After lookup,
+administrators can load the selected user's Gmail delegates. Gmail calls impersonate the
+canonical mailbox owner—not the connector administrator—and use `gmail.settings.basic` for
+listing or `gmail.settings.sharing` for create/delete. Writes require a server-issued,
+short-lived, single-use confirmation after canonical owner/delegate revalidation. The mock
+scanner remains entirely local and fictional.
 
-See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup and
-security details and live verification instructions. Gmail delegation and write operations remain
-later work.
+See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup, scope,
+security and live-verification instructions. CORE-002 manages delegates only; it cannot search,
+read or modify Gmail messages.
 
 After a successful connection, the Google Workspace page shows a compact persisted connection
 status and makes **User & Alias Lookup** the primary administration tool. Select **Manage

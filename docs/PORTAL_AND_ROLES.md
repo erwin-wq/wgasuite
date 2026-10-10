@@ -150,6 +150,7 @@ Mag binnen eigen customer:
 - eigen organisaties beheren
 - assessments beheren
 - Google Workspace connector configureren
+- Gmail mailboxdelegaties bekijken en na expliciete bevestiging toevoegen of verwijderen
 - scans starten
 - findings beheren
 - rapportages bekijken
@@ -206,6 +207,7 @@ Wat we nu al hebben:
 - support-access audit events voor geselecteerde read-acties
 - read-only Platform Admin overview voor platformrollen
 - Google Workspace connector metadata en statusoverzicht
+- echte Directory user/alias lookup en bewaakte Gmail mailboxdelegatie
 - mock Google Workspace scan en check catalog
 - DREAD-rapportage en navigatiestructuur
 
@@ -217,7 +219,7 @@ Wat we nog niet hebben:
 - customer impersonation of een volledige supportmodus
 - billing of abonnementenbeheer
 - volledige auditdekking voor alle mutaties
-- echte Google Workspace API-koppeling
+- brede Google Workspace API-dekking buiten user lookup en Gmail mailboxdelegatie
 
 ## Implementatiestatus
 

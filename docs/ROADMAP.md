@@ -19,6 +19,7 @@ commitments. The README is authoritative for current capabilities.
   explicitly scoped Google API client factory
 - Google Workspace check catalog and mock scans
 - real read-only Google connection testing and exact Directory user/alias lookup
+- guarded Gmail mailbox delegate listing, creation and removal with owner impersonation and audit
 
 ## v0.2.0 — Directory integration foundation
 
@@ -91,7 +92,8 @@ The following themes remain directional and are not release commitments:
 - durable background jobs with retries, progress, cancellation and per-target results;
 - approval and separation-of-duty workflows;
 - ChromeOS, mobile and endpoint inventory and administration;
-- Gmail, Drive, organizational-unit, admin-role and license administration;
+- broader Gmail settings/message workflows, Drive, organizational-unit, admin-role and license
+  administration;
 - expanded security posture, audit-event and remediation workflows;
 - just-in-time administration;
 - notifications, automation and scheduling;

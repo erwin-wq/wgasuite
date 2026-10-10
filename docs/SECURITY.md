@@ -8,17 +8,24 @@
 
 ## Connectoren
 
-- De Google Workspace connector ondersteunt een echte, read-only Directory API-connection test en
-  exacte user/alias lookup via service accounts met Domain-Wide Delegation; schrijfoperaties zijn
-  nog niet geïmplementeerd.
+- De Google Workspace connector ondersteunt een echte, read-only Directory API-connection test,
+  exacte user/alias lookup en bevestigde Gmail delegate create/remove via service accounts met
+  Domain-Wide Delegation.
 - Service-account JSON staat buiten database, API-responses, frontend, logs en git.
 - De file provider partitioneert credentials op organization-id en accepteert alleen opaque
   references; het runtimepad wordt read-only gemount.
 - Elke feature moet scopes expliciet en minimaal aanvragen. Clients worden niet tussen tenants of
   scope-sets gecachet.
+- Gmail delegate reads gebruiken alleen `gmail.settings.basic`; create/delete gebruiken apart
+  alleen `gmail.settings.sharing`. De mailboxeigenaar wordt pas geïmpersoneerd nadat actor,
+  organization, Google `customerId` en canonical identity zijn gevalideerd.
+- Gmail writes vereisen een korte, eenmalige server-side confirmation, worden vlak voor uitvoering
+  opnieuw gevalideerd en worden na onduidelijke netwerkfouten nooit automatisch herhaald.
 - Connection-testresultaten en lookup-audit events bevatten alleen gesaniteerde foutcodes en
   minimale metadata; zoekadressen, ruwe Google-responses en profielen worden niet opgeslagen.
 - OAuth tokens mogen niet in git, logs of onbeveiligde JSON velden terechtkomen.
+- Delegate-audits bevatten minimale canonical mailboxidentiteiten voor onderzoek, maar nooit
+  credentials, confirmation tokens, headers, ruwe Google-responses of volledige profielen.
 
 ## Applicatiebeveiliging
 

@@ -29,6 +29,17 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_API_ERROR = "google_api_error"
     GOOGLE_USER_NOT_FOUND = "google_user_not_found"
     GOOGLE_USER_LOOKUP_MISMATCH = "google_user_lookup_mismatch"
+    GOOGLE_TENANT_MISMATCH = "google_tenant_mismatch"
+    GMAIL_API_UNAVAILABLE = "gmail_api_unavailable"
+    GMAIL_SCOPE_MISSING = "gmail_scope_missing"
+    GMAIL_MAILBOX_NOT_CONFIGURED = "gmail_mailbox_not_configured"
+    GMAIL_USER_INELIGIBLE = "gmail_user_ineligible"
+    GMAIL_SELF_DELEGATION = "gmail_self_delegation"
+    GMAIL_DELEGATE_ALREADY_EXISTS = "gmail_delegate_already_exists"
+    GMAIL_DELEGATE_NOT_FOUND = "gmail_delegate_not_found"
+    GMAIL_CONFIRMATION_INVALID = "gmail_confirmation_invalid"
+    GMAIL_CONFIRMATION_EXPIRED = "gmail_confirmation_expired"
+    GMAIL_CONFIRMATION_USED = "gmail_confirmation_used"
     GOOGLE_SUBJECT_NOT_FOUND = "google_subject_not_found"
     GOOGLE_SUBJECT_MISMATCH = "google_subject_mismatch"
     ORGANIZATION_ACCESS_DENIED = "organization_access_denied"
@@ -93,6 +104,40 @@ SAFE_ERROR_MESSAGES = {
     ),
     GoogleWorkspaceErrorCode.GOOGLE_USER_LOOKUP_MISMATCH: (
         "Google returned a user that did not match the requested primary email or alias."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH: (
+        "The mailbox owner and delegate must belong to the configured Google Workspace tenant."
+    ),
+    GoogleWorkspaceErrorCode.GMAIL_API_UNAVAILABLE: (
+        "The Gmail API is not enabled or accessible for this Google Cloud project."
+    ),
+    GoogleWorkspaceErrorCode.GMAIL_SCOPE_MISSING: (
+        "Google denied the Gmail delegation request. Verify the required domain-wide "
+        "delegation scope."
+    ),
+    GoogleWorkspaceErrorCode.GMAIL_MAILBOX_NOT_CONFIGURED: (
+        "The selected mailbox owner does not have an active Gmail mailbox."
+    ),
+    GoogleWorkspaceErrorCode.GMAIL_USER_INELIGIBLE: (
+        "The selected account is suspended, archived, or otherwise ineligible for delegation."
+    ),
+    GoogleWorkspaceErrorCode.GMAIL_SELF_DELEGATION: (
+        "A mailbox owner cannot be added as their own delegate."
+    ),
+    GoogleWorkspaceErrorCode.GMAIL_DELEGATE_ALREADY_EXISTS: (
+        "That account already has delegated access to this mailbox."
+    ),
+    GoogleWorkspaceErrorCode.GMAIL_DELEGATE_NOT_FOUND: (
+        "That account is not currently a delegate of this mailbox."
+    ),
+    GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_INVALID: (
+        "The delegate change confirmation is invalid. Preview the operation again."
+    ),
+    GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_EXPIRED: (
+        "The delegate change confirmation expired. Preview the operation again."
+    ),
+    GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_USED: (
+        "This delegate change was already submitted. Refresh the delegate list before continuing."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_SUBJECT_NOT_FOUND: (
         "Google could not find the configured delegated administrator account."

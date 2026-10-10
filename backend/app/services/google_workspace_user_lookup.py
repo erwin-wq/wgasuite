@@ -20,7 +20,7 @@ from app.services.google_workspace_connection import DIRECTORY_USER_READONLY_SCO
 logger = logging.getLogger(__name__)
 
 USER_LOOKUP_FIELDS = (
-    "id,primaryEmail,name(fullName),aliases,nonEditableAliases,suspended,archived,"
+    "id,primaryEmail,customerId,name(fullName),aliases,nonEditableAliases,suspended,archived,"
     "orgUnitPath,isMailboxSetup"
 )
 MatchType = Literal["primary_email", "alias", "non_editable_alias"]
@@ -29,6 +29,7 @@ MatchType = Literal["primary_email", "alias", "non_editable_alias"]
 @dataclass(frozen=True)
 class GoogleWorkspaceUserLookupResult:
     id: str
+    customer_id: str
     full_name: str | None
     primary_email: str
     aliases: list[str]
@@ -107,7 +108,12 @@ class GoogleWorkspaceUserLookup:
 
         google_user_id = response.get("id")
         primary_email = response.get("primaryEmail")
-        if not isinstance(google_user_id, str) or not isinstance(primary_email, str):
+        customer_id = response.get("customerId")
+        if (
+            not isinstance(google_user_id, str)
+            or not isinstance(primary_email, str)
+            or not isinstance(customer_id, str)
+        ):
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_API_ERROR)
 
         aliases = GoogleWorkspaceUserLookup._string_list(response.get("aliases"))
@@ -134,6 +140,7 @@ class GoogleWorkspaceUserLookup:
         mailbox_setup = response.get("isMailboxSetup")
         return GoogleWorkspaceUserLookupResult(
             id=google_user_id,
+            customer_id=customer_id,
             full_name=full_name,
             primary_email=primary_email,
             aliases=aliases,

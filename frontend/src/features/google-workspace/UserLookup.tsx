@@ -13,12 +13,14 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { ApiError, lookupGoogleWorkspaceUser } from "../../api/client";
 import type { ConnectorConfig, GoogleWorkspaceUser } from "../../types";
+import { MailboxDelegates } from "./MailboxDelegates";
 
 interface UserLookupProps {
   organizationId: string;
   organizationName: string | null;
   connectorConfig: ConnectorConfig | null;
   canSearch: boolean;
+  canManageDelegates: boolean;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -73,7 +75,8 @@ export function UserLookup({
   organizationId,
   organizationName,
   connectorConfig,
-  canSearch
+  canSearch,
+  canManageDelegates
 }: UserLookupProps) {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<GoogleWorkspaceUser | null>(null);
@@ -289,6 +292,12 @@ export function UserLookup({
                 <CheckCircle2 aria-hidden="true" />
                 Read-only Directory result. Mailbox setup does not imply Gmail delegation or access.
               </div>
+
+              <MailboxDelegates
+                organizationId={organizationId}
+                owner={result}
+                canMutate={canManageDelegates}
+              />
             </article>
           )}
         </>

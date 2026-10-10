@@ -9,6 +9,7 @@ interface GoogleWorkspaceAdministrationProps {
   connectorConfig: ConnectorConfig | null;
   canManageConnection: boolean;
   connectionWizard: ReactNode;
+  gmailAuthorization?: ReactNode;
   userLookup: ReactNode;
 }
 
@@ -26,6 +27,7 @@ export function GoogleWorkspaceAdministration({
   connectorConfig,
   canManageConnection,
   connectionWizard,
+  gmailAuthorization,
   userLookup
 }: GoogleWorkspaceAdministrationProps) {
   const needsSetup =
@@ -117,6 +119,7 @@ export function GoogleWorkspaceAdministration({
             </div>
           </div>
           {connectionWizard}
+          {gmailAuthorization}
         </section>
       )}
 

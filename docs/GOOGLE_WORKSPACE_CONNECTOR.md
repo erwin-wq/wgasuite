@@ -1,8 +1,8 @@
 # Google Workspace connector
 
-WGASuite provides a five-step wizard, a real read-only connection test, and exact Directory user
-lookup by primary email or user alias using a service account with Domain-Wide Delegation (DWD).
-Gmail delegate administration and the security-check catalog remain unimplemented or mock-only as
+WGASuite provides a five-step wizard, a real read-only connection test, exact Directory user
+lookup by primary email or user alias, and guarded Gmail mailbox delegate management using a
+service account with Domain-Wide Delegation (DWD). The security-check catalog remains mock-only as
 documented in the README.
 
 ## Wizard setup flow
@@ -38,10 +38,22 @@ and any sanitized error. It never restores or reveals credential content.
 5. Choose an active delegated administrator with permission to read the requested Directory user.
 6. Configure that email as `admin_subject_email` in the wizard.
 
+For Gmail delegate management, also enable the Gmail API and add both scopes below to the same DWD
+client while preserving the Directory scope:
+
+```text
+https://www.googleapis.com/auth/gmail.settings.basic
+https://www.googleapis.com/auth/gmail.settings.sharing
+```
+
+The first scope is used only to list delegates. The second is used only for confirmed create and
+delete calls. WGASuite does not request `mail.google.com`, `gmail.modify`, or `gmail.readonly` as
+shortcuts and never modifies DWD grants automatically.
+
 See Google's official [service-account credential guide](https://developers.google.com/workspace/guides/create-credentials#service-account),
 [API enablement guide](https://developers.google.com/workspace/guides/enable-apis), and
-[DWD guide](https://support.google.com/a/answer/162106). Do not authorize a write-enabled scope for
-this test. Google Admin changes can take time to propagate.
+[DWD guide](https://support.google.com/a/answer/162106). The Directory connection test itself still
+uses only its read-only Directory scope. Google Admin changes can take time to propagate.
 
 ## What the connection test does
 
@@ -79,7 +91,7 @@ Method:     users.get
 userKey:    submitted primary email or user alias
 projection: basic
 viewType:   admin_view
-fields:     id,primaryEmail,name(fullName),aliases,nonEditableAliases,suspended,
+fields:     id,primaryEmail,customerId,name(fullName),aliases,nonEditableAliases,suspended,
             archived,orgUnitPath,isMailboxSetup
 Scope:      https://www.googleapis.com/auth/admin.directory.user.readonly
 ```
@@ -99,6 +111,49 @@ This feature searches Directory users only. A not-found result does not prove th
 Google Groups, Group aliases, external forwarding destinations, contacts, and mailbox messages are
 separate resources. `isMailboxSetup` describes Google's reported setup state; it does not grant or
 verify Gmail delegation or mailbox access.
+
+## Gmail mailbox delegation
+
+After an administrator resolves a Directory user, the **Mailbox Delegates** section lists that
+mailbox's delegates and verification states. These POST endpoints keep private addresses out of
+logged URL paths:
+
+```text
+POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/list
+POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create/preview
+POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create
+POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove/preview
+POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove
+```
+
+The backend first authenticates the actor and requires platform-admin or active customer-admin
+access. It resolves the configured administrator, mailbox owner, and delegate with Directory API
+and compares Google's `customerId`; matching email suffixes are never treated as tenant proof.
+Aliases are converted to canonical primary emails. Suspended, archived, non-Gmail, self-delegate,
+cross-tenant, duplicate-create, and missing-remove targets are rejected before a write.
+
+Gmail DWD credentials impersonate the canonical primary email of the mailbox owner. Calls then use
+`userId=me`. The connector's configured administrator subject remains unchanged and continues to
+be used for Directory resolution only. The restricted factory accepts only one exact delegate
+scope at a time and cannot construct a generic arbitrary-subject Gmail client.
+
+Create and remove require a preview that records canonical identities and issues an opaque,
+five-minute confirmation. Only its actor, organization, operation and exact identities may consume
+it. Consumption is atomic and one-time before the Google write, so double clicks and replay cannot
+repeat a change. Directory identities and the current relationship are revalidated immediately
+before consumption. Google requests use bounded timeouts and `num_retries=0`; an ambiguous network
+failure is never retried automatically. Refresh the list before planning another change.
+
+Google requires a delegate's primary email and may take approximately one minute to make new
+access usable. Delegate/delegator limits vary by organization; Google documents general limits,
+but WGASuite does not encode an approximate number as a universal constant. Google enforces the
+applicable tenant limit. Delegates can read, send and delete messages through Gmail, but WGASuite
+does not expose Gmail message or contact APIs.
+
+Successful and failed/rejected administrative operations are audited with actor, customer,
+organization, operation, outcome, safe reason and the minimal canonical mailbox identities needed
+for investigation. Confirmation tokens, credentials, OAuth tokens, authorization headers, raw
+Google responses and full profiles are never stored in audit metadata.
 
 ## Credential security and authorization
 
@@ -202,6 +257,14 @@ optional sanitized message. Common codes include:
 | `google_subject_not_found` | Verify the administrator account exists and is active. |
 | `google_user_not_found` | No exact Directory user or user alias matched; check Groups separately. |
 | `google_user_lookup_mismatch` | Google returned an unexpected identity; retry and investigate safely. |
+| `google_tenant_mismatch` | Confirm both canonical users belong to the connector's Google customer. |
+| `gmail_api_unavailable` | Enable Gmail API in the credential's Cloud project. |
+| `gmail_scope_missing` | Add the required Gmail read or sharing DWD scope. |
+| `gmail_mailbox_not_configured` | Select an active user with Gmail enabled. |
+| `gmail_user_ineligible` | Use active, non-archived, Gmail-enabled accounts. |
+| `gmail_delegate_already_exists` | Refresh; the delegate already has access. |
+| `gmail_delegate_not_found` | Refresh; the delegation no longer exists. |
+| `gmail_confirmation_invalid` / `gmail_confirmation_expired` / `gmail_confirmation_used` | Preview the exact operation again. |
 | `google_forbidden` | Check DWD, scope, API access, and administrator privilege. |
 | `missing_scope_or_permission` | Google reported insufficient permission. |
 | `google_api_unavailable` | Enable Admin SDK in the credential's Cloud project. |
@@ -226,6 +289,11 @@ returned. A generic 403 is intentionally not presented as one specific DWD probl
    canonical Directory account appears.
 10. If an existing user alias is safely known, search it and confirm it resolves to the same
     canonical primary email. Do not create or modify an alias merely for this test.
+11. Enable Gmail API and authorize both Gmail scopes shown by the connection-management panel.
+12. Select a known Gmail-enabled mailbox owner and load **Mailbox Delegates**. An empty genuine
+    Google result is a successful read verification.
+13. Do not confirm **Grant access** or **Revoke access** during verification unless a separately
+    approved change identifies the owner and delegate. Automated tests mock every Gmail write.
 
 `docker compose down` preserves named volumes. `docker compose down --volumes` is destructive and
 removes the credential volume. If real credentials and DWD are unavailable, run automated mocked

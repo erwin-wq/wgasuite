@@ -18,6 +18,10 @@ from app.connectors.google_workspace import (
     GoogleWorkspaceError,
     map_google_api_error,
 )
+from app.connectors.google_workspace_credentials import (
+    GMAIL_DELEGATE_READ_SCOPE,
+    GMAIL_DELEGATE_WRITE_SCOPE,
+)
 from app.models import (
     ConnectorConfig,
     Customer,
@@ -204,6 +208,56 @@ def test_delegated_credentials_require_explicit_scopes(tmp_path: Path) -> None:
 
     with pytest.raises(GoogleWorkspaceError) as error:
         factory.create(connector_config(uuid4()), [" ", ""])
+
+    assert_error_code(error, "missing_scope_or_permission")
+
+
+def test_gmail_credentials_impersonate_only_the_explicit_verified_owner(
+    tmp_path: Path,
+) -> None:
+    organization_id = uuid4()
+    credential_info = fake_service_account_info()
+    write_credential_file(tmp_path, organization_id, credential_info)
+    base_credentials = FakeBaseCredentials()
+    factory = DelegatedCredentialFactory(
+        CredentialProviderRegistry([FileCredentialProvider(tmp_path)])
+    )
+
+    with patch(
+        "app.connectors.google_workspace_credentials."
+        "service_account.Credentials.from_service_account_info",
+        return_value=base_credentials,
+    ):
+        delegated, scopes = factory.create_for_gmail_mailbox_owner(
+            connector_config(organization_id),
+            [GMAIL_DELEGATE_READ_SCOPE],
+            "owner@example.com",
+        )
+
+    assert delegated is base_credentials
+    assert base_credentials.subject == "owner@example.com"
+    assert scopes == (GMAIL_DELEGATE_READ_SCOPE,)
+
+
+@pytest.mark.parametrize(
+    "scopes",
+    [
+        ["https://www.googleapis.com/auth/admin.directory.user.readonly"],
+        [GMAIL_DELEGATE_READ_SCOPE, GMAIL_DELEGATE_WRITE_SCOPE],
+        ["https://mail.google.com/"],
+    ],
+)
+def test_gmail_credentials_reject_unapproved_or_combined_scopes(
+    tmp_path: Path, scopes: list[str]
+) -> None:
+    factory = DelegatedCredentialFactory(
+        CredentialProviderRegistry([FileCredentialProvider(tmp_path)])
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as error:
+        factory.create_for_gmail_mailbox_owner(
+            connector_config(uuid4()), scopes, "owner@example.com"
+        )
 
     assert_error_code(error, "missing_scope_or_permission")
 
