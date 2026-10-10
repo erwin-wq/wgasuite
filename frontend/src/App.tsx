@@ -3,23 +3,20 @@ import {
   AlertCircle,
   ArrowLeft,
   BadgeCheck,
-  Building2,
   CheckCircle2,
-  ClipboardList,
   Database,
   FileText,
-  Flag,
   Layers3,
   Link2,
   LockKeyhole,
   LogOut,
   Loader2,
+  Menu,
   Plus,
   Printer,
   ShieldAlert,
   Target,
-  TrendingUp,
-  Users
+  X
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -65,19 +62,16 @@ import type {
   User
 } from "./types";
 import { ConnectionWizard } from "./features/google-workspace/ConnectionWizard";
+import { GoogleWorkspaceAdministration } from "./features/google-workspace/GoogleWorkspaceAdministration";
 import { UserLookup } from "./features/google-workspace/UserLookup";
+import { DashboardOverview } from "./features/dashboard/DashboardOverview";
+import { AppNavigation, type ActiveSection } from "./features/navigation/AppNavigation";
 
 type DreadScoreKey = keyof DreadScoreCreate;
 type Feedback = { type: "success" | "error"; message: string } | null;
 type SavingTarget = "customer" | "organization" | "assessment" | "asset" | "finding" | null;
-type ActiveSection =
-  | "dashboard"
-  | "customers"
-  | "organizations"
-  | "assessment"
-  | "google-workspace"
-  | "platform-admin"
-  | "reports";
+const DEMO_FEATURES_ENABLED =
+  import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEMO_FEATURES === "true";
 
 const initialDreadScore: DreadScoreCreate = {
   damage: 5,
@@ -189,6 +183,7 @@ function App() {
   const [showGoogleWorkspaceChecks, setShowGoogleWorkspaceChecks] = useState(false);
   const [saving, setSaving] = useState<SavingTarget>(null);
   const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
+  const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
   const [report, setReport] = useState<AssessmentReport | null>(null);
   const [platformAdminOverview, setPlatformAdminOverview] =
     useState<PlatformAdminOverview | null>(null);
@@ -257,28 +252,6 @@ function App() {
     return total / 5;
   }, [dreadScore]);
   const previewRiskLevel = riskLevelFromScore(previewScore);
-
-  const averageRiskScore = useMemo(() => {
-    if (assessmentFindings.length === 0) {
-      return null;
-    }
-
-    const total = assessmentFindings.reduce(
-      (sum, finding) => sum + finding.dread_score.total_score,
-      0
-    );
-    return total / assessmentFindings.length;
-  }, [assessmentFindings]);
-
-  const highestFinding = useMemo(() => {
-    if (assessmentFindings.length === 0) {
-      return null;
-    }
-
-    return assessmentFindings.reduce((highest, finding) =>
-      finding.dread_score.total_score > highest.dread_score.total_score ? finding : highest
-    );
-  }, [assessmentFindings]);
 
   const canCreateCustomer = Boolean(customerName.trim() && customerSlug.trim());
   const canCreateAssessment = Boolean(selectedOrganizationId && assessmentTitle.trim());
@@ -397,21 +370,25 @@ function App() {
     ) => {
       setIsLoading(true);
       try {
-        const [
-          loadedCustomers,
-          loadedOrganizations,
-          loadedAssessments,
-          loadedAssets,
-          loadedFindings,
-          loadedGoogleWorkspaceChecks
-        ] = await Promise.all([
+        const [loadedCustomers, loadedOrganizations, demoData] = await Promise.all([
           listCustomers(),
           listOrganizations(),
-          listAssessments(),
-          listAssets(),
-          listFindings(),
-          listGoogleWorkspaceChecks()
+          DEMO_FEATURES_ENABLED
+            ? Promise.all([
+                listAssessments(),
+                listAssets(),
+                listFindings(),
+                listGoogleWorkspaceChecks()
+              ])
+            : Promise.resolve<[Assessment[], Asset[], Finding[], GoogleWorkspaceCheck[]]>([
+                [],
+                [],
+                [],
+                []
+              ])
         ]);
+        const [loadedAssessments, loadedAssets, loadedFindings, loadedGoogleWorkspaceChecks] =
+          demoData;
 
         setCustomers(loadedCustomers);
         setOrganizations(loadedOrganizations);
@@ -511,7 +488,7 @@ function App() {
   ]);
 
   useEffect(() => {
-    if (!currentUser || !selectedAssessmentId) {
+    if (!DEMO_FEATURES_ENABLED || !currentUser || !selectedAssessmentId) {
       setScanRuns([]);
       return;
     }
@@ -830,7 +807,6 @@ function App() {
       setStoredAuthToken(tokenResponse.access_token);
       const user = await getCurrentUser();
       setCurrentUser(user);
-      setFeedback({ type: "success", message: "Ingelogd." });
       await loadWorkspace();
     } catch (loginError) {
       clearStoredAuthToken();
@@ -883,7 +859,7 @@ function App() {
   const activeSectionMeta: Record<ActiveSection, { title: string; description: string }> = {
     dashboard: {
       title: "Dashboard",
-      description: "Samenvatting van de actieve klantorganisatie, assessment en risico's."
+      description: "View your current workspace, connection status and next steps."
     },
     customers: {
       title: "Customer context",
@@ -899,7 +875,7 @@ function App() {
     },
     "google-workspace": {
       title: "Google Workspace",
-      description: "Zoek echte Directory-gebruikers en beheer de read-only Google-verbinding."
+      description: "Manage Google Workspace for the selected customer and organization."
     },
     "platform-admin": {
       title: "Platform Admin",
@@ -910,36 +886,6 @@ function App() {
       description: "Open het rapport voor het actieve assessment en print of sla het op als PDF."
     }
   };
-  const recommendedNextStep: { message: string; buttonLabel: string; target: ActiveSection } =
-    !selectedCustomerId
-      ? {
-          message: "Selecteer of maak een customer aan.",
-          buttonLabel: "Customer context openen",
-          target: "customers"
-        }
-      : !selectedOrganizationId
-        ? {
-            message: "Selecteer of maak een organisatie aan.",
-            buttonLabel: "Organizations openen",
-            target: "organizations"
-          }
-        : !selectedAssessmentId
-          ? {
-              message: "Maak of open een assessment.",
-              buttonLabel: "Assessment workspace openen",
-              target: "assessment"
-            }
-          : assessmentFindings.length === 0
-            ? {
-                message: "Start een Google Workspace mock scan of voeg handmatig een finding toe.",
-                buttonLabel: "Google Workspace openen",
-                target: "google-workspace"
-              }
-            : {
-                message: "Open het rapport of beoordeel de findings.",
-                buttonLabel: "Reports openen",
-                target: "reports"
-              };
   const sectionClass = (section: ActiveSection, extraClass = "") =>
     `section-view ${activeSection === section ? "active" : ""} ${extraClass}`.trim();
 
@@ -1250,86 +1196,51 @@ function App() {
   return (
     <main className="app-shell nav-app-shell">
       <aside className="app-sidebar no-print" aria-label="Hoofdnavigatie">
-        <div className="sidebar-brand">
-          <ShieldAlert aria-hidden="true" />
-          <div>
-            <strong>WGASuite</strong>
-            <span>Admin &amp; security ops</span>
+        <div className="sidebar-brand-row">
+          <div className="sidebar-brand">
+            <ShieldAlert aria-hidden="true" />
+            <div>
+              <strong>WGASuite</strong>
+              <span>Workspace administration</span>
+            </div>
           </div>
+          <button
+            type="button"
+            className="mobile-nav-toggle"
+            onClick={() => setIsMobileNavigationOpen((current) => !current)}
+            aria-expanded={isMobileNavigationOpen}
+            aria-controls="primary-navigation"
+            aria-label={isMobileNavigationOpen ? "Close navigation" : "Open navigation"}
+          >
+            {isMobileNavigationOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
+          </button>
         </div>
 
-        <nav className="sidebar-nav">
-          <button
-            type="button"
-            className={activeSection === "dashboard" ? "active" : ""}
-            onClick={() => setActiveSection("dashboard")}
-          >
-            <Activity aria-hidden="true" />
-            Dashboard
-          </button>
-          <button
-            type="button"
-            className={activeSection === "customers" ? "active" : ""}
-            onClick={() => setActiveSection("customers")}
-          >
-            <Users aria-hidden="true" />
-            Customer context
-          </button>
-          <button
-            type="button"
-            className={activeSection === "organizations" ? "active" : ""}
-            onClick={() => setActiveSection("organizations")}
-          >
-            <Building2 aria-hidden="true" />
-            Organizations
-          </button>
-          <button
-            type="button"
-            className={activeSection === "assessment" ? "active" : ""}
-            onClick={() => setActiveSection("assessment")}
-          >
-            <ClipboardList aria-hidden="true" />
-            Assessment workspace
-          </button>
-          <button
-            type="button"
-            className={activeSection === "google-workspace" ? "active" : ""}
-            onClick={() => setActiveSection("google-workspace")}
-          >
-            <ShieldAlert aria-hidden="true" />
-            Google Workspace
-          </button>
-          {canViewPlatformAdmin && (
-            <button
-              type="button"
-              className={activeSection === "platform-admin" ? "active" : ""}
-              onClick={() => setActiveSection("platform-admin")}
-            >
-              <Database aria-hidden="true" />
-              Platform Admin
-            </button>
-          )}
-          <button
-            type="button"
-            className={activeSection === "reports" ? "active" : ""}
-            onClick={() => setActiveSection("reports")}
-          >
-            <FileText aria-hidden="true" />
-            Reports
-          </button>
-        </nav>
+        <div id="primary-navigation" className={isMobileNavigationOpen ? "mobile-nav-open" : ""}>
+          <AppNavigation
+            activeSection={activeSection}
+            canViewPlatformAdmin={canViewPlatformAdmin}
+            showDemoFeatures={DEMO_FEATURES_ENABLED}
+            onNavigate={(section) => {
+              setActiveSection(section);
+              setIsMobileNavigationOpen(false);
+            }}
+          />
+        </div>
 
         <div className="sidebar-context">
-          <span>Actieve organisatie</span>
+          <span>Active customer</span>
+          <strong title={activeCustomerLabel}>{activeCustomerLabel}</strong>
+          <span>Active organization</span>
           <strong title={activeOrganizationLabel}>{activeOrganizationLabel}</strong>
         </div>
       </aside>
 
       <section className="app-main">
         <header className="app-topbar no-print">
-          <div>
-            <span className="eyebrow">Administration &amp; security workspace</span>
-            <h1>WGASuite</h1>
+          <div className="topbar-context">
+            <span>Active customer</span>
+            <strong title={activeCustomerLabel}>{activeCustomerLabel}</strong>
           </div>
           <div className="user-session">
             <div>
@@ -1369,106 +1280,12 @@ function App() {
       )}
 
       <section className={sectionClass("dashboard", "dashboard-view")} aria-label="Dashboard">
-        <section className="product-context-panel">
-          <h2>Klantportaal voor security assessments</h2>
-          <p>
-            Dit portaal is bedoeld om per klantorganisatie risico-assessments, Google Workspace
-            checks en rapportages te beheren.
-          </p>
-        </section>
-
-        <section className="access-model-panel" aria-label="Access model">
-          <div className="access-model-heading">
-            <LockKeyhole aria-hidden="true" />
-            <div>
-              <h2>Access model</h2>
-              <p>Customer data scoping is enforced. Support access logging foundation enabled.</p>
-            </div>
-          </div>
-          <div className="access-model-grid">
-            <div>
-              <span>Platform role</span>
-              <strong>{currentUser.role}</strong>
-            </div>
-            <div>
-              <span>Customer memberships</span>
-              <strong>{currentUser.customer_memberships.length}</strong>
-            </div>
-          </div>
-          {canViewPlatformAdmin && (
-            <p className="platform-admin-hint">Platform Admin overview available.</p>
-          )}
-        </section>
-
-        <div className="summary-grid" aria-label="Assessment overzicht">
-          <article className="metric-card">
-            <Users aria-hidden="true" />
-            <div className="metric-content">
-              <span className="metric-label">Actieve customer</span>
-              <strong className="metric-value" title={activeCustomerLabel}>
-                {activeCustomerLabel}
-              </strong>
-            </div>
-          </article>
-          <article className="metric-card">
-            <Building2 aria-hidden="true" />
-            <div className="metric-content">
-              <span className="metric-label">Actieve organisatie</span>
-              <strong className="metric-value" title={selectedOrganization?.name ?? "Niet gekozen"}>
-                {selectedOrganization?.name ?? "Niet gekozen"}
-              </strong>
-            </div>
-          </article>
-          <article className="metric-card">
-            <ClipboardList aria-hidden="true" />
-            <div className="metric-content">
-              <span className="metric-label">Actief assessment</span>
-              <strong className="metric-value" title={selectedAssessment?.title ?? "Niet gekozen"}>
-                {selectedAssessment?.title ?? "Niet gekozen"}
-              </strong>
-            </div>
-          </article>
-          <article className="metric-card">
-            <Flag aria-hidden="true" />
-            <div className="metric-content">
-              <span className="metric-label">Findings</span>
-              <strong className="metric-value metric-number">{assessmentFindings.length}</strong>
-            </div>
-          </article>
-          <article className="metric-card">
-            <TrendingUp aria-hidden="true" />
-            <div className="metric-content">
-              <span className="metric-label">Gemiddelde score</span>
-              <strong className="metric-value metric-number">{formatScore(averageRiskScore)}</strong>
-            </div>
-          </article>
-          <article className="metric-card">
-            <ShieldAlert aria-hidden="true" />
-            <div className="metric-content">
-              <span className="metric-label">Hoogste risico</span>
-              <strong className="metric-value">
-                {highestFinding ? (
-                  <span className={`risk-badge risk-${highestFinding.dread_score.risk_level.toLowerCase()}`}>
-                    {highestFinding.dread_score.risk_level}
-                  </span>
-                ) : (
-                  "-"
-                )}
-              </strong>
-            </div>
-          </article>
-        </div>
-
-        <section className="recommended-next-panel">
-          <div>
-            <h2>Aanbevolen volgende stap</h2>
-            <p>{recommendedNextStep.message}</p>
-          </div>
-          <button type="button" onClick={() => setActiveSection(recommendedNextStep.target)}>
-            <Target aria-hidden="true" />
-            {recommendedNextStep.buttonLabel}
-          </button>
-        </section>
+        <DashboardOverview
+          customerName={selectedCustomer?.name ?? selectedOrganizationCustomer?.name ?? null}
+          organizationName={selectedOrganization?.name ?? null}
+          connectorConfig={googleWorkspaceConnectorConfig}
+          onNavigate={setActiveSection}
+        />
       </section>
 
       <section
@@ -1669,54 +1486,47 @@ function App() {
             )}
           </article>
 
-          <article className={sectionClass("google-workspace", "panel compact-panel connector-panel")}>
-            <div className="panel-heading">
-              <span className="step-number">G</span>
-              <div>
-                <h2>Google Workspace connector</h2>
-                <p>Configureer en verifieer read-only toegang tot Google Workspace.</p>
-              </div>
-            </div>
-
-            {!selectedOrganizationId && (
-              <div className="helper-note">
-                <ShieldAlert aria-hidden="true" />
-                Kies eerst een organisatie.
-              </div>
-            )}
-
-            <ConnectionWizard
-              key={selectedOrganizationId}
-              connectorConfig={googleWorkspaceConnectorConfig}
-              organizationSelected={Boolean(selectedOrganizationId)}
-              canManageCredentials={canManageConnectorCredentials}
-              displayName={connectorDisplayName}
-              primaryDomain={connectorPrimaryDomain}
-              adminSubjectEmail={connectorAdminSubjectEmail}
-              notes={connectorNotes}
-              isSaving={isConnectorSaving}
-              isTesting={isConnectorTesting}
-              feedback={connectorFeedback}
-              onDisplayNameChange={setConnectorDisplayName}
-              onPrimaryDomainChange={setConnectorPrimaryDomain}
-              onAdminSubjectEmailChange={setConnectorAdminSubjectEmail}
-              onNotesChange={setConnectorNotes}
-              onSave={handleSaveConnectorConfig}
-              onTest={handleTestConnectorConfig}
-              onReload={() => loadOrganizationConnectorConfigs(selectedOrganizationId)}
-              onCredentialFeedback={setConnectorFeedback}
-            />
-          </article>
-
-          <article className={sectionClass("google-workspace", "panel compact-panel user-lookup-panel")}>
-            <UserLookup
+          <article className={sectionClass("google-workspace", "workspace-admin-panel")}>
+            <GoogleWorkspaceAdministration
               organizationId={selectedOrganizationId}
               organizationName={selectedOrganization?.name ?? null}
               connectorConfig={googleWorkspaceConnectorConfig}
-              canSearch={canManageConnectorCredentials}
+              canManageConnection={canManageConnectorCredentials}
+              connectionWizard={
+                <ConnectionWizard
+                  key={selectedOrganizationId}
+                  connectorConfig={googleWorkspaceConnectorConfig}
+                  organizationSelected={Boolean(selectedOrganizationId)}
+                  canManageCredentials={canManageConnectorCredentials}
+                  displayName={connectorDisplayName}
+                  primaryDomain={connectorPrimaryDomain}
+                  adminSubjectEmail={connectorAdminSubjectEmail}
+                  notes={connectorNotes}
+                  isSaving={isConnectorSaving}
+                  isTesting={isConnectorTesting}
+                  feedback={connectorFeedback}
+                  onDisplayNameChange={setConnectorDisplayName}
+                  onPrimaryDomainChange={setConnectorPrimaryDomain}
+                  onAdminSubjectEmailChange={setConnectorAdminSubjectEmail}
+                  onNotesChange={setConnectorNotes}
+                  onSave={handleSaveConnectorConfig}
+                  onTest={handleTestConnectorConfig}
+                  onReload={() => loadOrganizationConnectorConfigs(selectedOrganizationId)}
+                  onCredentialFeedback={setConnectorFeedback}
+                />
+              }
+              userLookup={
+                <UserLookup
+                  organizationId={selectedOrganizationId}
+                  organizationName={selectedOrganization?.name ?? null}
+                  connectorConfig={googleWorkspaceConnectorConfig}
+                  canSearch={canManageConnectorCredentials}
+                />
+              }
             />
           </article>
 
+          {DEMO_FEATURES_ENABLED && (
           <article className={sectionClass("google-workspace", "panel compact-panel google-workspace-info")}>
             <div className="panel-heading">
               <span className="step-number">S</span>
@@ -1845,6 +1655,7 @@ function App() {
               </div>
             </section>
           </article>
+          )}
 
           <article className={sectionClass("assessment", "panel compact-panel")}>
             <div className="panel-heading">
@@ -2169,10 +1980,12 @@ function App() {
                 <span>Connector configs</span>
                 <strong>{platformAdminOverview.totals.connector_configs_count}</strong>
               </article>
-              <article>
-                <span>Scan runs</span>
-                <strong>{platformAdminOverview.totals.scan_runs_count}</strong>
-              </article>
+              {DEMO_FEATURES_ENABLED && (
+                <article>
+                  <span>Demo scan runs</span>
+                  <strong>{platformAdminOverview.totals.scan_runs_count}</strong>
+                </article>
+              )}
               <article>
                 <span>Audit events</span>
                 <strong>{platformAdminOverview.totals.audit_events_count}</strong>
@@ -2195,7 +2008,7 @@ function App() {
                         <th>Status</th>
                         <th>Organizations</th>
                         <th>Connector configs</th>
-                        <th>Last scan</th>
+                        {DEMO_FEATURES_ENABLED && <th>Last demo scan</th>}
                         <th>Last audit event</th>
                       </tr>
                     </thead>
@@ -2211,7 +2024,9 @@ function App() {
                           </td>
                           <td>{customer.organization_count}</td>
                           <td>{customer.connector_config_count}</td>
-                          <td>{formatNullableDateTime(customer.last_scan_run_at)}</td>
+                          {DEMO_FEATURES_ENABLED && (
+                            <td>{formatNullableDateTime(customer.last_scan_run_at)}</td>
+                          )}
                           <td>{formatNullableDateTime(customer.last_audit_event_at)}</td>
                         </tr>
                       ))}
@@ -2269,6 +2084,7 @@ function App() {
               )}
             </section>
 
+            {DEMO_FEATURES_ENABLED && (
             <section className="platform-admin-table-card">
               <div className="platform-admin-section-heading">
                 <h3>Recent scan runs</h3>
@@ -2311,6 +2127,7 @@ function App() {
                 </div>
               )}
             </section>
+            )}
 
             <section className="platform-admin-table-card">
               <div className="platform-admin-section-heading">

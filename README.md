@@ -21,9 +21,10 @@ to operate their environments. WGASuite is exploring a focused web-based layer f
 workflows, with customer scoping, security assessment data and auditable operational context in one
 application.
 
-The current application is useful for developing and reviewing the data model, role boundaries,
-assessment workflow and mock Google Workspace security checks. It must not yet be treated as a
-production Google Workspace management platform.
+The default interface now focuses on working customer context, connection management and exact
+Directory user/alias lookup. The earlier assessment workflow and mock Google Workspace security
+checks remain in the codebase for future evidence-backed work, but are hidden from standard
+navigation. WGASuite must not yet be treated as a production Google Workspace management platform.
 
 ## Current capabilities
 
@@ -47,11 +48,19 @@ Implemented today:
 - a catalog of Google Workspace security checks;
 - mock scan runs, generated demo findings and recent scan-run history.
 
+The assessment and mock-scan capabilities above are preserved development foundations. They are
+not shown in the standard administration interface and must not be interpreted as live Workspace
+security evidence.
+
 Mock/demo-only today:
 
 - Google Workspace scans use fictitious local data;
 - all check-catalog entries have `mock_only` status;
 - generated findings demonstrate the assessment and DREAD reporting flow only.
+
+The standard navigation contains Dashboard, Customer Context, Organizations, Google Workspace and,
+for authorized platform roles, Platform Admin. A development-only demonstration flag can expose the
+preserved assessment screens locally; it is disabled by default and ignored by production builds.
 
 Not implemented today:
 
@@ -82,6 +91,12 @@ local and fictional.
 See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup and
 security details and live verification instructions. Gmail delegation and write operations remain
 later work.
+
+After a successful connection, the Google Workspace page shows a compact persisted connection
+status and makes **User & Alias Lookup** the primary administration tool. Select **Manage
+connection** to reopen the existing five-step wizard. Unconfigured organizations show the wizard
+prominently, while failed connectors show their persisted sanitized failure and an inspection
+action. The page never tests Google automatically on load.
 
 ## Screenshots
 
@@ -178,6 +193,7 @@ make docker-down
 | `DEVELOPMENT_ADMIN_PASSWORD` | Yes for local login | Explicit local development password; no default is provided. |
 | `BACKEND_CORS_ORIGINS` | No | Comma-separated allowed frontend origins. |
 | `VITE_API_BASE_URL` | No | API base URL used by the frontend. |
+| `VITE_ENABLE_DEMO_FEATURES` | No | Development-only opt-in for preserved mock assessment screens; defaults to `false` and is ignored by production builds. |
 | `GOOGLE_WORKSPACE_CONNECTOR_ENABLED` | No | Reserved connector rollout setting. |
 | `GOOGLE_WORKSPACE_CREDENTIALS_DIRECTORY` | No | Read-only root for organization-partitioned service-account files. |
 | `GOOGLE_WORKSPACE_MANAGED_CREDENTIALS_DIRECTORY` | No | Backend-only persistent root for wizard-uploaded credentials. |
@@ -239,6 +255,20 @@ make db-upgrade
 ```
 
 The frontend component suite uses Vitest, jsdom and Testing Library and runs in CI.
+
+### Read-only smoke-record inventory
+
+The API smoke test intentionally creates synthetic records. Inventory strict smoke-script
+fingerprints without printing names, IDs, domains, emails or credential references:
+
+```sh
+docker compose exec -T backend python -m app.maintenance.synthetic_record_inventory
+```
+
+This command sets its PostgreSQL transaction to read-only and emits aggregate counts plus
+association and deletion-impact guidance. It never deletes records. See
+[Synthetic data cleanup](docs/SYNTHETIC_DATA_CLEANUP.md) for the separately approved future cleanup
+procedure.
 
 ## Security
 

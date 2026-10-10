@@ -5,6 +5,20 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-10 — UX-001 Workspace administration interface cleanup
+
+- Refocused standard navigation on Dashboard, Customer Context, Organizations, Google Workspace
+  and authorized Platform Admin access; preserved mock assessment code behind a development-only,
+  production-disabled flag.
+- Replaced the always-visible connected wizard with a compact persisted status and an explicit
+  **Manage connection** disclosure while keeping unconfigured setup and failure inspection clear.
+- Promoted the existing real User & Alias Lookup into a wide, three-column read-only administration
+  surface with responsive stacking and tenant-switch stale-result protection.
+- Replaced mock risk and finding metrics on the Dashboard with active customer/organization,
+  connector state, truthful **Not assessed** messaging and a direct User Lookup action.
+- Added an aggregate-only, transaction-read-only smoke-record inventory and documented a separate,
+  approval-gated cleanup procedure. No database or credential data was deleted.
+
 ## 2026-10-10 — CORE-001 real Google Workspace user and alias lookup
 
 - Added an administrator-only, organization-scoped exact Directory `users.get` workflow that

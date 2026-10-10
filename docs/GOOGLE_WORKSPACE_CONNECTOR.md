@@ -7,7 +7,9 @@ documented in the README.
 
 ## Wizard setup flow
 
-Select a customer organization and open **Google Workspace connector**:
+Select a customer organization and open **Google Workspace**. For a connected organization, select
+**Manage connection** to expand the existing wizard; unconfigured organizations show it
+automatically:
 
 1. Follow the official links to select a Google Cloud project, enable Admin SDK, create a service
    account, enable DWD, and download a JSON key. WGASuite does not automate Google Cloud.
@@ -66,7 +68,8 @@ check access. See the official [`users.get` reference](https://developers.google
 
 ## User and alias lookup
 
-The **User & alias lookup** panel uses the active organization and the same connected credential,
+The **User & Alias Lookup** panel is the primary live administration surface. It uses the active
+organization and the same connected credential,
 delegated administrator, timeout, and read-only scope as the connection test. It issues one exact
 Directory request; it never enumerates the tenant:
 

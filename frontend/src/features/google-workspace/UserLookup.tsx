@@ -1,6 +1,5 @@
 import {
   AlertCircle,
-  Archive,
   AtSign,
   Building2,
   CheckCircle2,
@@ -144,10 +143,11 @@ export function UserLookup({
   return (
     <div className="user-lookup">
       <div className="panel-heading">
-        <span className="step-number">U</span>
         <div>
-          <h2>User &amp; alias lookup</h2>
-          <p>Resolve one exact primary email or user alias through Google Directory.</p>
+          <h2>User &amp; Alias Lookup</h2>
+          <p>
+            Search by a primary email address or user alias to view the canonical Directory account.
+          </p>
         </div>
       </div>
 
@@ -191,7 +191,7 @@ export function UserLookup({
             <div className="user-lookup-actions">
               <button type="submit" disabled={isLoading || !query.trim()}>
                 {isLoading ? <Loader2 className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />}
-                {isLoading ? "Searching" : "Search user"}
+                {isLoading ? "Searching" : "Look up user"}
               </button>
               <button
                 type="button"
@@ -219,22 +219,40 @@ export function UserLookup({
                   <UserRound />
                 </div>
                 <div>
-                  <span className="eyebrow">Directory account</span>
                   <h3>{result.full_name ?? "Name unavailable"}</h3>
                   <a href={`mailto:${result.primary_email}`}>{result.primary_email}</a>
                 </div>
                 <div className="user-result-badges">
-                  <span className={result.suspended ? "status-danger" : "status-success"}>
-                    {result.suspended ? "Suspended" : "Active"}
-                  </span>
                   <span className="status-neutral">{matchLabels[result.matched_by]}</span>
                 </div>
               </div>
 
               <div className="user-result-grid">
+                <section aria-labelledby="lookup-identity-heading">
+                  <h4 id="lookup-identity-heading">Identity &amp; status</h4>
+                  <dl className="user-result-details">
+                    <div>
+                      <dt>Account status</dt>
+                      <dd>
+                        <span className={result.suspended ? "status-danger" : "status-success"}>
+                          {result.suspended ? "Suspended" : "Active"}
+                        </span>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Archived</dt>
+                      <dd>{result.archived === null ? "Unknown" : result.archived ? "Yes" : "No"}</dd>
+                    </div>
+                  </dl>
+                </section>
+
                 <section aria-labelledby="lookup-aliases-heading">
-                  <h4 id="lookup-aliases-heading">Aliases</h4>
-                  <strong>Editable</strong>
+                  <h4 id="lookup-aliases-heading">Email addresses &amp; aliases</h4>
+                  <strong>Primary address</strong>
+                  <div className="alias-list">
+                    <span>{result.primary_email}</span>
+                  </div>
+                  <strong>Editable in Google Workspace</strong>
                   <div className="alias-list">
                     {result.aliases.length > 0 ? (
                       result.aliases.map((alias) => <span key={alias}>{alias}</span>)
@@ -242,7 +260,7 @@ export function UserLookup({
                       <em>No editable aliases</em>
                     )}
                   </div>
-                  <strong>Non-editable</strong>
+                  <strong>Non-editable aliases</strong>
                   <div className="alias-list">
                     {result.non_editable_aliases.length > 0 ? (
                       result.non_editable_aliases.map((alias) => <span key={alias}>{alias}</span>)
@@ -253,15 +271,11 @@ export function UserLookup({
                 </section>
 
                 <section aria-labelledby="lookup-workspace-heading">
-                  <h4 id="lookup-workspace-heading">Workspace information</h4>
+                  <h4 id="lookup-workspace-heading">Workspace details</h4>
                   <dl className="user-result-details">
                     <div>
                       <dt><Building2 aria-hidden="true" /> Organizational unit</dt>
                       <dd>{result.org_unit_path ?? "Not available"}</dd>
-                    </div>
-                    <div>
-                      <dt><Archive aria-hidden="true" /> Archived</dt>
-                      <dd>{result.archived === null ? "Unknown" : result.archived ? "Yes" : "No"}</dd>
                     </div>
                     <div>
                       <dt><MailCheck aria-hidden="true" /> Gmail status</dt>

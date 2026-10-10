@@ -98,7 +98,7 @@ describe("UserLookup", () => {
     renderLookup();
 
     await user.type(screen.getByLabelText("Primary email or user alias"), "not-an-email");
-    await user.click(screen.getByRole("button", { name: "Search user" }));
+    await user.click(screen.getByRole("button", { name: "Look up user" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid full email address.");
     expect(lookupGoogleWorkspaceUser).not.toHaveBeenCalled();
@@ -122,7 +122,7 @@ describe("UserLookup", () => {
     pending.resolve(aliasResult);
 
     expect(await screen.findByRole("heading", { name: "Example Person" })).toBeVisible();
-    expect(screen.getByText("person@primary.example")).toBeVisible();
+    expect(screen.getAllByText("person@primary.example")[0]).toBeVisible();
     expect(screen.getByText("Matched editable alias")).toBeVisible();
     expect(screen.getByText("person@secondary.example")).toBeVisible();
     expect(screen.getByText("person@legacy.example")).toBeVisible();
@@ -146,7 +146,7 @@ describe("UserLookup", () => {
     renderLookup();
 
     await user.type(screen.getByLabelText("Primary email or user alias"), "person@primary.example");
-    await user.click(screen.getByRole("button", { name: "Search user" }));
+    await user.click(screen.getByRole("button", { name: "Look up user" }));
 
     expect(await screen.findByText("Suspended")).toBeVisible();
     expect(screen.getByText("Matched primary email")).toBeVisible();
@@ -168,7 +168,7 @@ describe("UserLookup", () => {
     renderLookup();
 
     await user.type(screen.getByLabelText("Primary email or user alias"), "person@example.net");
-    await user.click(screen.getByRole("button", { name: "Search user" }));
+    await user.click(screen.getByRole("button", { name: "Look up user" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(expectedMessage);
     expect(screen.queryByLabelText("Google Workspace user result")).not.toBeInTheDocument();
@@ -181,7 +181,7 @@ describe("UserLookup", () => {
 
     const input = screen.getByLabelText("Primary email or user alias");
     await user.type(input, "person.alias@primary.example");
-    await user.click(screen.getByRole("button", { name: "Search user" }));
+    await user.click(screen.getByRole("button", { name: "Look up user" }));
     expect(await screen.findByText("Matched editable alias")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Clear" }));
 
@@ -202,7 +202,7 @@ describe("UserLookup", () => {
       screen.getByLabelText("Primary email or user alias"),
       "person.alias@primary.example"
     );
-    await user.click(screen.getByRole("button", { name: "Search user" }));
+    await user.click(screen.getByRole("button", { name: "Look up user" }));
 
     rerender(
       <UserLookup
@@ -215,7 +215,7 @@ describe("UserLookup", () => {
     const newInput = screen.getByLabelText("Primary email or user alias");
     expect(newInput).toHaveValue("");
     await user.type(newInput, "second@secondary.example");
-    await user.click(screen.getByRole("button", { name: "Search user" }));
+    await user.click(screen.getByRole("button", { name: "Look up user" }));
 
     second.resolve({
       ...aliasResult,
@@ -243,11 +243,11 @@ describe("UserLookup", () => {
 
     let input = screen.getByLabelText("Primary email or user alias");
     await user.type(input, "first@primary.example");
-    await user.click(screen.getByRole("button", { name: "Search user" }));
+    await user.click(screen.getByRole("button", { name: "Look up user" }));
     await user.click(screen.getByRole("button", { name: "Clear" }));
     input = screen.getByLabelText("Primary email or user alias");
     await user.type(input, "second@primary.example");
-    await user.click(screen.getByRole("button", { name: "Search user" }));
+    await user.click(screen.getByRole("button", { name: "Look up user" }));
 
     second.resolve({
       ...aliasResult,
