@@ -18,6 +18,10 @@ from app.api.deps import (
 )
 from app.connectors import MockGoogleWorkspaceConnector, list_google_workspace_checks
 from app.connectors.google_workspace_credentials import FileCredentialProvider
+from app.connectors.google_workspace_errors import (
+    GoogleWorkspaceError,
+    GoogleWorkspaceErrorCode,
+)
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import (
@@ -54,6 +58,10 @@ from app.schemas.customer_membership import (
 )
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
 from app.schemas.google_workspace_check import GoogleWorkspaceCheckRead
+from app.schemas.google_workspace_user import (
+    GoogleWorkspaceUserLookupRequest,
+    GoogleWorkspaceUserRead,
+)
 from app.schemas.organization import OrganizationCreate, OrganizationRead
 from app.schemas.platform_admin import (
     PlatformAdminAuditEventSummary,
@@ -77,6 +85,7 @@ from app.services.google_workspace_credential_import import (
     GoogleWorkspaceCredentialImporter,
     ManagedCredentialStore,
 )
+from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookup
 from app.services.passwords import verify_password
 from app.services.tokens import encode_access_token
 
@@ -1325,6 +1334,86 @@ def test_connector_config(
     )
 
     return ConnectorConfigTestRead(**result.__dict__)
+
+
+GOOGLE_USER_LOOKUP_HTTP_STATUS = {
+    GoogleWorkspaceErrorCode.GOOGLE_USER_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    GoogleWorkspaceErrorCode.CONNECTOR_NOT_CONFIGURED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.CREDENTIAL_REFERENCE_MISSING: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.CREDENTIALS_NOT_FOUND: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.INVALID_CREDENTIALS: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.INVALID_ADMIN_SUBJECT: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.DELEGATION_FAILED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.MISSING_SCOPE_OR_PERMISSION: status.HTTP_403_FORBIDDEN,
+    GoogleWorkspaceErrorCode.GOOGLE_FORBIDDEN: status.HTTP_403_FORBIDDEN,
+    GoogleWorkspaceErrorCode.GOOGLE_RATE_LIMITED: status.HTTP_429_TOO_MANY_REQUESTS,
+    GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT: status.HTTP_504_GATEWAY_TIMEOUT,
+    GoogleWorkspaceErrorCode.GOOGLE_NETWORK_ERROR: status.HTTP_503_SERVICE_UNAVAILABLE,
+    GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE: status.HTTP_503_SERVICE_UNAVAILABLE,
+}
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/lookup",
+    response_model=GoogleWorkspaceUserRead,
+    tags=["google-workspace"],
+)
+def lookup_google_workspace_user(
+    organization_id: UUID,
+    payload: GoogleWorkspaceUserLookupRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GoogleWorkspaceUserRead:
+    organization = get_organization_or_404(db, organization_id)
+    try:
+        require_customer_admin_access(current_user, organization.customer_id)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action="google_workspace.user_lookup",
+            object_type="organization",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason="organization_access_denied",
+        )
+        raise
+
+    try:
+        result = GoogleWorkspaceUserLookup.from_settings(db).lookup(
+            actor=current_user,
+            organization_id=organization.id,
+            email=payload.email,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action="google_workspace.user_lookup",
+            object_type="organization",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+        )
+        raise HTTPException(
+            status_code=GOOGLE_USER_LOOKUP_HTTP_STATUS.get(
+                error.code, status.HTTP_502_BAD_GATEWAY
+            ),
+            detail={"code": error.code.value, "message": str(error)},
+        ) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action="google_workspace.user_lookup",
+        object_type="organization",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={"matched_by": result.matched_by},
+    )
+    return GoogleWorkspaceUserRead(**result.__dict__)
 
 
 @api_router.post(

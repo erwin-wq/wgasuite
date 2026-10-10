@@ -66,8 +66,9 @@ expectations, and `AGENTS.md` for coding-agent guidance.
 
 ## Connectors
 
-- The real Google API surface is limited to the reviewed read-only connection test; security scans
-  and administrative operations remain mock-only or unimplemented.
+- The real Google API surface is limited to the reviewed read-only connection test and exact
+  Directory user/alias lookup; security scans and write operations remain mock-only or
+  unimplemented.
 - Keep new connector behavior mock-only unless an explicitly reviewed integration is in scope.
 - Prefer read-only, least-privilege access.
 - Store secrets through environment configuration or an appropriate secret manager, never in code

@@ -5,6 +5,19 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-10 — CORE-001 real Google Workspace user and alias lookup
+
+- Added an administrator-only, organization-scoped exact Directory `users.get` workflow that
+  resolves primary emails, editable aliases, and non-editable aliases across verified domains.
+- Reused the existing credential provider, delegated client factory, bounded timeout, and sole
+  `admin.directory.user.readonly` scope with a minimal partial response and no automatic retries.
+- Added typed, minimal account results, distinct sanitized not-found/permission/quota/network
+  errors, and audit events that omit searched addresses and returned profiles.
+- Added an integrated responsive lookup panel with validation, Enter submission, clear behavior,
+  explicit mailbox semantics, and stale-request protection across searches and tenant switches.
+- Kept user profiles out of PostgreSQL and kept Group lookup, Gmail delegation, user mutation,
+  bulk inventory, and security scans outside this delivery.
+
 ## 2026-10-09 — GW-002 connection wizard and secure credential lifecycle
 
 - Added a five-step, resumable setup wizard for Google Cloud preparation, credential selection,

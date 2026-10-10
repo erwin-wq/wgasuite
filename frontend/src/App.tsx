@@ -65,6 +65,7 @@ import type {
   User
 } from "./types";
 import { ConnectionWizard } from "./features/google-workspace/ConnectionWizard";
+import { UserLookup } from "./features/google-workspace/UserLookup";
 
 type DreadScoreKey = keyof DreadScoreCreate;
 type Feedback = { type: "success" | "error"; message: string } | null;
@@ -898,7 +899,7 @@ function App() {
     },
     "google-workspace": {
       title: "Google Workspace",
-      description: "Beheer connector metadata, check catalog en mock scans zonder echte Google data."
+      description: "Zoek echte Directory-gebruikers en beheer de read-only Google-verbinding."
     },
     "platform-admin": {
       title: "Platform Admin",
@@ -1707,19 +1708,28 @@ function App() {
             />
           </article>
 
+          <article className={sectionClass("google-workspace", "panel compact-panel user-lookup-panel")}>
+            <UserLookup
+              organizationId={selectedOrganizationId}
+              organizationName={selectedOrganization?.name ?? null}
+              connectorConfig={googleWorkspaceConnectorConfig}
+              canSearch={canManageConnectorCredentials}
+            />
+          </article>
+
           <article className={sectionClass("google-workspace", "panel compact-panel google-workspace-info")}>
             <div className="panel-heading">
               <span className="step-number">S</span>
               <div>
                 <h2>Mock scan en check catalog</h2>
-                <p>No real Google data is accessed yet.</p>
+                <p>Security scans remain mock-only; user lookup above uses the real Directory API.</p>
               </div>
             </div>
 
             <div className="google-workspace-explainer">
               <article>
                 <strong>Connector configuration</strong>
-                <span>Metadata/configuratie voor later. No secrets are stored.</span>
+                <span>Secure read-only Directory connection; credentials remain server-side.</span>
               </article>
               <article>
                 <strong>Check catalog</strong>
@@ -1786,7 +1796,7 @@ function App() {
                 <ShieldAlert aria-hidden="true" />
                 <h3>Mock scan</h3>
               </div>
-              <p>No real Google data is accessed yet. Mock scan creates demo findings for the selected assessment.</p>
+              <p>User lookup is real. This separate mock scan still creates demo findings only.</p>
 
               {!selectedAssessmentId && (
                 <div className="mini-empty-state">Selecteer eerst een assessment.</div>

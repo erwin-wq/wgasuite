@@ -3,7 +3,7 @@
 Dit document beschrijft de huidige technische foundation. Zie
 [PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md) voor de gekozen direct-API richting voor toekomstige
 Google Workspace integraties. De herbruikbare authenticatie- en clientfoundation is beschikbaar;
-echte API-operaties zijn nog niet geïmplementeerd.
+de echte API-operaties zijn beperkt tot read-only connectietests en exacte user/alias lookup.
 
 ## Overzicht
 
@@ -43,6 +43,7 @@ Findings hebben een optionele koppeling naar een asset. De DREAD-score staat in 
 - `POST /api/v1/organizations`
 - `GET /api/v1/organizations`
 - `GET /api/v1/organizations/{organization_id}`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/users/lookup`
 - `POST /api/v1/assessments`
 - `GET /api/v1/assessments`
 - `GET /api/v1/assessments/{assessment_id}`
@@ -70,6 +71,7 @@ geautoriseerde actor + organization
 
 `connector_configs` bevat alleen metadata, waaronder `credential_provider` en een opaque
 `credential_ref`. Credentialmateriaal staat per organization buiten de database. De file provider
-is de eerste implementatie; de abstractie laat een latere secrets manager toe. Er zijn nog geen
-echte Google API-operaties. De mock scanner blijft fictieve findings genereren. Zie
+is de eerste implementatie; de abstractie laat een latere secrets manager toe. De connection test
+en exacte user/alias lookup gebruiken echte, minimaal gescopete Directory API-calls zonder
+profielen op te slaan. De mock scanner blijft fictieve findings genereren. Zie
 [GOOGLE_WORKSPACE_CONNECTOR.md](GOOGLE_WORKSPACE_CONNECTOR.md).

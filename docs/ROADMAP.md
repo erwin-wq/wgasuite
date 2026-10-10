@@ -18,6 +18,7 @@ commitments. The README is authoritative for current capabilities.
 - tenant-scoped file credential provider, service-account Domain-Wide Delegation and generic,
   explicitly scoped Google API client factory
 - Google Workspace check catalog and mock scans
+- real read-only Google connection testing and exact Directory user/alias lookup
 
 ## v0.2.0 — Directory integration foundation
 
@@ -54,8 +55,8 @@ principles are documented in [PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md).
 
 ### 5. User directory inventory
 
-- list and search Workspace users;
-- show a selected user's relevant directory details;
+- exact lookup by primary email or user alias and focused user details are now implemented;
+- add bounded list/filter inventory separately without weakening tenant or quota controls;
 - expose freshness, loading and structured error states clearly.
 
 ### 6. Group membership context
