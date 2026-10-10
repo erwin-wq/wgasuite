@@ -1,39 +1,24 @@
 # Google Workspace connector
 
-WGASuite supports a real, read-only Google Workspace connection test using a service account with
-Domain-Wide Delegation (DWD). User search, Gmail delegate administration, and the security-check
-catalog remain unimplemented or mock-only as documented in the README.
+WGASuite provides a five-step wizard and a real, read-only Google Workspace connection test using
+a service account with Domain-Wide Delegation (DWD). User search, Gmail delegate administration,
+and the security-check catalog remain unimplemented or mock-only as documented in the README.
 
-## What the connection test does
+## Wizard setup flow
 
-After WGASuite authorizes the actor and resolves the organization-scoped connector configuration,
-the test constructs fresh delegated credentials and an Admin SDK Directory API client. It performs
-exactly this probe:
+Select a customer organization and open **Google Workspace connector**:
 
-```text
-Service:    admin
-Version:    directory_v1
-Method:     users.get
-userKey:    configured delegated administrator subject
-projection: basic
-viewType:   admin_view
-fields:     id,primaryEmail,customerId
-Scope:      https://www.googleapis.com/auth/admin.directory.user.readonly
-```
+1. Follow the official links to select a Google Cloud project, enable Admin SDK, create a service
+   account, enable DWD, and download a JSON key. WGASuite does not automate Google Cloud.
+2. Upload that JSON key (recommended) or select an operator-provisioned server-file reference.
+3. In Google Admin, authorize the numeric client ID shown by the wizard with the exact scope shown
+   below. Both values have copy buttons.
+4. Save an active delegated administrator email. It may use any domain in the Workspace tenant;
+   WGASuite deliberately does not enforce the optional primary-domain suffix.
+5. Explicitly click **Test connection**. Tests never run on load or while saving credentials.
 
-The request runs once with no automatic retries and a bounded transport timeout (20 seconds by
-default, configurable with `GOOGLE_WORKSPACE_REQUEST_TIMEOUT_SECONDS`). The returned profile is
-not exposed by the API or stored. WGASuite only verifies that the returned primary account matches
-the configured subject. It does not compare the email suffix with `primary_domain`, because a
-Workspace customer may use multiple domains. No expected Google customer ID is currently stored,
-so a successful test does not claim an independent tenant-identity check.
-
-A successful test proves that Google accepted the delegated credentials and allowed this one
-Directory user read. It does not prove that Gmail delegate scopes, Gmail access, future write
-operations, or any mock security check is authorized.
-
-See Google's official [`users.get` reference](https://developers.google.com/workspace/admin/directory/reference/rest/v1/users/get)
-for the method parameters and authorization scope.
+Reopening the organization restores safe configuration metadata, current status, last test time,
+and any sanitized error. It never restores or reveals credential content.
 
 ## Google setup
 
@@ -48,51 +33,105 @@ for the method parameters and authorization scope.
    ```
 
 5. Choose an active delegated administrator with permission to read the requested Directory user.
-6. Configure that email as `admin_subject_email` on the organization connector.
+6. Configure that email as `admin_subject_email` in the wizard.
 
-Google's [Domain-Wide Delegation guide](https://developers.google.com/identity/protocols/oauth2/service-account#delegatingauthority)
-describes the service-account and Admin console authorization flow.
+See Google's official [service-account credential guide](https://developers.google.com/workspace/guides/create-credentials#service-account),
+[API enablement guide](https://developers.google.com/workspace/guides/enable-apis), and
+[DWD guide](https://support.google.com/a/answer/162106). Do not authorize a write-enabled scope for
+this test. Google Admin changes can take time to propagate.
 
-Do not authorize a write-enabled Directory scope for this test. Google Admin changes can take time
-to propagate; retry only after checking the client ID, exact scope, delegated subject, and Admin SDK
-API status.
+## What the connection test does
 
-## Credential security model
-
-Connector metadata and credential material remain separate:
+After authorization and tenant-scoped configuration resolution, WGASuite constructs fresh
+delegated credentials and makes exactly this probe:
 
 ```text
-connector_configs row                     read-only secret file
----------------------                     ---------------------
-organization_id                           private_key
-auth_method                               private_key_id
-credential_provider                       client_email
-credential_ref             !=             service-account JSON
-admin_subject_email
-primary_domain
+Service:    admin
+Version:    directory_v1
+Method:     users.get
+userKey:    configured delegated administrator subject
+projection: basic
+viewType:   admin_view
+fields:     id,primaryEmail,customerId
+Scope:      https://www.googleapis.com/auth/admin.directory.user.readonly
 ```
 
-The database and API never contain or return service-account JSON, private keys, access tokens, or
-refresh tokens. API responses expose `credential_provider` and `credentials_configured`, but not
-`credential_ref`. Audit records record only the connector ID, actor, organization/customer context,
-outcome, safe error code, and whether the result was persisted.
+The request runs once without automatic retries and with a bounded timeout (20 seconds by default,
+configured by `GOOGLE_WORKSPACE_REQUEST_TIMEOUT_SECONDS`). The returned profile is discarded.
+WGASuite only verifies that its primary email matches the configured subject. It does not compare
+the suffix with `primary_domain`, because a Workspace customer may use multiple domains. A success
+proves only this one Directory user read; it does not prove Gmail, future write, or mock security-
+check access. See the official [`users.get` reference](https://developers.google.com/workspace/admin/directory/reference/rest/v1/users/get).
 
-The `file` provider resolves an opaque reference only under the active organization directory:
+## Credential security and authorization
+
+The database stores the provider selection plus safe service-account email and numeric client ID.
+It never stores the JSON, private key, private key ID, access token, or refresh token. API responses
+never contain those values or the opaque `credential_ref`, and no download endpoint exists. Audit
+events contain only actor and tenant context, outcome, safe error code, and provider name—never an
+upload body, reference, email, client ID, key ID, token, or internal path.
+
+Credential mutation is a customer-admin-only operation. A platform administrator or active
+`customer_admin` membership for the connector's customer is required. Customer users, viewers,
+platform support, inactive memberships, and actors from another tenant are denied before the body
+is processed. Existing connector-operation roles remain unchanged for the manual connection test.
+
+The browser sends an explicit bearer token rather than relying on ambient cookie authority, and the
+backend restricts CORS origins. Thus a cross-site form cannot silently authorize an upload;
+authorization and tenant scoping remain the primary controls.
+
+### Managed upload (recommended)
+
+`PUT /api/v1/connector-configs/{id}/credentials` accepts a raw JSON body only. The strict 64 KiB
+default is configured by `GOOGLE_WORKSPACE_CREDENTIAL_MAX_BYTES`. Validation rejects malformed or
+duplicate JSON fields, non-service-account credentials, missing Google fields, nonnumeric client
+IDs, unexpected token endpoints, invalid service-account emails, and invalid private keys. Browser
+file names and paths are never accepted.
+
+Validated JSON is atomically written beneath:
+
+```text
+${GOOGLE_WORKSPACE_MANAGED_CREDENTIALS_DIRECTORY}/<organization-uuid>/service-account.json
+```
+
+Directories use `0700`; files use `0600`. Temporary files use exclusive no-follow creation, are
+flushed before atomic replacement, and are removed after failures. Every tenant has a fixed
+directory and filename. Previous connection success is invalidated before replacement and again
+after selection, so a stale in-flight test cannot leave changed credentials marked verified.
+
+Docker Compose runs the backend as unprivileged UID/GID `10001` and mounts a backend-only named
+volume at `/var/lib/wgasuite/google-credentials`. It survives container recreation and is not
+mounted into the frontend, database, or another service. In production, mount an encrypted,
+backend-exclusive persistent volume or deployment-specific secret store at the configured path;
+make UID/GID `10001` its owner and restrict host and snapshot access.
+
+Back up the encrypted credential volume together with the database. Recovery requires both, then
+migrations and a manual test of every restored connector. A database-only restore cannot reconnect.
+For rotation, create a new Google key, upload it, update DWD if its numeric client ID changed, test,
+and only then revoke the old key. Upload automatically clears the old verified state.
+
+### Operator-provisioned file
+
+The alternative `file` provider resolves an opaque reference only beneath:
 
 ```text
 ${GOOGLE_WORKSPACE_CREDENTIALS_DIRECTORY}/<organization-uuid>/<credential-ref>.json
 ```
 
-Path separators, traversal references, and symlinked credential files are rejected. Docker mounts
+Path separators, traversal, and symlinked credential files are rejected. Docker mounts
 `./secrets/google` read-only at `/run/secrets/wgasuite/google`; the host directory is ignored by
-Git. Restrict its filesystem permissions and never place a real credential in the repository,
-ordinary connector metadata, logs, issues, pull requests, or screenshots.
+Git. The wizard validates the file and records only safe metadata. This option supports deployment
+tools that inject credentials outside WGASuite. Rotate it by atomically replacing the file,
+reselecting the reference, and testing again.
 
-## Configure the connector
+Never put real credentials in source control, `.env`, connector metadata, logs, issues, pull
+requests, screenshots, or ordinary backups. Limit Google Cloud access to key administrators and
+remove old keys promptly after verified rotation.
 
-The UI edits non-secret metadata. Supply the opaque `credential_ref` through the organization-
-scoped connector API or another trusted deployment workflow; callers cannot provide a filesystem
-path. Example placeholders:
+## Connector API compatibility
+
+The wizard is preferred. A trusted admin may still configure an external opaque reference through
+the organization-scoped connector API; it is a reference, not a filesystem path:
 
 ```json
 {
@@ -106,56 +145,46 @@ path. Example placeholders:
 }
 ```
 
-For organization `00000000-0000-0000-0000-000000000001`, the runtime file would be:
+A configured credential is unverified. Changing the authentication method, subject, provider,
+reference, or credential file resets status to `configured` and clears the prior test timestamp and
+error. Connection status becomes `connected` only after a new real probe succeeds.
 
-```text
-./secrets/google/00000000-0000-0000-0000-000000000001/example-workspace.json
-```
+## Troubleshooting
 
-A configured reference means only that metadata exists. Connection status becomes `connected`
-only after the real probe succeeds. Changing the authentication method, delegated subject,
-credential provider, or credential reference immediately invalidates the previous result.
-
-## Results and troubleshooting
-
-The endpoint persists `last_tested_at`, `connected` or `connection_failed`, a safe error code, and
-an optional sanitized message. Configuration errors are distinguished from Google and network
-errors. Common codes include:
+The test persists `last_tested_at`, `connected` or `connection_failed`, a safe error code, and an
+optional sanitized message. Common codes include:
 
 | Error code | Check |
 | --- | --- |
-| `credential_reference_missing` | Configure an opaque credential reference. |
-| `credentials_not_found` | Confirm the organization UUID, secret mount, filename, and permissions. |
-| `invalid_credentials` | Confirm the file is valid service-account JSON and is not a symlink. |
+| `credential_reference_missing` | Configure a credential in wizard step 2. |
+| `credentials_not_found` | Check organization UUID, mount, filename, and backend permissions. |
+| `invalid_credentials` | Confirm valid service-account JSON and a nonsymlink file. |
 | `invalid_admin_subject` | Configure a complete administrator email address. |
-| `delegation_rejected` | Verify DWD, numeric client ID, exact scope, and delegated subject. |
-| `google_unauthorized` | Google returned HTTP 401; verify the delegated credentials. |
-| `google_subject_not_found` | Verify that the delegated administrator account exists and is active. |
-| `google_forbidden` | Google returned HTTP 403; check DWD, scope, API access, and admin privilege. |
-| `missing_scope_or_permission` | Google explicitly reported insufficient permission. |
-| `google_api_unavailable` | Google explicitly reported the API as unavailable/not configured. |
-| `google_rate_limited` | Wait before retrying; the probe does not retry automatically. |
+| `delegation_rejected` | Verify DWD, numeric client ID, exact scope, and subject. |
+| `google_unauthorized` | Verify that the key is active and delegated credentials are correct. |
+| `google_subject_not_found` | Verify the administrator account exists and is active. |
+| `google_forbidden` | Check DWD, scope, API access, and administrator privilege. |
+| `missing_scope_or_permission` | Google reported insufficient permission. |
+| `google_api_unavailable` | Enable Admin SDK in the credential's Cloud project. |
+| `google_rate_limited` | Wait before manually retrying. |
 | `google_service_unavailable` | Retry after a transient Google 5xx failure. |
-| `google_timeout` / `google_network_error` | Check outbound HTTPS, DNS, proxy, and firewall access. |
+| `google_timeout` / `google_network_error` | Check outbound HTTPS, DNS, proxy, and firewall. |
 
-Raw upstream bodies, stack traces, credentials, internal credential paths, and Google profiles are
-never returned. A generic 403 is intentionally not presented as one specific DWD problem because
-several configurations can produce it.
+Raw upstream bodies, stack traces, credentials, internal paths, and Google profiles are never
+returned. A generic 403 is intentionally not presented as one specific DWD problem.
 
 ## Reproducible live verification
 
-1. Put the service-account JSON in the organization-specific secret directory and make it readable
-   by the backend runtime without committing it.
-2. Configure the connector metadata and opaque reference for the same organization.
-3. Complete the Google DWD setup above with the exact read-only scope.
+1. Sign in as a platform or customer admin and select the target organization.
+2. Complete wizard steps 1–4 with a real JSON key or already provisioned file.
+3. Complete Google DWD using the displayed client ID and exact read-only scope.
 4. Start the stack and apply migrations with `make docker-up` and `make db-upgrade`.
-5. Sign in as an actor authorized to operate that customer's connector.
-6. Select the organization, open **Google Workspace connector**, and click **Test connection**.
-7. Confirm the UI shows **connected**, a current timestamp, and no error code. Refresh and confirm
-   the state remains visible.
-8. Review the `connector_config.tested` audit event and confirm it contains no credential reference,
-   token, profile, or raw Google response.
+5. Open step 5 and click **Test connection**.
+6. Confirm **connected**, a current timestamp, and no error; refresh and confirm it remains.
+7. Review `connector_config.tested` and credential-change audit events for safe metadata only.
+8. Recreate only the backend container, reopen the organization, and retest to verify persistence.
 
-If real credentials and DWD authorization are unavailable, run the automated mocked tests and
-record live tenant verification as outstanding. Never paste a credential into a ticket, commit,
-pull request, or log to make live testing possible.
+`docker compose down` preserves named volumes. `docker compose down --volumes` is destructive and
+removes the credential volume. If real credentials and DWD are unavailable, run automated mocked
+tests and record live tenant verification as outstanding—never paste a credential into a ticket,
+commit, pull request, or log.

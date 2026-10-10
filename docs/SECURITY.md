@@ -36,7 +36,7 @@
 
 ## CI/CD
 
-- GitLab CI en GitHub Actions voeren backend lint/tests en frontend lint/build uit.
+- GitLab CI en GitHub Actions voeren backend lint/tests en frontend audit/lint/tests/build uit.
 - Frontend CI controleert npm dependencies; secret scans worden tijdens public-readiness reviews
   uitgevoerd.
 - Gebruik CI secrets/variables voor echte omgevingsconfiguratie en print die waarden nooit.

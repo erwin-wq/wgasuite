@@ -63,5 +63,7 @@ jobs:
         run: npm audit --omit=dev
       - name: Run frontend lint
         run: npm run lint
+      - name: Run frontend tests
+        run: npm test
       - name: Build frontend
         run: npm run build

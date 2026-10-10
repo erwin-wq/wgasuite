@@ -33,6 +33,15 @@ frontend:lint:
   script:
     - npm run lint
 
+frontend:test:
+  image: node:22-alpine
+  stage: test
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - npm test
+
 frontend:build:
   image: node:22-alpine
   stage: build

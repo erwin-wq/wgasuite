@@ -46,6 +46,7 @@ make backend-checks
 npm --prefix frontend audit
 npm --prefix frontend audit --omit=dev
 npm --prefix frontend run lint
+npm --prefix frontend test
 npm --prefix frontend run build
 git diff --check
 ```

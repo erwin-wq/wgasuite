@@ -62,6 +62,8 @@ class ConnectorConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
     credential_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    service_account_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    service_account_client_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)

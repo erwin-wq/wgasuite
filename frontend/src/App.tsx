@@ -53,7 +53,6 @@ import type {
   Assessment,
   AssessmentReport,
   Asset,
-  ConnectorAuthMethod,
   ConnectorConfig,
   Customer,
   DreadScoreCreate,
@@ -65,6 +64,7 @@ import type {
   ScanRun,
   User
 } from "./types";
+import { ConnectionWizard } from "./features/google-workspace/ConnectionWizard";
 
 type DreadScoreKey = keyof DreadScoreCreate;
 type Feedback = { type: "success" | "error"; message: string } | null;
@@ -94,12 +94,6 @@ const dreadControls: Array<{ key: DreadScoreKey; label: string; hint: string }> 
   { key: "discoverability", label: "Discoverability", hint: "Hoe makkelijk te vinden" }
 ];
 
-const connectorAuthMethodLabels: Record<ConnectorAuthMethod, string> = {
-  service_account_domain_wide_delegation: "Service account + domain-wide delegation",
-  oauth_admin_consent: "OAuth admin consent",
-  manual_import: "Manual import"
-};
-
 function riskLevelFromScore(score: number): "Low" | "Medium" | "High" | "Critical" {
   if (score < 3) {
     return "Low";
@@ -122,10 +116,6 @@ function formatDateTime(value: string): string {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
-}
-
-function formatOptionalDateTime(value: string | null): string {
-  return value ? formatDateTime(value) : "Nog niet getest";
 }
 
 function formatNullableDateTime(value: string | null): string {
@@ -181,9 +171,6 @@ function App() {
   const [connectorDisplayName, setConnectorDisplayName] = useState("Google Workspace");
   const [connectorPrimaryDomain, setConnectorPrimaryDomain] = useState("");
   const [connectorAdminSubjectEmail, setConnectorAdminSubjectEmail] = useState("");
-  const [connectorAuthMethod, setConnectorAuthMethod] = useState<ConnectorAuthMethod>(
-    "service_account_domain_wide_delegation"
-  );
   const [connectorNotes, setConnectorNotes] = useState("");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loginEmail, setLoginEmail] = useState("");
@@ -299,6 +286,16 @@ function App() {
   const canSaveConnectorConfig = Boolean(selectedOrganizationId && connectorDisplayName.trim());
   const canViewPlatformAdmin =
     currentUser?.role === "platform_admin" || currentUser?.role === "platform_support";
+  const canManageConnectorCredentials = Boolean(
+    currentUser?.role === "platform_admin" ||
+      (selectedOrganization?.customer_id &&
+        currentUser?.customer_memberships.some(
+          (membership) =>
+            membership.customer_id === selectedOrganization.customer_id &&
+            membership.is_active &&
+            membership.role === "customer_admin"
+        ))
+  );
 
   const resetSession = useCallback((message?: string) => {
     clearStoredAuthToken();
@@ -549,7 +546,6 @@ function App() {
       setConnectorDisplayName("Google Workspace");
       setConnectorPrimaryDomain("");
       setConnectorAdminSubjectEmail("");
-      setConnectorAuthMethod("service_account_domain_wide_delegation");
       setConnectorNotes("");
       return;
     }
@@ -557,7 +553,6 @@ function App() {
     setConnectorDisplayName(googleWorkspaceConnectorConfig.display_name);
     setConnectorPrimaryDomain(googleWorkspaceConnectorConfig.primary_domain ?? "");
     setConnectorAdminSubjectEmail(googleWorkspaceConnectorConfig.admin_subject_email ?? "");
-    setConnectorAuthMethod(googleWorkspaceConnectorConfig.auth_method);
     setConnectorNotes(googleWorkspaceConnectorConfig.notes ?? "");
   }, [googleWorkspaceConnectorConfig]);
 
@@ -738,10 +733,9 @@ function App() {
     }
   }
 
-  async function handleSaveConnectorConfig(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleSaveConnectorConfig(): Promise<ConnectorConfig | null> {
     if (!canSaveConnectorConfig) {
-      return;
+      return null;
     }
 
     setFeedback(null);
@@ -754,7 +748,7 @@ function App() {
           display_name: connectorDisplayName.trim(),
           primary_domain: connectorPrimaryDomain.trim() || null,
           admin_subject_email: connectorAdminSubjectEmail.trim() || null,
-          auth_method: connectorAuthMethod,
+          auth_method: "service_account_domain_wide_delegation",
           notes: connectorNotes.trim() || null
         }
       );
@@ -766,12 +760,14 @@ function App() {
         type: "success",
         message: "Google Workspace connectorconfiguratie opgeslagen."
       });
+      return savedConnectorConfig;
     } catch (connectorError) {
       if (connectorError instanceof ApiError && connectorError.status === 401) {
         handleRequestError(connectorError);
       } else {
         setConnectorFeedback({ type: "error", message: (connectorError as Error).message });
       }
+      return null;
     } finally {
       setIsConnectorSaving(false);
     }
@@ -1688,175 +1684,27 @@ function App() {
               </div>
             )}
 
-            <div className="connector-summary">
-              <div>
-                <span>Status</span>
-                <strong>
-                  {googleWorkspaceConnectorConfig ? (
-                    <span
-                      className={`connector-status connector-status-${googleWorkspaceConnectorConfig.status.replace(
-                        "_",
-                        "-"
-                      )}`}
-                    >
-                      {googleWorkspaceConnectorConfig.status === "configured" &&
-                      !googleWorkspaceConnectorConfig.last_tested_at
-                        ? "untested"
-                        : googleWorkspaceConnectorConfig.status.replace("_", " ")}
-                    </span>
-                  ) : (
-                    <span className="connector-status connector-status-not-configured">
-                      not configured
-                    </span>
-                  )}
-                </strong>
-              </div>
-              <div>
-                <span>Primary domain</span>
-                <strong title={googleWorkspaceConnectorConfig?.primary_domain ?? "Nog niet gezet"}>
-                  {googleWorkspaceConnectorConfig?.primary_domain ?? "-"}
-                </strong>
-              </div>
-              <div>
-                <span>Auth method</span>
-                <strong>
-                  {googleWorkspaceConnectorConfig
-                    ? connectorAuthMethodLabels[googleWorkspaceConnectorConfig.auth_method]
-                    : "-"}
-                </strong>
-              </div>
-              <div>
-                <span>Admin subject</span>
-                <strong
-                  title={googleWorkspaceConnectorConfig?.admin_subject_email ?? "Nog niet gezet"}
-                >
-                  {googleWorkspaceConnectorConfig?.admin_subject_email ?? "-"}
-                </strong>
-              </div>
-              <div>
-                <span>Laatst getest</span>
-                <strong>{formatOptionalDateTime(googleWorkspaceConnectorConfig?.last_tested_at ?? null)}</strong>
-              </div>
-              <div>
-                <span>Laatste testfout</span>
-                <strong title={googleWorkspaceConnectorConfig?.last_error ?? "Geen fout"}>
-                  {googleWorkspaceConnectorConfig?.last_error_code ?? "-"}
-                </strong>
-              </div>
-            </div>
-
-            <p className="connector-disclaimer">
-              Credential files blijven buiten de database en frontend. De test voert alleen een
-              read-only Directory API-opvraag uit voor de geconfigureerde beheerder; Gmail- en
-              andere beheerrechten worden niet getest.
-            </p>
-
-            {!connectorFeedback && googleWorkspaceConnectorConfig?.last_error && (
-              <section className="message connector-message error" aria-live="polite">
-                <AlertCircle aria-hidden="true" />
-                <span>{googleWorkspaceConnectorConfig.last_error}</span>
-              </section>
-            )}
-
-            <form className="form-stack connector-form" onSubmit={handleSaveConnectorConfig}>
-              <label>
-                Display name
-                <input
-                  value={connectorDisplayName}
-                  onChange={(event) => setConnectorDisplayName(event.target.value)}
-                  placeholder="Google Workspace"
-                  disabled={!selectedOrganizationId}
-                  required
-                />
-              </label>
-              <label>
-                Primary domain
-                <input
-                  value={connectorPrimaryDomain}
-                  onChange={(event) => setConnectorPrimaryDomain(event.target.value)}
-                  placeholder="example.com"
-                  disabled={!selectedOrganizationId}
-                />
-              </label>
-              <label>
-                Admin subject email
-                <input
-                  type="email"
-                  value={connectorAdminSubjectEmail}
-                  onChange={(event) => setConnectorAdminSubjectEmail(event.target.value)}
-                  placeholder="admin@example.com"
-                  disabled={!selectedOrganizationId}
-                />
-              </label>
-              <label>
-                Auth method
-                <select
-                  value={connectorAuthMethod}
-                  onChange={(event) =>
-                    setConnectorAuthMethod(event.target.value as ConnectorAuthMethod)
-                  }
-                  disabled={!selectedOrganizationId}
-                >
-                  <option value="service_account_domain_wide_delegation">
-                    Service account + domain-wide delegation
-                  </option>
-                  <option value="oauth_admin_consent">OAuth admin consent</option>
-                  <option value="manual_import">Manual import</option>
-                </select>
-              </label>
-              <label>
-                Notes
-                <textarea
-                  value={connectorNotes}
-                  onChange={(event) => setConnectorNotes(event.target.value)}
-                  placeholder="Korte notitie over beoogde configuratie"
-                  rows={3}
-                  disabled={!selectedOrganizationId}
-                />
-              </label>
-              <div className="connector-actions">
-                <button
-                  type="submit"
-                  disabled={!canSaveConnectorConfig || isConnectorSaving}
-                >
-                  {isConnectorSaving ? (
-                    <Loader2 className="spin" aria-hidden="true" />
-                  ) : (
-                    <Plus aria-hidden="true" />
-                  )}
-                  {isConnectorSaving ? "Opslaan" : "Configuratie opslaan"}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={handleTestConnectorConfig}
-                  disabled={
-                    !googleWorkspaceConnectorConfig ||
-                    isConnectorTesting ||
-                    isConnectorSaving
-                  }
-                  aria-busy={isConnectorTesting}
-                >
-                  {isConnectorTesting ? (
-                    <Loader2 className="spin" aria-hidden="true" />
-                  ) : (
-                    <Activity aria-hidden="true" />
-                  )}
-                  Test connection
-                </button>
-              </div>
-            </form>
-
-            {connectorFeedback && (
-              <section className={`message connector-message ${connectorFeedback.type}`} aria-live="polite">
-                {connectorFeedback.type === "error" ? (
-                  <AlertCircle aria-hidden="true" />
-                ) : (
-                  <CheckCircle2 aria-hidden="true" />
-                )}
-                <span>{connectorFeedback.message}</span>
-              </section>
-            )}
+            <ConnectionWizard
+              key={selectedOrganizationId}
+              connectorConfig={googleWorkspaceConnectorConfig}
+              organizationSelected={Boolean(selectedOrganizationId)}
+              canManageCredentials={canManageConnectorCredentials}
+              displayName={connectorDisplayName}
+              primaryDomain={connectorPrimaryDomain}
+              adminSubjectEmail={connectorAdminSubjectEmail}
+              notes={connectorNotes}
+              isSaving={isConnectorSaving}
+              isTesting={isConnectorTesting}
+              feedback={connectorFeedback}
+              onDisplayNameChange={setConnectorDisplayName}
+              onPrimaryDomainChange={setConnectorPrimaryDomain}
+              onAdminSubjectEmailChange={setConnectorAdminSubjectEmail}
+              onNotesChange={setConnectorNotes}
+              onSave={handleSaveConnectorConfig}
+              onTest={handleTestConnectorConfig}
+              onReload={() => loadOrganizationConnectorConfigs(selectedOrganizationId)}
+              onCredentialFeedback={setConnectorFeedback}
+            />
           </article>
 
           <article className={sectionClass("google-workspace", "panel compact-panel google-workspace-info")}>

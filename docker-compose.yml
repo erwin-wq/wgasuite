@@ -28,6 +28,7 @@ services:
       DEVELOPMENT_ADMIN_EMAIL: ${DEVELOPMENT_ADMIN_EMAIL:-}
       DEVELOPMENT_ADMIN_PASSWORD: ${DEVELOPMENT_ADMIN_PASSWORD:-}
       GOOGLE_WORKSPACE_CREDENTIALS_DIRECTORY: /run/secrets/wgasuite/google
+      GOOGLE_WORKSPACE_MANAGED_CREDENTIALS_DIRECTORY: /var/lib/wgasuite/google-credentials
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       postgres:
@@ -39,6 +40,7 @@ services:
       - ./backend/alembic:/app/alembic
       - ./backend/alembic.ini:/app/alembic.ini
       - ./secrets/google:/run/secrets/wgasuite/google:ro
+      - google_workspace_credentials:/var/lib/wgasuite/google-credentials
 
   frontend:
     build:
@@ -55,3 +57,4 @@ services:
 
 volumes:
   postgres_data:
+  google_workspace_credentials:

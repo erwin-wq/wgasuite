@@ -947,6 +947,189 @@ h4 {
   display: grid;
 }
 
+.connection-wizard {
+  margin-top: var(--space-5);
+}
+
+.wizard-steps {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.wizard-steps button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-ink-soft);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--font-size-xs);
+  gap: var(--space-2);
+  min-height: 4.7rem;
+  padding: var(--space-3);
+}
+
+.wizard-steps button span {
+  align-items: center;
+  background: var(--color-surface-strong);
+  border-radius: 50%;
+  display: inline-flex;
+  height: 1.7rem;
+  justify-content: center;
+  width: 1.7rem;
+}
+
+.wizard-steps button.active {
+  background: var(--color-blue-soft);
+  border-color: var(--color-primary);
+  color: var(--color-primary-strong);
+}
+
+.wizard-steps button.complete span {
+  background: var(--color-primary);
+  color: white;
+}
+
+.wizard-body {
+  background: #fbfdff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  margin-top: var(--space-4);
+  padding: clamp(var(--space-5), 4vw, var(--space-7));
+}
+
+.wizard-section {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.wizard-section h3,
+.wizard-section p {
+  margin: 0;
+}
+
+.wizard-section .eyebrow {
+  color: var(--color-primary-strong);
+  font-size: var(--font-size-xs);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wizard-lead,
+.wizard-instructions {
+  color: var(--color-ink-soft);
+  line-height: 1.6;
+}
+
+.wizard-instructions {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.wizard-links,
+.wizard-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.wizard-links a,
+.inline-doc-link {
+  align-items: center;
+  color: var(--color-primary-strong);
+  display: inline-flex;
+  font-weight: 800;
+  gap: var(--space-2);
+}
+
+.wizard-links svg,
+.inline-doc-link svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+.wizard-footer {
+  justify-content: space-between;
+  margin-top: var(--space-3);
+}
+
+.credential-options {
+  border: 0;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+}
+
+.credential-options legend {
+  font-weight: 850;
+  margin-bottom: var(--space-2);
+}
+
+.credential-options label {
+  align-items: start;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: auto auto 1fr;
+  padding: var(--space-4);
+}
+
+.credential-options label.selected {
+  background: var(--color-blue-soft);
+  border-color: var(--color-primary);
+}
+
+.credential-options label > svg {
+  color: var(--color-primary);
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+.credential-options small {
+  color: var(--color-ink-soft);
+  display: block;
+  font-weight: 600;
+  line-height: 1.45;
+  margin-top: var(--space-1);
+}
+
+.credential-entry {
+  align-items: end;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.copy-field {
+  align-items: center;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 10rem minmax(0, 1fr) auto;
+  padding: var(--space-3);
+}
+
+.copy-field > span {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-sm);
+  font-weight: 850;
+}
+
+.copy-field code {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .connector-summary {
   background: linear-gradient(180deg, #f9fcff 0%, #f2f8fb 100%);
   border-radius: var(--radius-lg);
@@ -2132,6 +2315,10 @@ h4 {
   .two-column-fields,
   .connector-summary,
   .connector-actions,
+  .wizard-steps,
+  .credential-options,
+  .credential-entry,
+  .copy-field,
   .check-catalog-toolbar,
   .check-catalog-title,
   .form-footer,

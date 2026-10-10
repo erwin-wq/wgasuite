@@ -7,6 +7,7 @@ import type {
   ConnectorConfig,
   ConnectorConfigPayload,
   ConnectorConfigTestResult,
+  ConnectorCredentialResult,
   Customer,
   CustomerCreate,
   Finding,
@@ -89,7 +90,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       clearStoredAuthToken();
     }
     const errorBody = await response.json().catch(() => ({}));
-    const detail = "detail" in errorBody ? String(errorBody.detail) : response.statusText;
+    const rawDetail = "detail" in errorBody ? errorBody.detail : response.statusText;
+    const detail =
+      typeof rawDetail === "object" && rawDetail !== null && "message" in rawDetail
+        ? String(rawDetail.message)
+        : String(rawDetail);
     throw new ApiError(detail, response.status);
   }
 
@@ -187,6 +192,34 @@ export function testConnectorConfig(
   return request<ConnectorConfigTestResult>(`/api/v1/connector-configs/${connectorConfigId}/test`, {
     method: "POST"
   });
+}
+
+export function importGoogleWorkspaceCredential(
+  connectorConfigId: string,
+  file: File
+): Promise<ConnectorCredentialResult> {
+  if (file.size > 65_536) {
+    return Promise.reject(new ApiError("Credential file is larger than 64 KiB.", 413));
+  }
+  return file.text().then((body) =>
+    request<ConnectorCredentialResult>(
+      `/api/v1/connector-configs/${connectorConfigId}/credentials`,
+      { method: "PUT", body }
+    )
+  );
+}
+
+export function selectExternalGoogleWorkspaceCredential(
+  connectorConfigId: string,
+  credentialRef: string
+): Promise<ConnectorCredentialResult> {
+  return request<ConnectorCredentialResult>(
+    `/api/v1/connector-configs/${connectorConfigId}/credentials/external`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ credential_ref: credentialRef })
+    }
+  );
 }
 
 export function listAssets(): Promise<Asset[]> {

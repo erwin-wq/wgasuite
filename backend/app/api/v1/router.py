@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -17,6 +17,7 @@ from app.api.deps import (
     require_platform_admin,
 )
 from app.connectors import MockGoogleWorkspaceConnector, list_google_workspace_checks
+from app.connectors.google_workspace_credentials import FileCredentialProvider
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import (
@@ -41,6 +42,8 @@ from app.schemas.connector_config import (
     ConnectorConfigRead,
     ConnectorConfigTestRead,
     ConnectorConfigUpdate,
+    ConnectorCredentialRead,
+    ExternalCredentialReference,
 )
 from app.schemas.customer import CustomerCreate, CustomerRead, CustomerUpdate
 from app.schemas.customer_membership import (
@@ -68,6 +71,11 @@ from app.services.google_workspace_connection import (
     CONNECTION_CRITICAL_FIELDS,
     GoogleWorkspaceConnectionTester,
     invalidate_connection_result,
+)
+from app.services.google_workspace_credential_import import (
+    CredentialImportError,
+    GoogleWorkspaceCredentialImporter,
+    ManagedCredentialStore,
 )
 from app.services.passwords import verify_password
 from app.services.tokens import encode_access_token
@@ -280,6 +288,13 @@ def require_connector_config_write_access(
     connector_config: ConnectorConfig,
 ) -> None:
     require_organization_write_access(current_user, connector_config.organization)
+
+
+def require_connector_config_admin_access(
+    current_user: User,
+    connector_config: ConnectorConfig,
+) -> None:
+    require_customer_admin_access(current_user, connector_config.organization.customer_id)
 
 
 def require_connector_config_operation_access(
@@ -875,6 +890,8 @@ def upsert_google_workspace_connector_config(
 ) -> ConnectorConfig:
     organization = get_organization_or_404(db, organization_id)
     require_organization_write_access(current_user, organization)
+    if {"credential_provider", "credential_ref"}.intersection(payload.model_fields_set):
+        require_customer_admin_access(current_user, organization.customer_id)
     statement = select(ConnectorConfig).where(
         ConnectorConfig.organization_id == organization_id,
         ConnectorConfig.connector_type == "google_workspace",
@@ -991,6 +1008,8 @@ def update_connector_config(
 ) -> ConnectorConfig:
     connector_config = get_connector_config_or_404(db, connector_config_id)
     require_connector_config_write_access(current_user, connector_config)
+    if {"credential_provider", "credential_ref"}.intersection(payload.model_fields_set):
+        require_connector_config_admin_access(current_user, connector_config)
     update_data = payload.model_dump(exclude_unset=True)
     changed_fields = [
         field for field, value in update_data.items() if getattr(connector_config, field) != value
@@ -1018,6 +1037,238 @@ def update_connector_config(
         },
     )
     return connector_config
+
+
+async def read_credential_request(request: Request, max_bytes: int) -> bytes:
+    content_type = request.headers.get("content-type", "").split(";", maxsplit=1)[0].strip().lower()
+    if content_type != "application/json":
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail={"code": "invalid_content_type", "message": "Upload a JSON credential file."},
+        )
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > max_bytes:
+                raise HTTPException(
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                    detail={
+                        "code": "credential_too_large",
+                        "message": "Credential file is too large.",
+                    },
+                )
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length header.") from None
+
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail={"code": "credential_too_large", "message": "Credential file is too large."},
+            )
+    if not body:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "empty_credential", "message": "Select a JSON credential file."},
+        )
+    return bytes(body)
+
+
+def credential_importer(db: Session) -> GoogleWorkspaceCredentialImporter:
+    settings = get_settings()
+    return GoogleWorkspaceCredentialImporter(
+        db,
+        ManagedCredentialStore(settings.google_workspace_managed_credentials_directory),
+        FileCredentialProvider(settings.google_workspace_credentials_directory),
+    )
+
+
+def credential_read(connector_config: ConnectorConfig) -> ConnectorCredentialRead:
+    if not connector_config.service_account_email or not connector_config.service_account_client_id:
+        raise HTTPException(status_code=500, detail="Credential metadata was not persisted.")
+    return ConnectorCredentialRead(
+        credential_provider=connector_config.credential_provider,
+        credentials_configured=connector_config.credentials_configured,
+        service_account_email=connector_config.service_account_email,
+        service_account_client_id=connector_config.service_account_client_id,
+    )
+
+
+@api_router.put(
+    "/connector-configs/{connector_config_id}/credentials",
+    response_model=ConnectorCredentialRead,
+    tags=["connector-configs"],
+)
+async def import_google_workspace_credential(
+    connector_config_id: UUID,
+    request: Request,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ConnectorCredentialRead:
+    connector_config = get_connector_config_or_404(db, connector_config_id)
+    try:
+        require_connector_config_admin_access(current_user, connector_config)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action="connector_credentials.imported",
+            object_type="connector_config",
+            object_id=connector_config.id,
+            customer_id=connector_config.organization.customer_id,
+            outcome="failure",
+            reason="organization_access_denied",
+            metadata={"credential_provider": "managed_file"},
+        )
+        raise
+    settings = get_settings()
+    try:
+        raw_content = await read_credential_request(
+            request, settings.google_workspace_credential_max_bytes
+        )
+    except HTTPException as error:
+        detail = error.detail if isinstance(error.detail, dict) else {}
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action="connector_credentials.imported",
+            object_type="connector_config",
+            object_id=connector_config.id,
+            customer_id=connector_config.organization.customer_id,
+            outcome="failure",
+            reason=str(detail.get("code", "invalid_credential_request")),
+            metadata={"credential_provider": "managed_file"},
+        )
+        raise
+    try:
+        credential_importer(db).import_managed(connector_config, raw_content)
+    except CredentialImportError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action="connector_credentials.imported",
+            object_type="connector_config",
+            object_id=connector_config.id,
+            customer_id=connector_config.organization.customer_id,
+            outcome="failure",
+            reason=error.code,
+            metadata={"credential_provider": "managed_file"},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": error.code, "message": error.message},
+        ) from None
+    except Exception:
+        db.rollback()
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action="connector_credentials.imported",
+            object_type="connector_config",
+            object_id=connector_config.id,
+            customer_id=connector_config.organization.customer_id,
+            outcome="failure",
+            reason="credential_import_failed",
+            metadata={"credential_provider": "managed_file"},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "credential_import_failed",
+                "message": "The credential could not be saved securely.",
+            },
+        ) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action="connector_credentials.imported",
+        object_type="connector_config",
+        object_id=connector_config.id,
+        customer_id=connector_config.organization.customer_id,
+        metadata={"credential_provider": "managed_file"},
+    )
+    return credential_read(connector_config)
+
+
+@api_router.put(
+    "/connector-configs/{connector_config_id}/credentials/external",
+    response_model=ConnectorCredentialRead,
+    tags=["connector-configs"],
+)
+def select_external_google_workspace_credential(
+    connector_config_id: UUID,
+    payload: ExternalCredentialReference,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ConnectorCredentialRead:
+    connector_config = get_connector_config_or_404(db, connector_config_id)
+    try:
+        require_connector_config_admin_access(current_user, connector_config)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action="connector_credentials.external_selected",
+            object_type="connector_config",
+            object_id=connector_config.id,
+            customer_id=connector_config.organization.customer_id,
+            outcome="failure",
+            reason="organization_access_denied",
+            metadata={"credential_provider": "file"},
+        )
+        raise
+    try:
+        credential_importer(db).select_external(connector_config, payload.credential_ref)
+    except CredentialImportError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action="connector_credentials.external_selected",
+            object_type="connector_config",
+            object_id=connector_config.id,
+            customer_id=connector_config.organization.customer_id,
+            outcome="failure",
+            reason=error.code,
+            metadata={"credential_provider": "file"},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": error.code, "message": error.message},
+        ) from None
+    except Exception:
+        db.rollback()
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action="connector_credentials.external_selected",
+            object_type="connector_config",
+            object_id=connector_config.id,
+            customer_id=connector_config.organization.customer_id,
+            outcome="failure",
+            reason="credential_selection_failed",
+            metadata={"credential_provider": "file"},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "credential_selection_failed",
+                "message": "The provisioned credential could not be selected.",
+            },
+        ) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action="connector_credentials.external_selected",
+        object_type="connector_config",
+        object_id=connector_config.id,
+        customer_id=connector_config.organization.customer_id,
+        metadata={"credential_provider": "file"},
+    )
+    return credential_read(connector_config)
 
 
 @api_router.post(

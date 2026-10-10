@@ -53,19 +53,21 @@ Mock/demo-only today:
 Not implemented today:
 
 - Google Workspace user search or administrative API operations;
-- OAuth admin-consent authentication or managed secret-store providers;
+- OAuth admin-consent authentication or external cloud secret-manager integrations;
 - production identity management, SSO, account recovery or hardened session management;
 - user, group, ChromeOS/device, organizational-unit or license administration;
 - a complete production deployment and operations model.
 
 ## Google Workspace status
 
-WGASuite can perform a real connection test through `admin.directory_v1.users.get` for the
+WGASuite provides a five-step connection wizard and can perform a real connection test through
+`admin.directory_v1.users.get` for the
 configured delegated administrator, using only the
 `https://www.googleapis.com/auth/admin.directory.user.readonly` scope. The result and timestamp are
 persisted, while the returned Google profile is discarded. Connector records store only non-secret
-metadata and an opaque credential reference; service-account JSON remains outside the database and
-API. The mock scanner remains entirely local and fictional.
+metadata and safe service-account identifiers; service-account JSON is stored only in a protected,
+backend-only credential volume (or an operator-provisioned read-only file), never the database or
+API. Credential upload is customer-admin-only. The mock scanner remains entirely local and fictional.
 
 See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup and
 security details and live verification instructions. User search and Gmail delegation remain later
@@ -168,6 +170,8 @@ make docker-down
 | `VITE_API_BASE_URL` | No | API base URL used by the frontend. |
 | `GOOGLE_WORKSPACE_CONNECTOR_ENABLED` | No | Reserved connector rollout setting. |
 | `GOOGLE_WORKSPACE_CREDENTIALS_DIRECTORY` | No | Read-only root for organization-partitioned service-account files. |
+| `GOOGLE_WORKSPACE_MANAGED_CREDENTIALS_DIRECTORY` | No | Backend-only persistent root for wizard-uploaded credentials. |
+| `GOOGLE_WORKSPACE_CREDENTIAL_MAX_BYTES` | No | Maximum JSON credential upload size; defaults to 65536 bytes. |
 | `GOOGLE_WORKSPACE_REQUEST_TIMEOUT_SECONDS` | No | Bounded Google HTTP timeout; defaults to 20 seconds and must be at most 60. |
 
 Outside Docker Compose, `DATABASE_URL` can be supplied as an explicit alternative to the three
@@ -208,6 +212,7 @@ npm --prefix frontend ci
 npm --prefix frontend audit
 npm --prefix frontend audit --omit=dev
 npm --prefix frontend run lint
+npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
@@ -223,8 +228,7 @@ Apply migrations and explicitly configure the development administrator in the r
 make db-upgrade
 ```
 
-There is currently no frontend automated test suite. This is a known project-quality gap and a
-roadmap item.
+The frontend component suite uses Vitest, jsdom and Testing Library and runs in CI.
 
 ## Security
 
@@ -251,8 +255,8 @@ Potential future work includes:
 - organizational-unit and license management;
 - expanded security posture checks and audit/event workflows;
 - production-ready authentication, SSO and authorization administration;
-- frontend automated tests;
-- managed secret-store providers and credential rotation;
+- broader frontend integration and browser coverage;
+- external cloud secret-manager providers and automated credential rotation;
 - production deployment, backup and monitoring guidance.
 
 Roadmap items are directional and have no committed delivery dates. See

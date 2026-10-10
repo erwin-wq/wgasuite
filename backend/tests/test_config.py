@@ -40,6 +40,10 @@ def test_settings_accept_explicit_database_url_override() -> None:
     assert settings.google_workspace_credentials_directory == Path(
         "/run/secrets/wgasuite/google"
     )
+    assert settings.google_workspace_managed_credentials_directory == Path(
+        "/var/lib/wgasuite/google-credentials"
+    )
+    assert settings.google_workspace_credential_max_bytes == 65_536
     assert settings.google_workspace_request_timeout_seconds == 20.0
 
 
