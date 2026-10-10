@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     backend_cors_origins: str = "http://localhost:5173"
     google_workspace_connector_enabled: bool = False
     google_workspace_credentials_directory: Path = Path("/run/secrets/wgasuite/google")
+    google_workspace_managed_credentials_directory: Path = Path(
+        "/var/lib/wgasuite/google-credentials"
+    )
+    google_workspace_credential_max_bytes: int = Field(default=65_536, ge=4_096, le=1_048_576)
     google_workspace_request_timeout_seconds: float = Field(default=20.0, gt=0, le=60)
     auth_secret_key: SecretStr = Field(min_length=32)
     auth_token_expires_minutes: int = 480

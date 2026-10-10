@@ -5,6 +5,18 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-09 — GW-002 connection wizard and secure credential lifecycle
+
+- Added a five-step, resumable setup wizard for Google Cloud preparation, credential selection,
+  Domain-Wide Delegation, delegated administrator configuration, and the existing real test.
+- Added customer-admin-only JSON credential import with strict validation, safe metadata exposure,
+  tenant-partitioned atomic storage, connection-state invalidation, and secret-safe auditing.
+- Preserved the operator-provisioned read-only file provider as an alternative wizard path.
+- Added a backend-only persistent Docker volume and an unprivileged backend runtime, plus recovery,
+  rotation, troubleshooting, and live-verification guidance.
+- Added frontend component testing to both CI pipelines while retaining the read-only Directory API
+  scope and keeping broader scans and administration mock-only or unimplemented.
+
 ## 2026-10-09 — GW-002 real Google Workspace connection test
 
 - Replaced the placeholder connector test with one Admin SDK Directory API `users.get` probe for

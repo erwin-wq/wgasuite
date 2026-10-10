@@ -73,12 +73,13 @@ make backend-checks
 npm --prefix frontend audit
 npm --prefix frontend audit --omit=dev
 npm --prefix frontend run lint
+npm --prefix frontend test
 npm --prefix frontend run build
 git diff --check
 ```
 
-There is not yet a frontend automated test suite. If your change introduces one, keep the setup
-small, document it and add it to CI. Always describe any checks you could not run.
+Add focused component tests for changed frontend workflows. Keep the suite small and deterministic.
+Always describe any checks you could not run.
 
 For changes that affect the local stack, also run when practical:
 

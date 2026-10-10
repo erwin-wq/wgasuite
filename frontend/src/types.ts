@@ -155,8 +155,10 @@ export interface ConnectorConfig {
   display_name: string;
   primary_domain: string | null;
   admin_subject_email: string | null;
-  credential_provider: "file";
+  credential_provider: "file" | "managed_file";
   credentials_configured: boolean;
+  service_account_email: string | null;
+  service_account_client_id: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -181,6 +183,13 @@ export interface ConnectorConfigTestResult {
   error_category: "configuration" | "google" | "network" | "unexpected" | null;
   retryable: boolean;
   persisted: boolean;
+}
+
+export interface ConnectorCredentialResult {
+  credential_provider: "file" | "managed_file";
+  credentials_configured: boolean;
+  service_account_email: string;
+  service_account_client_id: string;
 }
 
 export interface PlatformAdminTotals {

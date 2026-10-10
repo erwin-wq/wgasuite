@@ -85,7 +85,7 @@ validation or inventory.
 
 The following themes remain directional and are not release commitments:
 
-- frontend automated tests and broader production hardening;
+- broader frontend integration/browser coverage and production hardening;
 - bulk operations and CSV planning;
 - durable background jobs with retries, progress, cancellation and per-target results;
 - approval and separation-of-duty workflows;

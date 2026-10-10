@@ -97,6 +97,12 @@ class FileCredentialProvider:
         return credential_info
 
 
+class ManagedFileCredentialProvider(FileCredentialProvider):
+    """Load credentials written to WGASuite's private, tenant-partitioned store."""
+
+    name = "managed_file"
+
+
 class CredentialProviderRegistry:
     def __init__(self, providers: Sequence[CredentialProvider]) -> None:
         self._providers = {provider.name: provider for provider in providers}

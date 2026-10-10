@@ -16,6 +16,7 @@ from app.connectors.google_workspace_credentials import (
     CredentialProviderRegistry,
     DelegatedCredentialFactory,
     FileCredentialProvider,
+    ManagedFileCredentialProvider,
 )
 from app.connectors.google_workspace_errors import (
     GoogleWorkspaceError,
@@ -55,7 +56,12 @@ class GoogleWorkspaceClientFactory:
     ) -> "GoogleWorkspaceClientFactory":
         settings = get_settings()
         providers = CredentialProviderRegistry(
-            [FileCredentialProvider(settings.google_workspace_credentials_directory)]
+            [
+                FileCredentialProvider(settings.google_workspace_credentials_directory),
+                ManagedFileCredentialProvider(
+                    settings.google_workspace_managed_credentials_directory
+                ),
+            ]
         )
         return cls(
             db,

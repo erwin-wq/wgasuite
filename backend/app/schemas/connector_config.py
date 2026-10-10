@@ -16,7 +16,8 @@ ConnectorStatus = Literal[
     "connected",
     "connection_failed",
 ]
-CredentialProviderName = Literal["file"]
+CredentialProviderInputName = Literal["file"]
+CredentialProviderName = Literal["file", "managed_file"]
 
 
 class ConnectorConfigCreate(BaseModel):
@@ -24,7 +25,7 @@ class ConnectorConfigCreate(BaseModel):
     primary_domain: str | None = Field(default=None, max_length=255)
     admin_subject_email: str | None = Field(default=None, max_length=255)
     auth_method: ConnectorAuthMethod = "service_account_domain_wide_delegation"
-    credential_provider: CredentialProviderName = "file"
+    credential_provider: CredentialProviderInputName = "file"
     credential_ref: str | None = Field(
         default=None,
         min_length=1,
@@ -39,7 +40,7 @@ class ConnectorConfigUpdate(BaseModel):
     primary_domain: str | None = Field(default=None, max_length=255)
     admin_subject_email: str | None = Field(default=None, max_length=255)
     auth_method: ConnectorAuthMethod | None = None
-    credential_provider: CredentialProviderName = "file"
+    credential_provider: CredentialProviderInputName = "file"
     credential_ref: str | None = Field(
         default=None,
         min_length=1,
@@ -62,6 +63,8 @@ class ConnectorConfigRead(BaseModel):
     admin_subject_email: str | None
     credential_provider: CredentialProviderName
     credentials_configured: bool
+    service_account_email: str | None
+    service_account_client_id: str | None
     notes: str | None
     created_at: datetime
     updated_at: datetime
@@ -78,3 +81,18 @@ class ConnectorConfigTestRead(BaseModel):
     error_category: Literal["configuration", "google", "network", "unexpected"] | None = None
     retryable: bool = False
     persisted: bool = True
+
+
+class ExternalCredentialReference(BaseModel):
+    credential_ref: str = Field(
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
+
+
+class ConnectorCredentialRead(BaseModel):
+    credential_provider: CredentialProviderName
+    credentials_configured: bool
+    service_account_email: str
+    service_account_client_id: str
