@@ -9,7 +9,8 @@ an admin console or custom script.
 
 > **Project status:** early development / pre-release. The current repository provides a working
 > local foundation, service-account authentication/client infrastructure, and a real read-only
-> Google Workspace connection test. Google Workspace administration is not implemented yet.
+> Google Workspace connection test plus exact user and alias lookup. Write administration is not
+> implemented yet.
 
 WGASuite is an independent open-source project and is not affiliated with or endorsed by Google.
 
@@ -41,6 +42,8 @@ Implemented today:
   and explicitly scoped Google API client factories;
 - a real, organization-scoped Admin SDK Directory API connection test with persisted status and
   sanitized audit/error reporting;
+- exact, read-only Google Directory user lookup by primary email or user alias, with tenant-scoped
+  authorization and safe account details;
 - a catalog of Google Workspace security checks;
 - mock scan runs, generated demo findings and recent scan-run history.
 
@@ -52,7 +55,7 @@ Mock/demo-only today:
 
 Not implemented today:
 
-- Google Workspace user search or administrative API operations;
+- Google Workspace user mutations, bulk inventory, Group-address lookup or Gmail delegation;
 - OAuth admin-consent authentication or external cloud secret-manager integrations;
 - production identity management, SSO, account recovery or hardened session management;
 - user, group, ChromeOS/device, organizational-unit or license administration;
@@ -67,11 +70,18 @@ configured delegated administrator, using only the
 persisted, while the returned Google profile is discarded. Connector records store only non-secret
 metadata and safe service-account identifiers; service-account JSON is stored only in a protected,
 backend-only credential volume (or an operator-provisioned read-only file), never the database or
-API. Credential upload is customer-admin-only. The mock scanner remains entirely local and fictional.
+API. Credential upload is customer-admin-only.
+
+Authorized administrators can also perform an exact `users.get` lookup using either a primary
+email address or user alias. The result shows the canonical user, aliases, account state,
+organizational unit and mailbox-setup state when Google supplies them. Profiles are not persisted,
+searched addresses are not written to audit metadata, and Group aliases are intentionally outside
+this MVP. The same existing read-only Directory scope is used. The mock scanner remains entirely
+local and fictional.
 
 See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup and
-security details and live verification instructions. User search and Gmail delegation remain later
-work.
+security details and live verification instructions. Gmail delegation and write operations remain
+later work.
 
 ## Screenshots
 
@@ -242,14 +252,15 @@ The frontend component suite uses Vitest, jsdom and Testing Library and runs in 
 ## Project status
 
 WGASuite is in early development and is not production-ready. The assessment, scoping, audit,
-mock-scan, Google authentication/client foundation, and read-only connection test can be exercised
-locally. Real Google Workspace administration and production operations remain future work.
+mock-scan, Google authentication/client foundation, read-only connection test, and exact Directory
+user/alias lookup can be exercised locally. Write administration and production operations remain
+future work.
 
 ## Roadmap
 
 Potential future work includes:
 
-- read-only user search and other feature-specific Google API operations;
+- broader user inventory, filtering and other feature-specific Google API operations;
 - user and group administration workflows;
 - ChromeOS and device administration;
 - organizational-unit and license management;

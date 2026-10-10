@@ -1,8 +1,9 @@
 # Google Workspace connector
 
-WGASuite provides a five-step wizard and a real, read-only Google Workspace connection test using
-a service account with Domain-Wide Delegation (DWD). User search, Gmail delegate administration,
-and the security-check catalog remain unimplemented or mock-only as documented in the README.
+WGASuite provides a five-step wizard, a real read-only connection test, and exact Directory user
+lookup by primary email or user alias using a service account with Domain-Wide Delegation (DWD).
+Gmail delegate administration and the security-check catalog remain unimplemented or mock-only as
+documented in the README.
 
 ## Wizard setup flow
 
@@ -62,6 +63,39 @@ WGASuite only verifies that its primary email matches the configured subject. It
 the suffix with `primary_domain`, because a Workspace customer may use multiple domains. A success
 proves only this one Directory user read; it does not prove Gmail, future write, or mock security-
 check access. See the official [`users.get` reference](https://developers.google.com/workspace/admin/directory/reference/rest/v1/users/get).
+
+## User and alias lookup
+
+The **User & alias lookup** panel uses the active organization and the same connected credential,
+delegated administrator, timeout, and read-only scope as the connection test. It issues one exact
+Directory request; it never enumerates the tenant:
+
+```text
+POST:       /api/v1/organizations/{organization_id}/google-workspace/users/lookup
+Method:     users.get
+userKey:    submitted primary email or user alias
+projection: basic
+viewType:   admin_view
+fields:     id,primaryEmail,name(fullName),aliases,nonEditableAliases,suspended,
+            archived,orgUnitPath,isMailboxSetup
+Scope:      https://www.googleapis.com/auth/admin.directory.user.readonly
+```
+
+Google resolves both primary addresses and aliases through `userKey`. WGASuite compares the
+submitted address case-insensitively with the canonical primary email, editable aliases, and
+non-editable aliases, including aliases on another verified Workspace domain. The typed response
+contains only the fields above and a `matched_by` classification. It is displayed and discarded;
+no user profile is stored in PostgreSQL.
+
+The endpoint uses POST so the searched address does not appear in a URL. Access requires a platform
+administrator or an active `customer_admin` membership for the organization's customer. Tenant
+authorization happens before credential resolution. Audit records contain tenant, actor, outcome,
+safe error code, and match type only—not the searched address or returned profile.
+
+This feature searches Directory users only. A not-found result does not prove the address is unused:
+Google Groups, Group aliases, external forwarding destinations, contacts, and mailbox messages are
+separate resources. `isMailboxSetup` describes Google's reported setup state; it does not grant or
+verify Gmail delegation or mailbox access.
 
 ## Credential security and authorization
 
@@ -163,6 +197,8 @@ optional sanitized message. Common codes include:
 | `delegation_rejected` | Verify DWD, numeric client ID, exact scope, and subject. |
 | `google_unauthorized` | Verify that the key is active and delegated credentials are correct. |
 | `google_subject_not_found` | Verify the administrator account exists and is active. |
+| `google_user_not_found` | No exact Directory user or user alias matched; check Groups separately. |
+| `google_user_lookup_mismatch` | Google returned an unexpected identity; retry and investigate safely. |
 | `google_forbidden` | Check DWD, scope, API access, and administrator privilege. |
 | `missing_scope_or_permission` | Google reported insufficient permission. |
 | `google_api_unavailable` | Enable Admin SDK in the credential's Cloud project. |
@@ -183,6 +219,10 @@ returned. A generic 403 is intentionally not presented as one specific DWD probl
 6. Confirm **connected**, a current timestamp, and no error; refresh and confirm it remains.
 7. Review `connector_config.tested` and credential-change audit events for safe metadata only.
 8. Recreate only the backend container, reopen the organization, and retest to verify persistence.
+9. In **User & alias lookup**, search the delegated administrator's primary email and confirm the
+   canonical Directory account appears.
+10. If an existing user alias is safely known, search it and confirm it resolves to the same
+    canonical primary email. Do not create or modify an alias merely for this test.
 
 `docker compose down` preserves named volumes. `docker compose down --volumes` is destructive and
 removes the credential volume. If real credentials and DWD are unavailable, run automated mocked

@@ -27,6 +27,8 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_TIMEOUT = "google_timeout"
     GOOGLE_NETWORK_ERROR = "google_network_error"
     GOOGLE_API_ERROR = "google_api_error"
+    GOOGLE_USER_NOT_FOUND = "google_user_not_found"
+    GOOGLE_USER_LOOKUP_MISMATCH = "google_user_lookup_mismatch"
     GOOGLE_SUBJECT_NOT_FOUND = "google_subject_not_found"
     GOOGLE_SUBJECT_MISMATCH = "google_subject_mismatch"
     ORGANIZATION_ACCESS_DENIED = "organization_access_denied"
@@ -73,18 +75,25 @@ SAFE_ERROR_MESSAGES = {
         "Google returned 401 Unauthorized for the delegated credentials."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_RATE_LIMITED: (
-        "Google rate-limited the connection test. Try again later."
+        "Google rate-limited the Directory request. Try again later."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE: (
         "The Google service is temporarily unavailable. Try again later."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT: (
-        "The Google connection test timed out. Check network access and try again."
+        "The Google Directory request timed out. Check network access and try again."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_NETWORK_ERROR: (
-        "The Google connection test could not reach Google. Check network and DNS access."
+        "The Google Directory request could not reach Google. Check network and DNS access."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_API_ERROR: "The Google API operation failed.",
+    GoogleWorkspaceErrorCode.GOOGLE_USER_NOT_FOUND: (
+        "No Google Workspace user was found for that exact address. Group addresses are not "
+        "included in user lookup."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_LOOKUP_MISMATCH: (
+        "Google returned a user that did not match the requested primary email or alias."
+    ),
     GoogleWorkspaceErrorCode.GOOGLE_SUBJECT_NOT_FOUND: (
         "Google could not find the configured delegated administrator account."
     ),

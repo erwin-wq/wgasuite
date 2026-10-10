@@ -192,6 +192,24 @@ export interface ConnectorCredentialResult {
   service_account_client_id: string;
 }
 
+export type GoogleWorkspaceUserMatchType =
+  | "primary_email"
+  | "alias"
+  | "non_editable_alias";
+
+export interface GoogleWorkspaceUser {
+  id: string;
+  full_name: string | null;
+  primary_email: string;
+  aliases: string[];
+  non_editable_aliases: string[];
+  suspended: boolean;
+  archived: boolean | null;
+  org_unit_path: string | null;
+  is_mailbox_setup: boolean | null;
+  matched_by: GoogleWorkspaceUserMatchType;
+}
+
 export interface PlatformAdminTotals {
   customers_count: number;
   organizations_count: number;

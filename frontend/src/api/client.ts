@@ -13,6 +13,7 @@ import type {
   Finding,
   FindingCreate,
   GoogleWorkspaceCheck,
+  GoogleWorkspaceUser,
   LoginRequest,
   PlatformAdminOverview,
   ScanRun,
@@ -28,11 +29,13 @@ const LEGACY_AUTH_TOKEN_STORAGE_KEY = "admindeck.authToken:v1";
 
 export class ApiError extends Error {
   status: number;
+  code: string | null;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code: string | null = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -95,7 +98,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       typeof rawDetail === "object" && rawDetail !== null && "message" in rawDetail
         ? String(rawDetail.message)
         : String(rawDetail);
-    throw new ApiError(detail, response.status);
+    const code =
+      typeof rawDetail === "object" && rawDetail !== null && "code" in rawDetail
+        ? String(rawDetail.code)
+        : null;
+    throw new ApiError(detail, response.status, code);
   }
 
   return response.json() as Promise<T>;
@@ -218,6 +225,21 @@ export function selectExternalGoogleWorkspaceCredential(
     {
       method: "PUT",
       body: JSON.stringify({ credential_ref: credentialRef })
+    }
+  );
+}
+
+export function lookupGoogleWorkspaceUser(
+  organizationId: string,
+  email: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceUser> {
+  return request<GoogleWorkspaceUser>(
+    `/api/v1/organizations/${organizationId}/google-workspace/users/lookup`,
+    {
+      method: "POST",
+      body: JSON.stringify({ email }),
+      signal
     }
   );
 }
