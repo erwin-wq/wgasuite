@@ -1590,6 +1590,38 @@ h4 {
   color: var(--color-primary-strong);
 }
 
+.delegate-state.warning,
+.delegate-state.info,
+.delegate-reconciliation {
+  background: var(--color-amber-soft);
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.delegate-reconciliation {
+  align-items: center;
+  border: 1px solid;
+  border-radius: var(--radius-sm);
+  display: flex;
+  gap: var(--space-4);
+  justify-content: space-between;
+  padding: var(--space-4);
+}
+
+.delegate-reconciliation > div {
+  display: grid;
+  font-size: var(--font-size-sm);
+  gap: var(--space-1);
+}
+
+.delegate-reconciliation span {
+  overflow-wrap: anywhere;
+}
+
+.delegate-reconciliation button {
+  flex: 0 0 auto;
+}
+
 .delegate-list {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-sm);
@@ -3305,6 +3337,7 @@ h4 {
   }
 
   .mailbox-delegates-heading,
+  .delegate-reconciliation,
   .delegate-row,
   .confirmation-actions {
     align-items: stretch;
@@ -3312,6 +3345,7 @@ h4 {
   }
 
   .mailbox-delegates-heading button,
+  .delegate-reconciliation button,
   .delegate-row button,
   .confirmation-actions button {
     width: 100%;

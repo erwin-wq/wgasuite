@@ -144,6 +144,7 @@ class GoogleWorkspaceClientFactory:
         organization_id: UUID,
         owner: VerifiedMailboxOwner,
         scopes: Sequence[str],
+        request_timeout_seconds: float | None = None,
     ) -> Any:
         """Build a fixed Gmail delegate client for one Directory-verified mailbox owner."""
 
@@ -163,12 +164,10 @@ class GoogleWorkspaceClientFactory:
         if connector_config is None:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.CONNECTOR_NOT_CONFIGURED)
 
-        credentials, normalized_scopes = (
-            self.credential_factory.create_for_gmail_mailbox_owner(
-                connector_config,
-                scopes,
-                owner.primary_email,
-            )
+        credentials, normalized_scopes = self.credential_factory.create_for_gmail_mailbox_owner(
+            connector_config,
+            scopes,
+            owner.primary_email,
         )
         logger.info(
             "Creating owner-impersonated Gmail delegate client organization_id=%s "
@@ -177,10 +176,16 @@ class GoogleWorkspaceClientFactory:
             connector_config.id,
             list(normalized_scopes),
         )
+        timeout_seconds = self.request_timeout_seconds
+        if request_timeout_seconds is not None:
+            timeout_seconds = max(
+                0.1,
+                min(request_timeout_seconds, self.request_timeout_seconds),
+            )
         try:
             authorized_http = AuthorizedHttp(
                 credentials,
-                http=httplib2.Http(timeout=self.request_timeout_seconds),
+                http=httplib2.Http(timeout=timeout_seconds),
             )
             return self.client_builder(
                 "gmail",

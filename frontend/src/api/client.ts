@@ -15,6 +15,7 @@ import type {
   GmailDelegateChangePreview,
   GmailDelegateList,
   GmailDelegateMutationResult,
+  GmailDelegateReconciliationResult,
   GoogleWorkspaceCheck,
   GoogleWorkspaceUser,
   LoginRequest,
@@ -33,12 +34,21 @@ const LEGACY_AUTH_TOKEN_STORAGE_KEY = "admindeck.authToken:v1";
 export class ApiError extends Error {
   status: number;
   code: string | null;
+  correlationId: string | null;
+  reconciliationAvailable: boolean;
 
-  constructor(message: string, status: number, code: string | null = null) {
+  constructor(
+    message: string,
+    status: number,
+    code: string | null = null,
+    options: { correlationId?: string | null; reconciliationAvailable?: boolean } = {}
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.correlationId = options.correlationId ?? null;
+    this.reconciliationAvailable = options.reconciliationAvailable ?? false;
   }
 }
 
@@ -105,7 +115,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       typeof rawDetail === "object" && rawDetail !== null && "code" in rawDetail
         ? String(rawDetail.code)
         : null;
-    throw new ApiError(detail, response.status, code);
+    const correlationId =
+      typeof rawDetail === "object" && rawDetail !== null && "correlation_id" in rawDetail
+        ? String(rawDetail.correlation_id)
+        : null;
+    const reconciliationAvailable =
+      typeof rawDetail === "object" &&
+      rawDetail !== null &&
+      "reconciliation_available" in rawDetail &&
+      rawDetail.reconciliation_available === true;
+    throw new ApiError(detail, response.status, code, {
+      correlationId,
+      reconciliationAvailable
+    });
   }
 
   return response.json() as Promise<T>;
@@ -287,6 +309,22 @@ export function executeGmailDelegateChange(
 ): Promise<GmailDelegateMutationResult> {
   return request<GmailDelegateMutationResult>(
     `/api/v1/organizations/${organizationId}/google-workspace/gmail-delegates/${operation}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
+      signal
+    }
+  );
+}
+
+export function reconcileGmailDelegateChange(
+  organizationId: string,
+  operation: "create" | "remove",
+  confirmationToken: string,
+  signal?: AbortSignal
+): Promise<GmailDelegateReconciliationResult> {
+  return request<GmailDelegateReconciliationResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/gmail-delegates/${operation}/reconcile`,
     {
       method: "POST",
       body: JSON.stringify({ confirmation_token: confirmationToken }),

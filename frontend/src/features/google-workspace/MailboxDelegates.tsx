@@ -15,7 +15,8 @@ import {
   ApiError,
   executeGmailDelegateChange,
   listGmailDelegates,
-  previewGmailDelegateChange
+  previewGmailDelegateChange,
+  reconcileGmailDelegateChange
 } from "../../api/client";
 import type {
   GmailDelegate,
@@ -30,6 +31,23 @@ interface MailboxDelegatesProps {
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const AMBIGUOUS_MUTATION_CODES = new Set([
+  "google_timeout",
+  "google_network_error",
+  "google_service_unavailable"
+]);
+
+interface AmbiguousChange {
+  preview: GmailDelegateChangePreview;
+}
+
+function isAmbiguousMutationError(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    error.reconciliationAvailable &&
+    AMBIGUOUS_MUTATION_CODES.has(error.code ?? "")
+  );
+}
 
 function delegationErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) {
@@ -95,14 +113,17 @@ export function MailboxDelegates({
   const [delegateEmail, setDelegateEmail] = useState("");
   const [listError, setListError] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<
-    { type: "success" | "error"; message: string } | null
+    { type: "success" | "error" | "warning" | "info"; message: string } | null
   >(null);
   const [pendingPreview, setPendingPreview] = useState<GmailDelegateChangePreview | null>(null);
+  const [ambiguousChange, setAmbiguousChange] = useState<AmbiguousChange | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
+  const [isReconciling, setIsReconciling] = useState(false);
   const requestSequence = useRef(0);
   const readController = useRef<AbortController | null>(null);
+  const reconciliationInFlight = useRef(false);
 
   const loadDelegates = useCallback(async (preserveActionFeedback = false) => {
     readController.current?.abort();
@@ -140,6 +161,11 @@ export function MailboxDelegates({
     setListError(null);
     setActionFeedback(null);
     setPendingPreview(null);
+    setAmbiguousChange(null);
+    setIsPreviewing(false);
+    setIsMutating(false);
+    setIsReconciling(false);
+    reconciliationInFlight.current = false;
     void loadDelegates();
     return () => readController.current?.abort();
   }, [loadDelegates]);
@@ -150,7 +176,7 @@ export function MailboxDelegates({
       setActionFeedback({ type: "error", message: "Enter a valid full email address." });
       return;
     }
-    if (!canMutate || isPreviewing || isMutating) return;
+    if (!canMutate || isPreviewing || isMutating || isReconciling || ambiguousChange) return;
 
     readController.current?.abort();
     const controller = new AbortController();
@@ -184,8 +210,51 @@ export function MailboxDelegates({
     await previewChange("create", delegateEmail);
   }
 
+  async function reconcileAmbiguousChange(change: AmbiguousChange, sequence: number) {
+    if (reconciliationInFlight.current) return;
+    reconciliationInFlight.current = true;
+    readController.current?.abort();
+    const controller = new AbortController();
+    readController.current = controller;
+    setIsReconciling(true);
+    setActionFeedback({
+      type: "info",
+      message: "Google did not confirm the mutation response. Checking the current state without resubmitting the change…"
+    });
+    try {
+      const result = await reconcileGmailDelegateChange(
+        organizationId,
+        change.preview.operation,
+        change.preview.confirmation_token,
+        controller.signal
+      );
+      if (requestSequence.current !== sequence) return;
+      if (result.status === "verified") {
+        setAmbiguousChange(null);
+        setActionFeedback({ type: "success", message: result.message });
+        setIsReconciling(false);
+        reconciliationInFlight.current = false;
+        await loadDelegates(true);
+        return;
+      }
+      setActionFeedback({ type: "warning", message: result.message });
+    } catch (error) {
+      if (controller.signal.aborted || requestSequence.current !== sequence) return;
+      setActionFeedback({
+        type: "warning",
+        message: `The outcome is still unknown. ${delegationErrorMessage(error)} The original change was not resubmitted.`
+      });
+    } finally {
+      if (requestSequence.current === sequence) {
+        readController.current = null;
+        setIsReconciling(false);
+        reconciliationInFlight.current = false;
+      }
+    }
+  }
+
   async function confirmChange() {
-    if (!pendingPreview || isMutating) return;
+    if (!pendingPreview || isMutating || isReconciling || ambiguousChange) return;
     const preview = pendingPreview;
     const sequence = requestSequence.current;
     setIsMutating(true);
@@ -205,11 +274,21 @@ export function MailboxDelegates({
     } catch (error) {
       if (requestSequence.current !== sequence) return;
       setPendingPreview(null);
-      setActionFeedback({ type: "error", message: delegationErrorMessage(error) });
+      if (isAmbiguousMutationError(error)) {
+        const change = { preview };
+        setAmbiguousChange(change);
+        setIsMutating(false);
+        await reconcileAmbiguousChange(change, sequence);
+      } else {
+        setActionFeedback({ type: "error", message: delegationErrorMessage(error) });
+      }
     } finally {
       if (requestSequence.current === sequence) setIsMutating(false);
     }
   }
+
+  const writeLocked =
+    isPreviewing || isMutating || isReconciling || ambiguousChange !== null;
 
   return (
     <section className="mailbox-delegates" aria-labelledby="mailbox-delegates-heading">
@@ -225,7 +304,7 @@ export function MailboxDelegates({
           type="button"
           className="secondary-button"
           onClick={() => void loadDelegates()}
-          disabled={isLoading || isPreviewing || isMutating}
+          disabled={isLoading || isPreviewing || isMutating || isReconciling}
         >
           <RefreshCw className={isLoading ? "spin" : ""} aria-hidden="true" />
           Refresh
@@ -264,7 +343,7 @@ export function MailboxDelegates({
                 type="button"
                 className="danger-button"
                 onClick={() => void previewChange("remove", delegate.primary_email)}
-                disabled={!canMutate || isPreviewing || isMutating}
+                disabled={!canMutate || writeLocked}
                 title={canMutate ? "Remove delegate" : "Administrator access required"}
               >
                 <Trash2 aria-hidden="true" />
@@ -285,12 +364,12 @@ export function MailboxDelegates({
             value={delegateEmail}
             onChange={(event) => setDelegateEmail(event.target.value)}
             placeholder="delegate@example.com"
-            disabled={!canMutate || isPreviewing || isMutating}
+            disabled={!canMutate || writeLocked}
           />
         </label>
         <button
           type="submit"
-          disabled={!canMutate || !delegateEmail.trim() || isPreviewing || isMutating}
+          disabled={!canMutate || !delegateEmail.trim() || writeLocked}
         >
           {isPreviewing ? <Loader2 className="spin" aria-hidden="true" /> : <MailPlus aria-hidden="true" />}
           {isPreviewing ? "Validating" : "Review delegate"}
@@ -303,13 +382,43 @@ export function MailboxDelegates({
       )}
 
       {actionFeedback && (
-        <div className={`delegate-state ${actionFeedback.type}`} role="status" aria-live="polite">
+        <div
+          className={`delegate-state ${actionFeedback.type}`}
+          role={actionFeedback.type === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
           {actionFeedback.type === "success" ? (
             <CheckCircle2 aria-hidden="true" />
+          ) : actionFeedback.type === "info" ? (
+            <Loader2 className="spin" aria-hidden="true" />
           ) : (
             <AlertCircle aria-hidden="true" />
           )}
           <span>{actionFeedback.message}</span>
+        </div>
+      )}
+
+      {ambiguousChange && (
+        <div className="delegate-reconciliation" aria-label="Ambiguous delegate change">
+          <div>
+            <strong>Outcome unknown</strong>
+            <span>
+              Google did not confirm whether access for {ambiguousChange.preview.delegate_primary_email}
+              {ambiguousChange.preview.operation === "create" ? " was granted" : " was revoked"}.
+              Checking status only reads the delegate list and never repeats the change.
+            </span>
+          </div>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() =>
+              void reconcileAmbiguousChange(ambiguousChange, requestSequence.current)
+            }
+            disabled={isReconciling}
+          >
+            {isReconciling && <Loader2 className="spin" aria-hidden="true" />}
+            {isReconciling ? "Checking status" : "Check status"}
+          </button>
         </div>
       )}
 

@@ -20,12 +20,15 @@
   alleen `gmail.settings.sharing`. De mailboxeigenaar wordt pas geïmpersoneerd nadat actor,
   organization, Google `customerId` en canonical identity zijn gevalideerd.
 - Gmail writes vereisen een korte, eenmalige server-side confirmation, worden vlak voor uitvoering
-  opnieuw gevalideerd en worden na onduidelijke netwerkfouten nooit automatisch herhaald.
+  opnieuw gevalideerd en worden na onduidelijke netwerkfouten nooit automatisch herhaald. Alleen
+  actor/tenant/operation/identity-gebonden, begrensde `delegates.list` reconciliation is toegestaan.
 - Connection-testresultaten en lookup-audit events bevatten alleen gesaniteerde foutcodes en
   minimale metadata; zoekadressen, ruwe Google-responses en profielen worden niet opgeslagen.
 - OAuth tokens mogen niet in git, logs of onbeveiligde JSON velden terechtkomen.
 - Delegate-audits bevatten minimale canonical mailboxidentiteiten voor onderzoek, maar nooit
   credentials, confirmation tokens, headers, ruwe Google-responses of volledige profielen.
+  Mutation-timeouts en latere reconciliation krijgen afzonderlijke audit-events met dezelfde
+  veilige correlation-id; het oorspronkelijke fout-event wordt niet overschreven.
 
 ## Applicatiebeveiliging
 

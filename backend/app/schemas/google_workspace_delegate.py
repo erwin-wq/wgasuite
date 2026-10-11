@@ -52,3 +52,16 @@ class GmailDelegateMutationRead(BaseModel):
     delegate_primary_email: str
     outcome: Literal["created", "removed"]
     message: str
+
+
+class GmailDelegateReconciliationRead(BaseModel):
+    operation: Literal["create", "remove"]
+    owner_primary_email: str
+    delegate_primary_email: str
+    status: Literal["verified", "unknown"]
+    observed_state: Literal[
+        "accepted", "absent", "not_observed", "pending", "rejected", "unknown", "present"
+    ]
+    attempts: int
+    correlation_id: str
+    message: str
