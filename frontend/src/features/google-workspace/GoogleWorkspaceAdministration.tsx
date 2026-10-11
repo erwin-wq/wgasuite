@@ -1,4 +1,13 @@
-import { AlertTriangle, Building2, CheckCircle2, Clock3, KeyRound, Settings2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Building2,
+  CheckCircle2,
+  Clock3,
+  KeyRound,
+  Settings2,
+  UserRoundSearch,
+  UsersRound
+} from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 
 import type { ConnectorConfig } from "../../types";
@@ -11,6 +20,7 @@ interface GoogleWorkspaceAdministrationProps {
   connectionWizard: ReactNode;
   gmailAuthorization?: ReactNode;
   userLookup: ReactNode;
+  groupManagement: ReactNode;
 }
 
 function formatTestTime(value: string | null): string {
@@ -28,7 +38,8 @@ export function GoogleWorkspaceAdministration({
   canManageConnection,
   connectionWizard,
   gmailAuthorization,
-  userLookup
+  userLookup,
+  groupManagement
 }: GoogleWorkspaceAdministrationProps) {
   const needsSetup =
     !connectorConfig ||
@@ -38,9 +49,11 @@ export function GoogleWorkspaceAdministration({
   const isConnected = connectorConfig?.status === "connected";
   const isFailed = connectorConfig?.status === "connection_failed";
   const [showWizard, setShowWizard] = useState(needsSetup);
+  const [activeTool, setActiveTool] = useState<"users" | "groups">("users");
 
   useEffect(() => {
     setShowWizard(needsSetup);
+    setActiveTool("users");
   }, [organizationId, needsSetup]);
 
   return (
@@ -88,7 +101,7 @@ export function GoogleWorkspaceAdministration({
           <div className="connection-status-item">
             <KeyRound aria-hidden="true" />
             <span>API capability</span>
-            <strong>Directory users · read only</strong>
+            <strong>Directory users & groups</strong>
           </div>
           {canManageConnection && (
             <button
@@ -123,11 +136,27 @@ export function GoogleWorkspaceAdministration({
         </section>
       )}
 
-      <section className="workspace-user-lookup-panel">{userLookup}</section>
+      <nav className="workspace-tool-navigation" aria-label="Google Workspace administration tools">
+        <button
+          type="button"
+          className={activeTool === "users" ? "active" : ""}
+          aria-current={activeTool === "users" ? "page" : undefined}
+          onClick={() => setActiveTool("users")}
+        >
+          <UserRoundSearch aria-hidden="true" /> Users & aliases
+        </button>
+        <button
+          type="button"
+          className={activeTool === "groups" ? "active" : ""}
+          aria-current={activeTool === "groups" ? "page" : undefined}
+          onClick={() => setActiveTool("groups")}
+        >
+          <UsersRound aria-hidden="true" /> Groups
+        </button>
+      </nav>
 
-      <section className="future-workspace-panel" aria-labelledby="future-workspace-heading">
-        <h2 id="future-workspace-heading">More Workspace administration</h2>
-        <p>Additional evidence-backed administration modules will appear here in the future.</p>
+      <section className="workspace-user-lookup-panel">
+        {activeTool === "users" ? userLookup : groupManagement}
       </section>
     </div>
   );

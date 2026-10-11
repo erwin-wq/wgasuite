@@ -68,6 +68,20 @@ from app.schemas.google_workspace_delegate import (
     GmailDelegateRead,
     GmailDelegateReconciliationRead,
 )
+from app.schemas.google_workspace_group import (
+    GoogleWorkspaceGroupRead,
+    GroupMemberListRead,
+    GroupMemberListRequest,
+    GroupMemberRead,
+    GroupMembershipMutationRead,
+    GroupMembershipMutationRequest,
+    GroupMembershipPreviewRead,
+    GroupMembershipPreviewRequest,
+    GroupMembershipReconciliationRead,
+    GroupReferenceRequest,
+    GroupSearchRead,
+    GroupSearchRequest,
+)
 from app.schemas.google_workspace_user import (
     GoogleWorkspaceUserLookupRequest,
     GoogleWorkspaceUserRead,
@@ -101,6 +115,13 @@ from app.services.google_workspace_gmail_delegation import (
     GmailDelegateReconciliationError,
     GoogleWorkspaceGmailDelegationReconciliationService,
     GoogleWorkspaceGmailDelegationService,
+)
+from app.services.google_workspace_groups import (
+    GoogleWorkspaceGroupReconciliationService,
+    GoogleWorkspaceGroupsService,
+    GroupMembershipMutationAmbiguousError,
+    GroupMembershipOperation,
+    GroupMembershipReconciliationError,
 )
 from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookup
 from app.services.passwords import verify_password
@@ -489,9 +510,7 @@ def get_platform_admin_overview(
     connector_configs = list(
         db.scalars(
             select(ConnectorConfig)
-            .options(
-                selectinload(ConnectorConfig.organization).selectinload(Organization.customer)
-            )
+            .options(selectinload(ConnectorConfig.organization).selectinload(Organization.customer))
             .order_by(ConnectorConfig.updated_at.desc())
         ).all()
     )
@@ -552,9 +571,7 @@ def get_platform_admin_overview(
     ]
 
     recent_audit_events = list(
-        db.scalars(
-            select(AuditEvent).order_by(AuditEvent.created_at.desc()).limit(10)
-        ).all()
+        db.scalars(select(AuditEvent).order_by(AuditEvent.created_at.desc()).limit(10)).all()
     )
     audit_event_summaries = [
         PlatformAdminAuditEventSummary(
@@ -959,9 +976,7 @@ def upsert_google_workspace_connector_config(
         customer_id=organization.customer_id,
         metadata={
             "connector_type": connector_config.connector_type,
-            "changed_fields": [
-                field for field in changed_fields if field != "credential_ref"
-            ],
+            "changed_fields": [field for field in changed_fields if field != "credential_ref"],
             "credential_reference_changed": "credential_ref" in changed_fields,
         },
     )
@@ -1449,9 +1464,7 @@ def lookup_google_workspace_user(
             reason=error.code.value,
         )
         raise HTTPException(
-            status_code=GOOGLE_USER_LOOKUP_HTTP_STATUS.get(
-                error.code, status.HTTP_502_BAD_GATEWAY
-            ),
+            status_code=GOOGLE_USER_LOOKUP_HTTP_STATUS.get(error.code, status.HTTP_502_BAD_GATEWAY),
             detail={"code": error.code.value, "message": str(error)},
         ) from None
 
@@ -1499,9 +1512,7 @@ def gmail_delegate_http_error(
     if extra_detail:
         detail.update(extra_detail)
     return HTTPException(
-        status_code=GMAIL_DELEGATE_HTTP_STATUS.get(
-            error.code, status.HTTP_502_BAD_GATEWAY
-        ),
+        status_code=GMAIL_DELEGATE_HTTP_STATUS.get(error.code, status.HTTP_502_BAD_GATEWAY),
         detail=detail,
     )
 
@@ -1702,11 +1713,7 @@ def execute_gmail_delegate_change(
             object_type="google_workspace_mailbox",
             object_id=organization.id,
             customer_id=organization.customer_id,
-            outcome=(
-                "rejected"
-                if error.code in GMAIL_DELEGATE_REJECTION_CODES
-                else "failure"
-            ),
+            outcome=("rejected" if error.code in GMAIL_DELEGATE_REJECTION_CODES else "failure"),
             reason=error.code.value,
             metadata=audit_metadata,
         )
@@ -1876,6 +1883,530 @@ def reconcile_google_workspace_gmail_delegate_remove(
     )
 
 
+GROUP_HTTP_STATUS = {
+    **GOOGLE_USER_LOOKUP_HTTP_STATUS,
+    GoogleWorkspaceErrorCode.GOOGLE_GROUP_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    GoogleWorkspaceErrorCode.GOOGLE_GROUP_LOOKUP_MISMATCH: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH: status.HTTP_403_FORBIDDEN,
+    GoogleWorkspaceErrorCode.GROUP_MEMBER_ALREADY_EXISTS: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GROUP_MEMBER_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    GoogleWorkspaceErrorCode.GROUP_MEMBER_UNSUPPORTED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GROUP_OWNER_PROTECTED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GROUP_MEMBERSHIP_UNSUPPORTED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_INVALID: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_EXPIRED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_USED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GROUP_RECONCILIATION_NOT_AVAILABLE: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GROUP_RECONCILIATION_EXPIRED: status.HTTP_409_CONFLICT,
+}
+GROUP_REJECTION_CODES = frozenset(
+    {
+        GoogleWorkspaceErrorCode.GOOGLE_USER_NOT_FOUND,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_LOOKUP_MISMATCH,
+        GoogleWorkspaceErrorCode.GOOGLE_GROUP_NOT_FOUND,
+        GoogleWorkspaceErrorCode.GOOGLE_GROUP_LOOKUP_MISMATCH,
+        GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH,
+        GoogleWorkspaceErrorCode.GROUP_MEMBER_ALREADY_EXISTS,
+        GoogleWorkspaceErrorCode.GROUP_MEMBER_NOT_FOUND,
+        GoogleWorkspaceErrorCode.GROUP_MEMBER_UNSUPPORTED,
+        GoogleWorkspaceErrorCode.GROUP_OWNER_PROTECTED,
+        GoogleWorkspaceErrorCode.GROUP_MEMBERSHIP_UNSUPPORTED,
+        GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_INVALID,
+        GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_EXPIRED,
+        GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_USED,
+        GoogleWorkspaceErrorCode.GROUP_RECONCILIATION_NOT_AVAILABLE,
+        GoogleWorkspaceErrorCode.GROUP_RECONCILIATION_EXPIRED,
+    }
+)
+
+
+def require_groups_admin(
+    *, db: Session, current_user: User, organization: Organization, action: str
+) -> None:
+    try:
+        require_customer_admin_access(current_user, organization.customer_id)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_group",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected",
+            reason="organization_access_denied",
+        )
+        raise
+
+
+def require_groups_read(
+    *, db: Session, current_user: User, organization: Organization, action: str
+) -> None:
+    try:
+        require_customer_connector_operation_access(current_user, organization.customer_id)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_group",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected",
+            reason="organization_access_denied",
+        )
+        raise
+
+
+def group_http_error(
+    error: GoogleWorkspaceError,
+    *,
+    extra_detail: dict[str, object] | None = None,
+) -> HTTPException:
+    detail: dict[str, object] = {"code": error.code.value, "message": str(error)}
+    if extra_detail:
+        detail.update(extra_detail)
+    return HTTPException(
+        status_code=GROUP_HTTP_STATUS.get(error.code, status.HTTP_502_BAD_GATEWAY),
+        detail=detail,
+    )
+
+
+def group_read(value: object) -> GoogleWorkspaceGroupRead:
+    return GoogleWorkspaceGroupRead(**value.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/groups/search",
+    response_model=GroupSearchRead,
+    tags=["google-workspace"],
+)
+def search_google_workspace_groups(
+    organization_id: UUID,
+    payload: GroupSearchRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GroupSearchRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.group.searched"
+    require_groups_read(db=db, current_user=current_user, organization=organization, action=action)
+    try:
+        result = GoogleWorkspaceGroupsService.from_settings(db).search_groups(
+            actor=current_user,
+            organization_id=organization.id,
+            query=payload.query,
+            page_token=payload.page_token,
+            max_results=payload.max_results,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_group",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+            metadata={"has_query": bool(payload.query), "page_requested": bool(payload.page_token)},
+        )
+        raise group_http_error(error) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_group",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "result_count": len(result.groups),
+            "has_next_page": bool(result.next_page_token),
+        },
+    )
+    return GroupSearchRead(
+        groups=[group_read(group) for group in result.groups],
+        next_page_token=result.next_page_token,
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/groups/get",
+    response_model=GoogleWorkspaceGroupRead,
+    tags=["google-workspace"],
+)
+def get_google_workspace_group(
+    organization_id: UUID,
+    payload: GroupReferenceRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GoogleWorkspaceGroupRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.group.viewed"
+    require_groups_read(db=db, current_user=current_user, organization=organization, action=action)
+    try:
+        result = GoogleWorkspaceGroupsService.from_settings(db).get_group(
+            actor=current_user,
+            organization_id=organization.id,
+            group_email=payload.group_email,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_group",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+        )
+        raise group_http_error(error) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_group",
+        object_id=result.id,
+        customer_id=organization.customer_id,
+    )
+    return group_read(result)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/groups/members/list",
+    response_model=GroupMemberListRead,
+    tags=["google-workspace"],
+)
+def list_google_workspace_group_members(
+    organization_id: UUID,
+    payload: GroupMemberListRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GroupMemberListRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.group_membership.listed"
+    require_groups_read(db=db, current_user=current_user, organization=organization, action=action)
+    try:
+        result = GoogleWorkspaceGroupsService.from_settings(db).list_members(
+            actor=current_user,
+            organization_id=organization.id,
+            group_email=payload.group_email,
+            page_token=payload.page_token,
+            max_results=payload.max_results,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_group",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+        )
+        raise group_http_error(error) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_group",
+        object_id=result.group.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "member_count": len(result.members),
+            "has_next_page": bool(result.next_page_token),
+            "direct_only": True,
+        },
+    )
+    return GroupMemberListRead(
+        group=group_read(result.group),
+        members=[GroupMemberRead(**member.__dict__) for member in result.members],
+        next_page_token=result.next_page_token,
+    )
+
+
+def preview_group_membership_change(
+    *,
+    operation: GroupMembershipOperation,
+    organization_id: UUID,
+    payload: GroupMembershipPreviewRequest,
+    db: Session,
+    current_user: User,
+) -> GroupMembershipPreviewRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = f"google_workspace.group_membership.{operation}_previewed"
+    require_groups_admin(db=db, current_user=current_user, organization=organization, action=action)
+    try:
+        result = GoogleWorkspaceGroupsService.from_settings(db).preview_change(
+            actor=current_user,
+            organization_id=organization.id,
+            operation=operation,
+            group_email=payload.group_email,
+            member_email=payload.member_email,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_group",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected" if error.code in GROUP_REJECTION_CODES else "failure",
+            reason=error.code.value,
+        )
+        raise group_http_error(error) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_group",
+        object_id=result.group_primary_email,
+        customer_id=organization.customer_id,
+        metadata={"operation": operation, "member_role": result.member_role},
+    )
+    return GroupMembershipPreviewRead(**result.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/groups/members/add/preview",
+    response_model=GroupMembershipPreviewRead,
+    tags=["google-workspace"],
+)
+def preview_google_workspace_group_member_add(
+    organization_id: UUID,
+    payload: GroupMembershipPreviewRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GroupMembershipPreviewRead:
+    return preview_group_membership_change(
+        operation="add",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/groups/members/remove/preview",
+    response_model=GroupMembershipPreviewRead,
+    tags=["google-workspace"],
+)
+def preview_google_workspace_group_member_remove(
+    organization_id: UUID,
+    payload: GroupMembershipPreviewRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GroupMembershipPreviewRead:
+    return preview_group_membership_change(
+        operation="remove",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+def execute_group_membership_change(
+    *,
+    operation: GroupMembershipOperation,
+    organization_id: UUID,
+    payload: GroupMembershipMutationRequest,
+    db: Session,
+    current_user: User,
+) -> GroupMembershipMutationRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = f"google_workspace.group_membership.{'added' if operation == 'add' else 'removed'}"
+    require_groups_admin(db=db, current_user=current_user, organization=organization, action=action)
+    try:
+        result = GoogleWorkspaceGroupsService.from_settings(db).execute_change(
+            actor=current_user,
+            organization_id=organization.id,
+            operation=operation,
+            confirmation_token=payload.confirmation_token,
+        )
+    except GoogleWorkspaceError as error:
+        metadata: dict[str, object] | None = None
+        detail: dict[str, object] | None = None
+        if isinstance(error, GroupMembershipMutationAmbiguousError):
+            metadata = {
+                "correlation_id": error.correlation_id,
+                "timeout_occurred": error.code == GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT,
+                "reconciliation_available": True,
+            }
+            detail = {
+                "correlation_id": error.correlation_id,
+                "reconciliation_available": True,
+            }
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_group",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected" if error.code in GROUP_REJECTION_CODES else "failure",
+            reason=error.code.value,
+            metadata=metadata,
+        )
+        raise group_http_error(error, extra_detail=detail) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_group",
+        object_id=result.group_primary_email,
+        customer_id=organization.customer_id,
+        metadata={
+            "group_primary_email": result.group_primary_email,
+            "member_primary_email": result.member_primary_email,
+            "member_role": "MEMBER" if operation == "add" else None,
+        },
+    )
+    return GroupMembershipMutationRead(**result.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/groups/members/add",
+    response_model=GroupMembershipMutationRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["google-workspace"],
+)
+def add_google_workspace_group_member(
+    organization_id: UUID,
+    payload: GroupMembershipMutationRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GroupMembershipMutationRead:
+    return execute_group_membership_change(
+        operation="add",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/groups/members/remove",
+    response_model=GroupMembershipMutationRead,
+    tags=["google-workspace"],
+)
+def remove_google_workspace_group_member(
+    organization_id: UUID,
+    payload: GroupMembershipMutationRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GroupMembershipMutationRead:
+    return execute_group_membership_change(
+        operation="remove",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+def reconcile_group_membership_change(
+    *,
+    operation: GroupMembershipOperation,
+    organization_id: UUID,
+    payload: GroupMembershipMutationRequest,
+    db: Session,
+    current_user: User,
+) -> GroupMembershipReconciliationRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = f"google_workspace.group_membership.{operation}_reconciled"
+    require_groups_admin(db=db, current_user=current_user, organization=organization, action=action)
+    try:
+        result = GoogleWorkspaceGroupReconciliationService.from_settings(db).reconcile_change(
+            actor=current_user,
+            organization_id=organization.id,
+            operation=operation,
+            confirmation_token=payload.confirmation_token,
+        )
+    except GoogleWorkspaceError as error:
+        metadata: dict[str, object] = {"final_state": "unknown"}
+        if isinstance(error, GroupMembershipReconciliationError):
+            metadata.update(
+                {
+                    "correlation_id": error.correlation_id,
+                    "reconciliation_attempts": error.attempts,
+                }
+            )
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_group",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected" if error.code in GROUP_REJECTION_CODES else "failure",
+            reason=error.code.value,
+            metadata=metadata,
+        )
+        raise group_http_error(error) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_group",
+        object_id=result.group_primary_email,
+        customer_id=organization.customer_id,
+        outcome="success" if result.status == "verified" else "unknown",
+        reason=None if result.status == "verified" else "state_not_observed",
+        metadata={
+            "correlation_id": result.correlation_id,
+            "reconciliation_attempts": result.attempts,
+            "final_state": result.status,
+            "observed_state": result.observed_state,
+        },
+    )
+    return GroupMembershipReconciliationRead(**result.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/groups/members/add/reconcile",
+    response_model=GroupMembershipReconciliationRead,
+    tags=["google-workspace"],
+)
+def reconcile_google_workspace_group_member_add(
+    organization_id: UUID,
+    payload: GroupMembershipMutationRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GroupMembershipReconciliationRead:
+    return reconcile_group_membership_change(
+        operation="add",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/groups/members/remove/reconcile",
+    response_model=GroupMembershipReconciliationRead,
+    tags=["google-workspace"],
+)
+def reconcile_google_workspace_group_member_remove(
+    organization_id: UUID,
+    payload: GroupMembershipMutationRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GroupMembershipReconciliationRead:
+    return reconcile_group_membership_change(
+        operation="remove",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
 @api_router.post(
     "/assessments",
     response_model=AssessmentRead,
@@ -1905,9 +2436,8 @@ def create_assessment(
 def list_assessments(db: DbSession, current_user: CurrentUser) -> list[Assessment]:
     statement = select(Assessment).order_by(Assessment.created_at.desc())
     if not is_platform_user(current_user):
-        statement = (
-            statement.join(Assessment.organization)
-            .where(Organization.customer_id.in_(scoped_customer_ids(current_user)))
+        statement = statement.join(Assessment.organization).where(
+            Organization.customer_id.in_(scoped_customer_ids(current_user))
         )
     return list(db.scalars(statement).all())
 
@@ -1958,9 +2488,7 @@ def get_assessment_report(
     findings = list(db.scalars(findings_statement).all())
 
     assets_by_id = {
-        finding.asset.id: finding.asset
-        for finding in findings
-        if finding.asset is not None
+        finding.asset.id: finding.asset for finding in findings if finding.asset is not None
     }
 
     risk_counts = RiskLevelCounts()
@@ -2181,9 +2709,8 @@ def create_asset(
 def list_assets(db: DbSession, current_user: CurrentUser) -> list[Asset]:
     statement = select(Asset).order_by(Asset.created_at.desc())
     if not is_platform_user(current_user):
-        statement = (
-            statement.join(Asset.organization)
-            .where(Organization.customer_id.in_(scoped_customer_ids(current_user)))
+        statement = statement.join(Asset.organization).where(
+            Organization.customer_id.in_(scoped_customer_ids(current_user))
         )
     return list(db.scalars(statement).all())
 

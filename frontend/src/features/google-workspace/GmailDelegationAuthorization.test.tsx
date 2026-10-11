@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { ConnectorConfig } from "../../types";
 import { DIRECTORY_USER_READONLY_SCOPE } from "./ConnectionWizard";
 import {
+  DIRECTORY_GROUP_MEMBER_SCOPE,
+  DIRECTORY_GROUP_READONLY_SCOPE,
   GMAIL_DELEGATE_READ_SCOPE,
   GMAIL_DELEGATE_WRITE_SCOPE,
   GmailDelegationAuthorization
@@ -32,18 +34,22 @@ const connectedConfig: ConnectorConfig = {
 };
 
 describe("GmailDelegationAuthorization", () => {
-  it("separates Directory, Gmail read, and Gmail write capabilities", () => {
+  it("separates Directory, Gmail, and Groups capabilities", () => {
     render(<GmailDelegationAuthorization connectorConfig={connectedConfig} />);
 
     expect(screen.getByText("Directory user lookup")).toBeVisible();
     expect(screen.getByText("Gmail delegates readable")).toBeVisible();
     expect(screen.getByText("Gmail delegate writes")).toBeVisible();
+    expect(screen.getByText("Groups and direct members")).toBeVisible();
+    expect(screen.getByText("Group member writes")).toBeVisible();
     expect(screen.getByText("Verified")).toBeVisible();
     expect(screen.getByText("Verify by loading a mailbox")).toBeVisible();
-    expect(screen.getByText("Not tested automatically")).toBeVisible();
+    expect(screen.getAllByText("Not tested automatically")).toHaveLength(2);
     expect(screen.getByText(DIRECTORY_USER_READONLY_SCOPE)).toBeVisible();
     expect(screen.getByText(GMAIL_DELEGATE_READ_SCOPE)).toBeVisible();
     expect(screen.getByText(GMAIL_DELEGATE_WRITE_SCOPE)).toBeVisible();
+    expect(screen.getByText(DIRECTORY_GROUP_READONLY_SCOPE)).toBeVisible();
+    expect(screen.getByText(DIRECTORY_GROUP_MEMBER_SCOPE)).toBeVisible();
   });
 
   it("copies all required scopes while preserving the Directory scope", async () => {
@@ -54,9 +60,13 @@ describe("GmailDelegationAuthorization", () => {
     await user.click(screen.getByRole("button", { name: "Copy all" }));
 
     expect(writeText).toHaveBeenCalledWith(
-      [DIRECTORY_USER_READONLY_SCOPE, GMAIL_DELEGATE_READ_SCOPE, GMAIL_DELEGATE_WRITE_SCOPE].join(
-        ","
-      )
+      [
+        DIRECTORY_USER_READONLY_SCOPE,
+        GMAIL_DELEGATE_READ_SCOPE,
+        GMAIL_DELEGATE_WRITE_SCOPE,
+        DIRECTORY_GROUP_READONLY_SCOPE,
+        DIRECTORY_GROUP_MEMBER_SCOPE
+      ].join(",")
     );
     expect(screen.getByRole("button", { name: "Copied" })).toBeVisible();
   });

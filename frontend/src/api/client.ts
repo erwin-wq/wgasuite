@@ -16,8 +16,14 @@ import type {
   GmailDelegateList,
   GmailDelegateMutationResult,
   GmailDelegateReconciliationResult,
+  GoogleWorkspaceGroup,
+  GoogleWorkspaceGroupMemberList,
+  GoogleWorkspaceGroupSearchResult,
   GoogleWorkspaceCheck,
   GoogleWorkspaceUser,
+  GroupMembershipMutationResult,
+  GroupMembershipPreview,
+  GroupMembershipReconciliationResult,
   LoginRequest,
   PlatformAdminOverview,
   ScanRun,
@@ -325,6 +331,106 @@ export function reconcileGmailDelegateChange(
 ): Promise<GmailDelegateReconciliationResult> {
   return request<GmailDelegateReconciliationResult>(
     `/api/v1/organizations/${organizationId}/google-workspace/gmail-delegates/${operation}/reconcile`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
+      signal
+    }
+  );
+}
+
+export function searchGoogleWorkspaceGroups(
+  organizationId: string,
+  query: string,
+  pageToken?: string | null,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceGroupSearchResult> {
+  return request<GoogleWorkspaceGroupSearchResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/groups/search`,
+    {
+      method: "POST",
+      body: JSON.stringify({ query, page_token: pageToken ?? null, max_results: 50 }),
+      signal
+    }
+  );
+}
+
+export function getGoogleWorkspaceGroup(
+  organizationId: string,
+  groupEmail: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceGroup> {
+  return request<GoogleWorkspaceGroup>(
+    `/api/v1/organizations/${organizationId}/google-workspace/groups/get`,
+    {
+      method: "POST",
+      body: JSON.stringify({ group_email: groupEmail }),
+      signal
+    }
+  );
+}
+
+export function listGoogleWorkspaceGroupMembers(
+  organizationId: string,
+  groupEmail: string,
+  pageToken?: string | null,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceGroupMemberList> {
+  return request<GoogleWorkspaceGroupMemberList>(
+    `/api/v1/organizations/${organizationId}/google-workspace/groups/members/list`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        group_email: groupEmail,
+        page_token: pageToken ?? null,
+        max_results: 50
+      }),
+      signal
+    }
+  );
+}
+
+export function previewGroupMembershipChange(
+  organizationId: string,
+  operation: "add" | "remove",
+  groupEmail: string,
+  memberEmail: string,
+  signal?: AbortSignal
+): Promise<GroupMembershipPreview> {
+  return request<GroupMembershipPreview>(
+    `/api/v1/organizations/${organizationId}/google-workspace/groups/members/${operation}/preview`,
+    {
+      method: "POST",
+      body: JSON.stringify({ group_email: groupEmail, member_email: memberEmail }),
+      signal
+    }
+  );
+}
+
+export function executeGroupMembershipChange(
+  organizationId: string,
+  operation: "add" | "remove",
+  confirmationToken: string,
+  signal?: AbortSignal
+): Promise<GroupMembershipMutationResult> {
+  return request<GroupMembershipMutationResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/groups/members/${operation}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
+      signal
+    }
+  );
+}
+
+export function reconcileGroupMembershipChange(
+  organizationId: string,
+  operation: "add" | "remove",
+  confirmationToken: string,
+  signal?: AbortSignal
+): Promise<GroupMembershipReconciliationResult> {
+  return request<GroupMembershipReconciliationResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/groups/members/${operation}/reconcile`,
     {
       method: "POST",
       body: JSON.stringify({ confirmation_token: confirmationToken }),

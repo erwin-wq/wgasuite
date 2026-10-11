@@ -2,7 +2,8 @@
 
 WGASuite provides a five-step wizard, a real read-only connection test, exact Directory user
 lookup by primary email or user alias, and guarded Gmail mailbox delegate management using a
-service account with Domain-Wide Delegation (DWD). The security-check catalog remains mock-only as
+service account with Domain-Wide Delegation (DWD). It also provides customer-scoped Google Groups
+discovery and guarded direct-user membership changes. The security-check catalog remains mock-only as
 documented in the README.
 
 ## Wizard setup flow
@@ -49,6 +50,18 @@ https://www.googleapis.com/auth/gmail.settings.sharing
 The first scope is used only to list delegates. The second is used only for confirmed create and
 delete calls. WGASuite does not request `mail.google.com`, `gmail.modify`, or `gmail.readonly` as
 shortcuts and never modifies DWD grants automatically.
+
+For Google Groups, add both Directory scopes below while preserving the user and Gmail scopes:
+
+```text
+https://www.googleapis.com/auth/admin.directory.group.readonly
+https://www.googleapis.com/auth/admin.directory.group.member
+```
+
+The first is used for group discovery, details, direct members and reconciliation. The second is
+used only for a confirmed `members.insert` or `members.delete`. The UI exposes the existing numeric
+client ID, each individual scope and one copyable comma-separated scope set. WGASuite never edits
+Google Admin DWD grants and never performs a write to test authorization.
 
 See Google's official [service-account credential guide](https://developers.google.com/workspace/guides/create-credentials#service-account),
 [API enablement guide](https://developers.google.com/workspace/guides/enable-apis), and
@@ -175,6 +188,58 @@ ID and timeout flag; each reconciliation records attempt count plus verified or 
 as a separate event. Confirmation tokens, credentials, OAuth tokens, authorization headers, raw
 Google responses and full profiles are never stored in audit metadata.
 
+## Google Groups and direct memberships
+
+The **Groups** tab provides these organization-scoped POST endpoints, keeping addresses and Google
+page tokens out of URL paths:
+
+```text
+POST /api/v1/organizations/{organization_id}/google-workspace/groups/search
+POST /api/v1/organizations/{organization_id}/google-workspace/groups/get
+POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/list
+POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/add/preview
+POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/add
+POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/add/reconcile
+POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/remove/preview
+POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/remove
+POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/remove/reconcile
+```
+
+The service resolves the configured delegated administrator with Directory user lookup and takes
+Google's returned `customerId` as the tenant boundary. Search always calls
+`groups.list(customer=<verified customerId>)`; it never substitutes the configured domain. A group
+selected by primary address or alias is canonicalized with `groups.get` and its group ID must also
+appear in an exact customer-scoped list response before details or members are used. This supports
+multi-domain customers without treating matching email suffixes as ownership proof.
+
+Group results include primary email, aliases, description and Google's direct-member count when
+available. Direct members are retrieved with `includeDerivedMembership=false` and paginated with
+Google page tokens. User, nested group, customer-wide and external/unknown member types remain
+distinct in the UI; an empty page is a successful read.
+
+Add supports only an existing internal Directory user. User aliases resolve to a canonical primary
+email and the user's `customerId` must match the verified group customer. New memberships always
+use role `MEMBER`; role changes are not available. Remove supports only an existing direct internal
+user membership. Owner memberships are conservatively protected from all removal in this release,
+which also prevents last-owner removal. Nested groups, external/customer-wide identities and
+recognized dynamic/special groups are read-only. If Google reports that a group cannot be changed
+through Directory API, the operation returns `group_membership_unsupported` rather than trying a
+different API or broader scope.
+
+Both mutations require a five-minute, actor/organization/operation/group/user-bound confirmation.
+The server stores only a SHA-256 token digest, revalidates the canonical group, user and current
+direct relationship, then atomically consumes the confirmation before one write with
+`num_retries=0`. A timeout, network interruption or ambiguous Google 5xx never triggers another
+write. Reconciliation rebinds the original identities and performs at most four direct-member list
+polls with the same 0/0.5/1/2-second backoff, five-second read timeout and 20-second overall ceiling.
+Presence verifies add state and absence verifies remove state; neither proves which request caused
+the observed state. The original failure audit remains separate from every reconciliation audit.
+
+Connector operators may use group discovery and direct-member reads. Membership preview, execute
+and reconciliation endpoints require platform-admin or active customer-admin access. Backend role
+and tenant checks always occur before credential material is loaded. Group creation/deletion,
+aliases, role changes, settings, dynamic membership rules and bulk operations remain out of scope.
+
 ## Credential security and authorization
 
 The database stores the provider selection plus safe service-account email and numeric client ID.
@@ -278,6 +343,14 @@ optional sanitized message. Common codes include:
 | `google_user_not_found` | No exact Directory user or user alias matched; check Groups separately. |
 | `google_user_lookup_mismatch` | Google returned an unexpected identity; retry and investigate safely. |
 | `google_tenant_mismatch` | Confirm both canonical users belong to the connector's Google customer. |
+| `google_group_not_found` | Confirm the group exists in the verified Workspace customer. |
+| `google_group_lookup_mismatch` | Google returned a group unrelated to the requested primary address or alias. |
+| `group_member_already_exists` / `group_member_not_found` | Refresh direct members before another change. |
+| `group_member_unsupported` | External, nested, customer-wide and unknown member types are read-only. |
+| `group_owner_protected` | Assign and verify ownership in Google Admin; WGASuite does not remove owners. |
+| `group_membership_unsupported` | Manage this dynamic/special group in Google Admin or its owning service. |
+| `group_confirmation_invalid` / `group_confirmation_expired` / `group_confirmation_used` | Preview the exact membership change again. |
+| `group_reconciliation_not_available` / `group_reconciliation_expired` | Refresh; only the original ambiguous write can be checked within five minutes. |
 | `gmail_api_unavailable` | Enable Gmail API in the credential's Cloud project. |
 | `gmail_scope_missing` | Add the required Gmail read or sharing DWD scope. |
 | `gmail_mailbox_not_configured` | Select an active user with Gmail enabled. |
@@ -292,7 +365,7 @@ optional sanitized message. Common codes include:
 | `google_api_unavailable` | Enable Admin SDK in the credential's Cloud project. |
 | `google_rate_limited` | Wait before manually retrying. |
 | `google_service_unavailable` | Retry after a transient Google 5xx failure. |
-| `google_timeout` / `google_network_error` | Do not resubmit a Gmail mutation; use **Check status**. For reads, check outbound HTTPS, DNS, proxy and firewall. |
+| `google_timeout` / `google_network_error` | Do not resubmit a Gmail or Groups mutation; use **Check current state**. For reads, check outbound HTTPS, DNS, proxy and firewall. |
 
 Raw upstream bodies, stack traces, credentials, internal paths, and Google profiles are never
 returned. A generic 403 is intentionally not presented as one specific DWD problem.
@@ -316,6 +389,11 @@ returned. A generic 403 is intentionally not presented as one specific DWD probl
     Google result is a successful read verification.
 13. Do not confirm **Grant access** or **Revoke access** during verification unless a separately
     approved change identifies the owner and delegate. Automated tests mock every Gmail write.
+14. Authorize both Groups scopes shown by the connection-management panel, open **Groups**, and
+    search a known group name or full address. A genuine empty customer result is also a valid read.
+15. Open a known group and confirm primary address, aliases and direct members. Do not click a final
+    add/remove confirmation during verification. Automated tests mock every Groups write, and live
+    membership mutation requires separate explicit approval.
 
 `docker compose down` preserves named volumes. `docker compose down --volumes` is destructive and
 removes the credential volume. If real credentials and DWD are unavailable, run automated mocked

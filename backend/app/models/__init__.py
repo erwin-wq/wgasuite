@@ -10,6 +10,9 @@ from app.models.finding import Finding
 from app.models.google_workspace_delegate_confirmation import (
     GoogleWorkspaceDelegateConfirmation,
 )
+from app.models.google_workspace_group_membership_confirmation import (
+    GoogleWorkspaceGroupMembershipConfirmation,
+)
 from app.models.organization import Organization
 from app.models.scan_run import ScanRun
 from app.models.user import User
@@ -25,6 +28,7 @@ __all__ = [
     "DreadScore",
     "Finding",
     "GoogleWorkspaceDelegateConfirmation",
+    "GoogleWorkspaceGroupMembershipConfirmation",
     "Organization",
     "ScanRun",
     "User",

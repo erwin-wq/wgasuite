@@ -9,8 +9,8 @@
 ## Connectoren
 
 - De Google Workspace connector ondersteunt een echte, read-only Directory API-connection test,
-  exacte user/alias lookup en bevestigde Gmail delegate create/remove via service accounts met
-  Domain-Wide Delegation.
+  exacte user/alias lookup, bevestigde Gmail delegate create/remove en bevestigde Google Groups
+  direct-membership changes via service accounts met Domain-Wide Delegation.
 - Service-account JSON staat buiten database, API-responses, frontend, logs en git.
 - De file provider partitioneert credentials op organization-id en accepteert alleen opaque
   references; het runtimepad wordt read-only gemount.
@@ -22,6 +22,14 @@
 - Gmail writes vereisen een korte, eenmalige server-side confirmation, worden vlak voor uitvoering
   opnieuw gevalideerd en worden na onduidelijke netwerkfouten nooit automatisch herhaald. Alleen
   actor/tenant/operation/identity-gebonden, begrensde `delegates.list` reconciliation is toegestaan.
+- Groups reads gebruiken alleen `admin.directory.group.readonly`; bevestigde membership writes
+  gebruiken apart alleen `admin.directory.group.member`. Group-eigendom wordt met de geverifieerde
+  Google `customerId` bewezen, niet met domeinsuffixen. Alleen canonical interne users zijn
+  mutabel; owner-, nested-, external-, customer-wide en herkende special-group memberships zijn
+  read-only.
+- Groups writes gebruiken dezelfde korte, actor/tenant/operation/identity-gebonden one-time
+  confirmations. Timeouts worden nooit automatisch opnieuw verzonden; alleen begrensde,
+  direct-only `members.list` reconciliation is toegestaan en bewijst toestand, niet causaliteit.
 - Connection-testresultaten en lookup-audit events bevatten alleen gesaniteerde foutcodes en
   minimale metadata; zoekadressen, ruwe Google-responses en profielen worden niet opgeslagen.
 - OAuth tokens mogen niet in git, logs of onbeveiligde JSON velden terechtkomen.
@@ -29,6 +37,9 @@
   credentials, confirmation tokens, headers, ruwe Google-responses of volledige profielen.
   Mutation-timeouts en latere reconciliation krijgen afzonderlijke audit-events met dezelfde
   veilige correlation-id; het oorspronkelijke fout-event wordt niet overschreven.
+- Group-audits bevatten geen credentials, confirmation tokens, headers of ruwe Google-responses.
+  Mutation- en reconciliation-events blijven afzonderlijk zodat het oorspronkelijke onbekende
+  resultaat behouden blijft.
 
 ## Applicatiebeveiliging
 

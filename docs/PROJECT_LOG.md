@@ -5,6 +5,18 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-11 — CORE-003 Google Groups membership management
+
+- Added customer-ID-scoped `groups.list` discovery, verified `groups.get` details and paginated
+  direct-only `members.list` results across multi-domain tenants.
+- Added separate `admin.directory.group.readonly` and `admin.directory.group.member` clients, with
+  canonical internal-user validation and no automated DWD changes.
+- Added one-time add/remove confirmations, MEMBER-only creation, owner/nested/external protections,
+  no mutation retries, and bounded read-only reconciliation after ambiguous outcomes.
+- Added a responsive Groups administration tab with group/member pagination, read-only operator
+  mode, explicit limitations, organization-switch stale-response protection and safe error states.
+- Mocked every group membership mutation in tests. No live tenant membership was changed.
+
 ## 2026-10-11 — CORE-FIX-002 safe Gmail mutation reconciliation
 
 - Preserved the 20-second Gmail mutation timeout and `num_retries=0`; ambiguous create/delete
