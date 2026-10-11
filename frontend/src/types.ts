@@ -263,6 +263,78 @@ export interface GmailDelegateReconciliationResult {
   message: string;
 }
 
+export interface GoogleWorkspaceGroup {
+  id: string;
+  primary_email: string;
+  name: string;
+  description: string | null;
+  aliases: string[];
+  non_editable_aliases: string[];
+  direct_members_count: number | null;
+  membership_mutable: boolean;
+  restriction_reason: string | null;
+}
+
+export interface GoogleWorkspaceGroupSearchResult {
+  groups: GoogleWorkspaceGroup[];
+  next_page_token: string | null;
+}
+
+export type GoogleWorkspaceGroupMemberType =
+  | "USER"
+  | "GROUP"
+  | "CUSTOMER"
+  | "EXTERNAL"
+  | "UNKNOWN";
+
+export type GoogleWorkspaceGroupMemberRole = "MEMBER" | "MANAGER" | "OWNER" | "UNKNOWN";
+
+export interface GoogleWorkspaceGroupMember {
+  id: string;
+  email: string | null;
+  type: GoogleWorkspaceGroupMemberType;
+  role: GoogleWorkspaceGroupMemberRole;
+  status: string | null;
+  direct: boolean;
+  mutation_supported: boolean;
+  restriction_reason: string | null;
+}
+
+export interface GoogleWorkspaceGroupMemberList {
+  group: GoogleWorkspaceGroup;
+  members: GoogleWorkspaceGroupMember[];
+  next_page_token: string | null;
+}
+
+export interface GroupMembershipPreview {
+  operation: "add" | "remove";
+  group_primary_email: string;
+  member_primary_email: string;
+  member_role: "MEMBER" | "MANAGER" | "OWNER";
+  confirmation_token: string;
+  expires_at: string;
+  effect: string;
+}
+
+export interface GroupMembershipMutationResult {
+  operation: "add" | "remove";
+  group_primary_email: string;
+  member_primary_email: string;
+  outcome: "added" | "removed";
+  message: string;
+}
+
+export interface GroupMembershipReconciliationResult {
+  operation: "add" | "remove";
+  group_primary_email: string;
+  member_primary_email: string;
+  status: "verified" | "unknown";
+  observed_state: "present" | "absent";
+  attempts: number;
+  correlation_id: string;
+  message: string;
+}
+
 export interface PlatformAdminTotals {
   customers_count: number;
   organizations_count: number;

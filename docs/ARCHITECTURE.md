@@ -3,8 +3,8 @@
 Dit document beschrijft de huidige technische foundation. Zie
 [PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md) voor de gekozen direct-API richting voor toekomstige
 Google Workspace integraties. De herbruikbare authenticatie- en clientfoundation is beschikbaar;
-de echte API-operaties omvatten read-only connectietests, exacte user/alias lookup en bewaakte Gmail
-mailboxdelegatie.
+de echte API-operaties omvatten read-only connectietests, exacte user/alias lookup, bewaakte Gmail
+mailboxdelegatie en bewaakte Google Groups direct-membership changes.
 
 ## Overzicht
 
@@ -52,6 +52,15 @@ Findings hebben een optionele koppeling naar een asset. De DREAD-score staat in 
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove/preview`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove/reconcile`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/groups/search`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/groups/get`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/list`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/add/preview`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/add`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/add/reconcile`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/remove/preview`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/remove`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/groups/members/remove/reconcile`
 - `POST /api/v1/assessments`
 - `GET /api/v1/assessments`
 - `GET /api/v1/assessments/{assessment_id}`
@@ -83,6 +92,16 @@ Een onduidelijke mutation-response wordt als `unknown` opgeslagen. De aparte rec
 kan met dezelfde actor/organization/operation-bound confirmation uitsluitend begrensde
 `delegates.list` calls uitvoeren; de write-client is vanuit dat pad niet bereikbaar.
 Mutaties gebruiken een database-backed, eenmalige confirmation en worden niet automatisch herhaald.
+
+Google Groups gebruikt een afzonderlijke, operation-scoped Directory-client. Read requests vragen
+alleen `admin.directory.group.readonly`; bevestigde writes alleen
+`admin.directory.group.member`. De service bepaalt eerst de Google `customerId` via de canonical
+delegated administrator en gebruikt die waarde voor `groups.list`. Een `groups.get` resultaat is
+pas bruikbaar nadat dezelfde group-id in die customer-scope is teruggevonden. Membership listing
+zet `includeDerivedMembership=false`. Add/remove bevestigingen staan in
+`google_workspace_group_membership_confirmations`; tokens worden alleen als SHA-256 digest bewaard.
+De reconciliation-service kan na een ambigu resultaat uitsluitend begrensde direct-member reads
+uitvoeren en heeft geen pad dat `members.insert` of `members.delete` opnieuw aanroept.
 
 `connector_configs` bevat alleen metadata, waaronder `credential_provider` en een opaque
 `credential_ref`. Credentialmateriaal staat per organization buiten de database. De file provider

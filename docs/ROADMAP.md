@@ -20,6 +20,7 @@ commitments. The README is authoritative for current capabilities.
 - Google Workspace check catalog and mock scans
 - real read-only Google connection testing and exact Directory user/alias lookup
 - guarded Gmail mailbox delegate listing, creation and removal with owner impersonation and audit
+- customer-scoped Google Groups discovery and guarded direct internal-user membership changes
 
 ## v0.2.0 — Directory integration foundation
 
@@ -62,9 +63,10 @@ principles are documented in [PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md).
 
 ### 6. Group membership context
 
-- retrieve and show relevant group memberships for a selected user;
-- document API limitations such as nested membership behavior;
-- avoid unbounded per-user fan-out.
+- tenant group search/details and paginated direct-member listing are implemented;
+- guarded add/remove for direct internal users is implemented with explicit nested, external,
+  owner and special-group limitations;
+- selected-user reverse membership context remains future work and must avoid unbounded fan-out.
 
 ### 7. Audited, guarded suspend and restore
 

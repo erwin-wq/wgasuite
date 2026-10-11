@@ -20,6 +20,8 @@ from app.connectors.google_workspace import (
 )
 from app.connectors.google_workspace_client import VerifiedMailboxOwner
 from app.connectors.google_workspace_credentials import (
+    DIRECTORY_GROUP_MEMBER_SCOPE,
+    DIRECTORY_GROUP_READONLY_SCOPE,
     GMAIL_DELEGATE_READ_SCOPE,
     GMAIL_DELEGATE_WRITE_SCOPE,
 )
@@ -259,6 +261,27 @@ def test_gmail_credentials_reject_unapproved_or_combined_scopes(
         factory.create_for_gmail_mailbox_owner(
             connector_config(uuid4()), scopes, "owner@example.com"
         )
+
+    assert_error_code(error, "missing_scope_or_permission")
+
+
+@pytest.mark.parametrize(
+    "scopes",
+    [
+        ["https://www.googleapis.com/auth/admin.directory.user.readonly"],
+        [DIRECTORY_GROUP_READONLY_SCOPE, DIRECTORY_GROUP_MEMBER_SCOPE],
+        ["https://www.googleapis.com/auth/admin.directory.group"],
+    ],
+)
+def test_group_credentials_reject_unapproved_or_combined_scopes(
+    tmp_path: Path, scopes: list[str]
+) -> None:
+    factory = DelegatedCredentialFactory(
+        CredentialProviderRegistry([FileCredentialProvider(tmp_path)])
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as error:
+        factory.create_for_directory_groups(connector_config(uuid4()), scopes)
 
     assert_error_code(error, "missing_scope_or_permission")
 
@@ -506,3 +529,52 @@ def test_gmail_reconciliation_can_only_shorten_the_configured_request_timeout(
 
     assert builder_calls[0]["http"].http.timeout == 5
     assert builder_calls[1]["http"].http.timeout == 20
+
+
+def test_group_client_allows_customer_user_reads_but_rejects_member_writes(
+    db_session: Session,
+) -> None:
+    organization, _, actor = create_tenant_data(db_session)
+    membership = db_session.scalar(
+        select(CustomerMembership).where(CustomerMembership.user_id == actor.id)
+    )
+    assert membership is not None
+    membership.role = "customer_user"
+    db_session.commit()
+    provider = InMemoryCredentialProvider()
+    builder_calls: list[tuple[tuple, dict]] = []
+
+    def client_builder(*args, **kwargs):
+        builder_calls.append((args, kwargs))
+        return object()
+
+    factory = GoogleWorkspaceClientFactory(
+        db_session,
+        CredentialProviderRegistry([provider]),
+        client_builder=client_builder,
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as error:
+        factory.for_directory_groups(
+            actor=actor,
+            organization_id=organization.id,
+            scopes=[DIRECTORY_GROUP_MEMBER_SCOPE],
+        )
+
+    assert_error_code(error, "organization_access_denied")
+    assert provider.organization_ids == []
+
+    with patch(
+        "app.connectors.google_workspace_credentials."
+        "service_account.Credentials.from_service_account_info",
+        return_value=FakeBaseCredentials(),
+    ):
+        factory.for_directory_groups(
+            actor=actor,
+            organization_id=organization.id,
+            scopes=[DIRECTORY_GROUP_READONLY_SCOPE],
+        )
+
+    assert provider.organization_ids == [organization.id]
+    assert builder_calls[0][0] == ("admin", "directory_v1")
+    assert builder_calls[0][1]["http"].credentials.subject == "admin@example.com"

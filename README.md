@@ -10,7 +10,7 @@ an admin console or custom script.
 > **Project status:** early development / pre-release. The current repository provides a working
 > local foundation, service-account authentication/client infrastructure, a real read-only
 > Google Workspace connection test, exact user and alias lookup, and guarded Gmail mailbox
-> delegation management. This remains pre-production software.
+> delegation and Google Groups direct-membership management. This remains pre-production software.
 
 WGASuite is an independent open-source project and is not affiliated with or endorsed by Google.
 
@@ -22,7 +22,8 @@ workflows, with customer scoping, security assessment data and auditable operati
 application.
 
 The default interface now focuses on working customer context, connection management, exact
-Directory user/alias lookup and guarded Gmail delegate changes. The earlier assessment workflow and mock Google Workspace security
+Directory user/alias lookup, guarded Gmail delegate changes, and customer-scoped Google Groups
+membership administration. The earlier assessment workflow and mock Google Workspace security
 checks remain in the codebase for future evidence-backed work, but are hidden from standard
 navigation. WGASuite must not yet be treated as a production Google Workspace management platform.
 
@@ -47,6 +48,9 @@ Implemented today:
   authorization and safe account details;
 - Gmail mailbox delegate listing plus explicit-preview, one-time-confirmation create/remove
   operations for authorized administrators, with owner impersonation and structured auditing;
+- customer-ID-scoped Google Groups search/details, direct-member pagination, and confirmed add or
+  remove operations for existing internal users, with read-only reconciliation after ambiguous
+  writes;
 - a catalog of Google Workspace security checks;
 - mock scan runs, generated demo findings and recent scan-run history.
 
@@ -66,8 +70,8 @@ preserved assessment screens locally; it is disabled by default and ignored by p
 
 Not implemented today:
 
-- Google Workspace user mutations, bulk inventory, Group-address lookup, Gmail message access or
-  broader Gmail settings administration;
+- Google Workspace user mutations, bulk inventory, group creation/deletion/role changes, Gmail
+  message access or broader Gmail settings administration;
 - OAuth admin-consent authentication or external cloud secret-manager integrations;
 - production identity management, SSO, account recovery or hardened session management;
 - user, group, ChromeOS/device, organizational-unit or license administration;
@@ -97,12 +101,20 @@ not return a reliable mutation response, WGASuite never resubmits the write: it 
 the current state through bounded, read-only delegate-list calls. The mock scanner remains entirely
 local and fictional.
 
+The **Groups** tool searches with `groups.list(customer=<verified customerId>)`, so secondary-domain
+groups remain in tenant scope without relying on email suffixes. It shows group details and direct
+members only. Existing internal users may be added as `MEMBER`; direct internal non-owner members
+may be removed after a server-issued, one-time confirmation. Nested, external, customer-wide,
+owner, dynamic and other unsupported memberships remain visible but read-only. Read and write
+clients use separate `admin.directory.group.readonly` and `admin.directory.group.member` scopes.
+Ambiguous writes are never replayed and can only be checked with bounded direct-member reads.
+
 See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup, scope,
-security and live-verification instructions. CORE-002 manages delegates only; it cannot search,
-read or modify Gmail messages.
+security and live-verification instructions. Gmail delegation cannot read or modify messages, and
+Groups management cannot create/delete groups, change roles or perform bulk operations.
 
 After a successful connection, the Google Workspace page shows a compact persisted connection
-status and makes **User & Alias Lookup** the primary administration tool. Select **Manage
+status and provides **Users & aliases** and **Groups** administration tabs. Select **Manage
 connection** to reopen the existing five-step wizard. Unconfigured organizations show the wizard
 prominently, while failed connectors show their persisted sanitized failure and an inspection
 action. The page never tests Google automatically on load.

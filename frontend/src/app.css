@@ -1811,7 +1811,7 @@ h4 {
 .gmail-capability-grid {
   display: grid;
   gap: var(--space-3);
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
 }
 
 .gmail-capability-grid > div {
@@ -2855,6 +2855,222 @@ h4 {
   gap: var(--space-5);
 }
 
+.workspace-tool-navigation {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2);
+}
+
+.workspace-tool-navigation button {
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-ink-muted);
+  flex: 1 1 0;
+}
+
+.workspace-tool-navigation button:hover:not(:disabled),
+.workspace-tool-navigation button.active {
+  background: var(--color-primary-soft);
+  box-shadow: none;
+  color: var(--color-primary-strong);
+  transform: none;
+}
+
+.group-management,
+.group-detail {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.group-heading {
+  align-items: start;
+  display: flex;
+  gap: var(--space-4);
+  justify-content: space-between;
+}
+
+.group-search-form,
+.group-add-form {
+  align-items: end;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.group-state,
+.group-reconciliation,
+.group-readonly-note {
+  align-items: center;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-muted);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.group-state svg,
+.group-readonly-note svg {
+  flex: 0 0 auto;
+  height: 1.15rem;
+  width: 1.15rem;
+}
+
+.group-state.error {
+  background: var(--color-red-soft);
+  border-color: #fecaca;
+  color: var(--color-red-strong);
+}
+
+.group-state.warning,
+.group-state.info,
+.group-reconciliation {
+  background: var(--color-amber-soft);
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.group-state.success {
+  background: var(--color-primary-soft);
+  border-color: #99d9cf;
+  color: var(--color-primary-strong);
+}
+
+.group-table-wrap {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.group-table {
+  border-collapse: collapse;
+  min-width: 48rem;
+  width: 100%;
+}
+
+.group-table th,
+.group-table td {
+  border-bottom: 1px solid var(--color-line);
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.group-table th {
+  background: var(--color-surface-muted);
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-xs);
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.group-table td:first-child {
+  min-width: 15rem;
+}
+
+.group-table td strong,
+.group-table td span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.group-table td span {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-xs);
+  margin-top: var(--space-1);
+}
+
+.group-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.group-table button {
+  min-height: 2.5rem;
+  padding: 0.6rem 0.8rem;
+  white-space: nowrap;
+}
+
+.pagination-controls {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}
+
+.pagination-controls span {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+}
+
+.pagination-controls button {
+  min-height: 2.5rem;
+  padding: 0.6rem 0.8rem;
+}
+
+.group-detail-card {
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: var(--space-5);
+}
+
+.group-detail-card > div {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.group-detail-card span {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+}
+
+.group-detail-card strong {
+  overflow-wrap: anywhere;
+}
+
+.group-detail-card p {
+  border-top: 1px solid var(--color-line);
+  color: var(--color-ink-muted);
+  grid-column: 1 / -1;
+  padding-top: var(--space-4);
+}
+
+.member-toolbar,
+.group-reconciliation {
+  align-items: center;
+  display: flex;
+  gap: var(--space-4);
+  justify-content: space-between;
+}
+
+.member-toolbar p,
+.group-reconciliation span {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-sm);
+}
+
+.group-reconciliation > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.group-readonly-note {
+  margin: 0;
+}
+
 .workspace-connection-status,
 .workspace-setup-callout,
 .workspace-settings-panel,
@@ -2972,6 +3188,7 @@ h4 {
 
 .workspace-settings-panel,
 .workspace-user-lookup-panel {
+  min-width: 0;
   padding: clamp(var(--space-5), 2.2vw, var(--space-7));
 }
 
@@ -3196,6 +3413,9 @@ h4 {
   .credential-entry,
   .copy-field,
   .delegate-add-form,
+  .group-add-form,
+  .group-search-form,
+  .group-detail-card,
   .gmail-capability-grid,
   .user-lookup-form,
   .user-result-heading,
@@ -3337,6 +3557,9 @@ h4 {
   }
 
   .mailbox-delegates-heading,
+  .group-heading,
+  .group-reconciliation,
+  .member-toolbar,
   .delegate-reconciliation,
   .delegate-row,
   .confirmation-actions {
@@ -3345,9 +3568,24 @@ h4 {
   }
 
   .mailbox-delegates-heading button,
+  .group-heading button,
+  .group-reconciliation button,
+  .member-toolbar button,
   .delegate-reconciliation button,
   .delegate-row button,
   .confirmation-actions button {
+    width: 100%;
+  }
+
+  .workspace-tool-navigation,
+  .pagination-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .group-add-form button,
+  .group-search-form button,
+  .pagination-controls button {
     width: 100%;
   }
 

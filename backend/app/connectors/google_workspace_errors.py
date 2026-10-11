@@ -42,6 +42,18 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GMAIL_CONFIRMATION_USED = "gmail_confirmation_used"
     GMAIL_RECONCILIATION_NOT_AVAILABLE = "gmail_reconciliation_not_available"
     GMAIL_RECONCILIATION_EXPIRED = "gmail_reconciliation_expired"
+    GOOGLE_GROUP_NOT_FOUND = "google_group_not_found"
+    GOOGLE_GROUP_LOOKUP_MISMATCH = "google_group_lookup_mismatch"
+    GROUP_MEMBER_ALREADY_EXISTS = "group_member_already_exists"
+    GROUP_MEMBER_NOT_FOUND = "group_member_not_found"
+    GROUP_MEMBER_UNSUPPORTED = "group_member_unsupported"
+    GROUP_OWNER_PROTECTED = "group_owner_protected"
+    GROUP_MEMBERSHIP_UNSUPPORTED = "group_membership_unsupported"
+    GROUP_CONFIRMATION_INVALID = "group_confirmation_invalid"
+    GROUP_CONFIRMATION_EXPIRED = "group_confirmation_expired"
+    GROUP_CONFIRMATION_USED = "group_confirmation_used"
+    GROUP_RECONCILIATION_NOT_AVAILABLE = "group_reconciliation_not_available"
+    GROUP_RECONCILIATION_EXPIRED = "group_reconciliation_expired"
     GOOGLE_SUBJECT_NOT_FOUND = "google_subject_not_found"
     GOOGLE_SUBJECT_MISMATCH = "google_subject_mismatch"
     ORGANIZATION_ACCESS_DENIED = "organization_access_denied"
@@ -146,6 +158,42 @@ SAFE_ERROR_MESSAGES = {
     ),
     GoogleWorkspaceErrorCode.GMAIL_RECONCILIATION_EXPIRED: (
         "The read-only reconciliation window expired. Refresh the delegate list."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_GROUP_NOT_FOUND: (
+        "No Google Workspace group was found in the configured customer."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_GROUP_LOOKUP_MISMATCH: (
+        "Google returned a group that did not match the requested primary email or alias."
+    ),
+    GoogleWorkspaceErrorCode.GROUP_MEMBER_ALREADY_EXISTS: (
+        "That user is already a direct member of this group."
+    ),
+    GoogleWorkspaceErrorCode.GROUP_MEMBER_NOT_FOUND: (
+        "That user is not a direct member of this group."
+    ),
+    GoogleWorkspaceErrorCode.GROUP_MEMBER_UNSUPPORTED: (
+        "Only direct, internal Google Workspace users can be changed in this release."
+    ),
+    GoogleWorkspaceErrorCode.GROUP_OWNER_PROTECTED: (
+        "Owner memberships are protected. Assign and verify another owner in Google Admin first."
+    ),
+    GoogleWorkspaceErrorCode.GROUP_MEMBERSHIP_UNSUPPORTED: (
+        "Google does not allow this group's membership to be changed through the Directory API."
+    ),
+    GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_INVALID: (
+        "The group membership confirmation is invalid. Preview the operation again."
+    ),
+    GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_EXPIRED: (
+        "The group membership confirmation expired. Preview the operation again."
+    ),
+    GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_USED: (
+        "This group membership change was already submitted. Refresh members before continuing."
+    ),
+    GoogleWorkspaceErrorCode.GROUP_RECONCILIATION_NOT_AVAILABLE: (
+        "This group membership change is not eligible for read-only reconciliation."
+    ),
+    GoogleWorkspaceErrorCode.GROUP_RECONCILIATION_EXPIRED: (
+        "The read-only reconciliation window expired. Refresh group members."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_SUBJECT_NOT_FOUND: (
         "Google could not find the configured delegated administrator account."

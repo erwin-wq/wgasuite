@@ -63,6 +63,7 @@ import type {
 } from "./types";
 import { ConnectionWizard } from "./features/google-workspace/ConnectionWizard";
 import { GmailDelegationAuthorization } from "./features/google-workspace/GmailDelegationAuthorization";
+import { GroupManagement } from "./features/google-workspace/GroupManagement";
 import { GoogleWorkspaceAdministration } from "./features/google-workspace/GoogleWorkspaceAdministration";
 import { UserLookup } from "./features/google-workspace/UserLookup";
 import { DashboardOverview } from "./features/dashboard/DashboardOverview";
@@ -269,6 +270,17 @@ function App() {
             membership.customer_id === selectedOrganization.customer_id &&
             membership.is_active &&
             membership.role === "customer_admin"
+        ))
+  );
+  const canOperateConnector = Boolean(
+    currentUser?.role === "platform_admin" ||
+      currentUser?.role === "platform_support" ||
+      (selectedOrganization?.customer_id &&
+        currentUser?.customer_memberships.some(
+          (membership) =>
+            membership.customer_id === selectedOrganization.customer_id &&
+            membership.is_active &&
+            (membership.role === "customer_admin" || membership.role === "customer_user")
         ))
   );
 
@@ -1526,6 +1538,13 @@ function App() {
                   connectorConfig={googleWorkspaceConnectorConfig}
                   canSearch={canManageConnectorCredentials}
                   canManageDelegates={canManageConnectorCredentials}
+                />
+              }
+              groupManagement={
+                <GroupManagement
+                  organizationId={selectedOrganizationId}
+                  canSearch={canOperateConnector}
+                  canMutate={canManageConnectorCredentials}
                 />
               }
             />

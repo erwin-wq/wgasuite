@@ -1,4 +1,11 @@
-import { CheckCircle2, Clipboard, ExternalLink, MailCheck, ShieldAlert } from "lucide-react";
+import {
+  CheckCircle2,
+  Clipboard,
+  ExternalLink,
+  MailCheck,
+  ShieldAlert,
+  UsersRound
+} from "lucide-react";
 import { useState } from "react";
 
 import type { ConnectorConfig } from "../../types";
@@ -8,12 +15,16 @@ export const GMAIL_DELEGATE_READ_SCOPE =
   "https://www.googleapis.com/auth/gmail.settings.basic";
 export const GMAIL_DELEGATE_WRITE_SCOPE =
   "https://www.googleapis.com/auth/gmail.settings.sharing";
+export const DIRECTORY_GROUP_READONLY_SCOPE =
+  "https://www.googleapis.com/auth/admin.directory.group.readonly";
+export const DIRECTORY_GROUP_MEMBER_SCOPE =
+  "https://www.googleapis.com/auth/admin.directory.group.member";
 
 interface GmailDelegationAuthorizationProps {
   connectorConfig: ConnectorConfig | null;
 }
 
-type CopyTarget = "client" | "directory" | "read" | "write" | "all";
+type CopyTarget = "client" | "directory" | "read" | "write" | "groups-read" | "groups-write" | "all";
 
 export function GmailDelegationAuthorization({
   connectorConfig
@@ -23,7 +34,9 @@ export function GmailDelegationAuthorization({
   const allScopes = [
     DIRECTORY_USER_READONLY_SCOPE,
     GMAIL_DELEGATE_READ_SCOPE,
-    GMAIL_DELEGATE_WRITE_SCOPE
+    GMAIL_DELEGATE_WRITE_SCOPE,
+    DIRECTORY_GROUP_READONLY_SCOPE,
+    DIRECTORY_GROUP_MEMBER_SCOPE
   ].join(",");
 
   async function copy(value: string, target: CopyTarget) {
@@ -44,7 +57,9 @@ export function GmailDelegationAuthorization({
       target: "directory"
     },
     { label: "Read Gmail delegates", value: GMAIL_DELEGATE_READ_SCOPE, target: "read" },
-    { label: "Create and remove Gmail delegates", value: GMAIL_DELEGATE_WRITE_SCOPE, target: "write" }
+    { label: "Create and remove Gmail delegates", value: GMAIL_DELEGATE_WRITE_SCOPE, target: "write" },
+    { label: "Read groups and direct members", value: DIRECTORY_GROUP_READONLY_SCOPE, target: "groups-read" },
+    { label: "Add and remove group members", value: DIRECTORY_GROUP_MEMBER_SCOPE, target: "groups-write" }
   ];
 
   return (
@@ -52,9 +67,9 @@ export function GmailDelegationAuthorization({
       <div className="workspace-section-heading">
         <div>
           <span className="eyebrow">Separate authorization</span>
-          <h2 id="gmail-authorization-heading">Gmail delegation authorization</h2>
+          <h2 id="gmail-authorization-heading">Workspace API authorization</h2>
           <p>
-            Directory connection, Gmail delegate reads, and Gmail delegate writes are independent
+            Directory connection, Gmail delegation, and group membership are independently scoped
             capabilities.
           </p>
         </div>
@@ -72,6 +87,16 @@ export function GmailDelegationAuthorization({
           <strong>Verify by loading a mailbox</strong>
         </div>
         <div className="unverified">
+          <UsersRound aria-hidden="true" />
+          <span>Groups and direct members</span>
+          <strong>Verify with group search</strong>
+        </div>
+        <div className="unverified">
+          <ShieldAlert aria-hidden="true" />
+          <span>Group member writes</span>
+          <strong>Not tested automatically</strong>
+        </div>
+        <div className="unverified">
           <ShieldAlert aria-hidden="true" />
           <span>Gmail delegate writes</span>
           <strong>Not tested automatically</strong>
@@ -82,8 +107,8 @@ export function GmailDelegationAuthorization({
         <li>Enable the Gmail API in the same Google Cloud project.</li>
         <li>Open Security → Access and data control → API controls in Google Admin.</li>
         <li>Open Manage Domain Wide Delegation and edit the existing numeric client ID.</li>
-        <li>Add both Gmail scopes below and preserve the Directory read-only scope.</li>
-        <li>Look up a mailbox owner and load delegates to verify read access.</li>
+        <li>Add the four Gmail and Groups scopes below and preserve the Directory user scope.</li>
+        <li>Look up a mailbox owner and search Groups to verify each read capability.</li>
       </ol>
 
       <div className="copy-field">
@@ -140,7 +165,7 @@ export function GmailDelegationAuthorization({
       </div>
       <p className="connector-disclaimer">
         WGASuite never changes Google Admin domain-wide delegation grants. A successful Directory
-        test does not prove either Gmail capability.
+        test does not prove Gmail or Groups capabilities, and WGASuite never performs a test write.
       </p>
     </section>
   );

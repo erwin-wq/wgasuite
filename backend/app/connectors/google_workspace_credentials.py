@@ -34,6 +34,12 @@ GMAIL_DELEGATE_ALLOWED_SCOPE_SETS = {
     (GMAIL_DELEGATE_READ_SCOPE,),
     (GMAIL_DELEGATE_WRITE_SCOPE,),
 }
+DIRECTORY_GROUP_READONLY_SCOPE = "https://www.googleapis.com/auth/admin.directory.group.readonly"
+DIRECTORY_GROUP_MEMBER_SCOPE = "https://www.googleapis.com/auth/admin.directory.group.member"
+DIRECTORY_GROUP_ALLOWED_SCOPE_SETS = {
+    (DIRECTORY_GROUP_READONLY_SCOPE,),
+    (DIRECTORY_GROUP_MEMBER_SCOPE,),
+}
 
 
 class CredentialProvider(Protocol):
@@ -79,9 +85,7 @@ class FileCredentialProvider:
                 raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.INVALID_CREDENTIALS)
             raw_content = credential_path.read_text(encoding="utf-8")
         except (FileNotFoundError, IsADirectoryError):
-            raise GoogleWorkspaceError(
-                GoogleWorkspaceErrorCode.CREDENTIALS_NOT_FOUND
-            ) from None
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.CREDENTIALS_NOT_FOUND) from None
         except OSError:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.INVALID_CREDENTIALS) from None
 
@@ -178,6 +182,24 @@ class DelegatedCredentialFactory:
             connector_config,
             normalized_scopes,
             owner_subject_email,
+        )
+
+    def create_for_directory_groups(
+        self,
+        connector_config: ConnectorConfig,
+        scopes: Sequence[str],
+    ) -> tuple[Credentials, tuple[str, ...]]:
+        """Create only an operation-scoped Directory groups client."""
+
+        normalized_scopes = normalize_scopes(scopes)
+        if normalized_scopes not in DIRECTORY_GROUP_ALLOWED_SCOPE_SETS:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.MISSING_SCOPE_OR_PERMISSION)
+        if not is_valid_admin_subject(connector_config.admin_subject_email):
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.INVALID_ADMIN_SUBJECT)
+        return self._create_with_subject(
+            connector_config,
+            normalized_scopes,
+            connector_config.admin_subject_email,
         )
 
     def _create_with_subject(

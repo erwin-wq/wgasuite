@@ -37,6 +37,7 @@ function renderAdministration(connectorConfig: ConnectorConfig | null = connecte
         <div data-testid="connection-wizard">{connectorConfig?.display_name ?? "New connection"}</div>
       }
       userLookup={<div data-testid="user-lookup">User lookup tool</div>}
+      groupManagement={<div data-testid="group-management">Group management tool</div>}
     />
   );
 }
@@ -47,7 +48,7 @@ describe("GoogleWorkspaceAdministration", () => {
     renderAdministration();
 
     expect(screen.getByText("Connected")).toBeVisible();
-    expect(screen.getByText("Directory users · read only")).toBeVisible();
+    expect(screen.getByText("Directory users & groups")).toBeVisible();
     expect(screen.getByTestId("user-lookup")).toBeVisible();
     expect(screen.queryByTestId("connection-wizard")).not.toBeInTheDocument();
 
@@ -57,6 +58,16 @@ describe("GoogleWorkspaceAdministration", () => {
       "aria-expanded",
       "true"
     );
+  });
+
+  it("provides Groups navigation in the real administration area", async () => {
+    const user = userEvent.setup();
+    renderAdministration();
+
+    await user.click(screen.getByRole("button", { name: "Groups" }));
+
+    expect(screen.getByTestId("group-management")).toBeVisible();
+    expect(screen.queryByTestId("user-lookup")).not.toBeInTheDocument();
   });
 
   it("shows setup prominently when no connector is configured", () => {
