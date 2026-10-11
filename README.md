@@ -92,8 +92,10 @@ outside this MVP. The same existing read-only Directory scope is used. After loo
 administrators can load the selected user's Gmail delegates. Gmail calls impersonate the
 canonical mailbox owner—not the connector administrator—and use `gmail.settings.basic` for
 listing or `gmail.settings.sharing` for create/delete. Writes require a server-issued,
-short-lived, single-use confirmation after canonical owner/delegate revalidation. The mock
-scanner remains entirely local and fictional.
+short-lived, single-use confirmation after canonical owner/delegate revalidation. If Google does
+not return a reliable mutation response, WGASuite never resubmits the write: it can only reconcile
+the current state through bounded, read-only delegate-list calls. The mock scanner remains entirely
+local and fictional.
 
 See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup, scope,
 security and live-verification instructions. CORE-002 manages delegates only; it cannot search,

@@ -122,8 +122,10 @@ logged URL paths:
 POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/list
 POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create/preview
 POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create
+POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create/reconcile
 POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove/preview
 POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove
+POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove/reconcile
 ```
 
 The backend first authenticates the actor and requires platform-admin or active customer-admin
@@ -142,7 +144,23 @@ five-minute confirmation. Only its actor, organization, operation and exact iden
 it. Consumption is atomic and one-time before the Google write, so double clicks and replay cannot
 repeat a change. Directory identities and the current relationship are revalidated immediately
 before consumption. Google requests use bounded timeouts and `num_retries=0`; an ambiguous network
-failure is never retried automatically. Refresh the list before planning another change.
+failure is never retried automatically.
+
+The Gmail HTTP transport uses the configured 20-second timeout by default. A timeout proves only
+that a response did not arrive in time; Google can still finish the operation. On a timeout,
+network interruption or ambiguous Google 5xx response, the consumed confirmation moves to an
+explicit `unknown` state and the API returns a safe correlation ID. The UI automatically invokes
+the matching reconciliation endpoint and also exposes **Check status** while the outcome remains
+unknown.
+
+Reconciliation accepts only the original opaque confirmation token and rebinds it to the original
+actor, organization, operation, canonical owner and canonical delegate. It revalidates Directory
+identities, then performs at most four `delegates.list` calls using only
+`gmail.settings.basic`, a 0/0.5/1/2-second backoff, five-second per-read timeouts and a 20-second
+overall ceiling. Create is verified only when the canonical delegate is visible as `Accepted`;
+delete is verified only when that delegate is absent. Otherwise the status remains `unknown`.
+Observed state verifies the current state, not that the original request caused it. Reconciliation
+has no code path to `delegates.create` or `delegates.delete`.
 
 Google requires a delegate's primary email and may take approximately one minute to make new
 access usable. Delegate/delegator limits vary by organization; Google documents general limits,
@@ -152,7 +170,9 @@ does not expose Gmail message or contact APIs.
 
 Successful and failed/rejected administrative operations are audited with actor, customer,
 organization, operation, outcome, safe reason and the minimal canonical mailbox identities needed
-for investigation. Confirmation tokens, credentials, OAuth tokens, authorization headers, raw
+for investigation. An ambiguous mutation retains its original failure audit with a safe correlation
+ID and timeout flag; each reconciliation records attempt count plus verified or unknown final state
+as a separate event. Confirmation tokens, credentials, OAuth tokens, authorization headers, raw
 Google responses and full profiles are never stored in audit metadata.
 
 ## Credential security and authorization
@@ -265,12 +285,14 @@ optional sanitized message. Common codes include:
 | `gmail_delegate_already_exists` | Refresh; the delegate already has access. |
 | `gmail_delegate_not_found` | Refresh; the delegation no longer exists. |
 | `gmail_confirmation_invalid` / `gmail_confirmation_expired` / `gmail_confirmation_used` | Preview the exact operation again. |
+| `gmail_reconciliation_not_available` | Refresh; only the original ambiguous mutation can be reconciled. |
+| `gmail_reconciliation_expired` | The five-minute confirmation/reconciliation window ended; refresh the list. |
 | `google_forbidden` | Check DWD, scope, API access, and administrator privilege. |
 | `missing_scope_or_permission` | Google reported insufficient permission. |
 | `google_api_unavailable` | Enable Admin SDK in the credential's Cloud project. |
 | `google_rate_limited` | Wait before manually retrying. |
 | `google_service_unavailable` | Retry after a transient Google 5xx failure. |
-| `google_timeout` / `google_network_error` | Check outbound HTTPS, DNS, proxy, and firewall. |
+| `google_timeout` / `google_network_error` | Do not resubmit a Gmail mutation; use **Check status**. For reads, check outbound HTTPS, DNS, proxy and firewall. |
 
 Raw upstream bodies, stack traces, credentials, internal paths, and Google profiles are never
 returned. A generic 403 is intentionally not presented as one specific DWD problem.

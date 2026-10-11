@@ -66,6 +66,7 @@ from app.schemas.google_workspace_delegate import (
     GmailDelegateMutationRead,
     GmailDelegateMutationRequest,
     GmailDelegateRead,
+    GmailDelegateReconciliationRead,
 )
 from app.schemas.google_workspace_user import (
     GoogleWorkspaceUserLookupRequest,
@@ -96,6 +97,9 @@ from app.services.google_workspace_credential_import import (
 )
 from app.services.google_workspace_gmail_delegation import (
     DelegateOperation,
+    GmailDelegateMutationAmbiguousError,
+    GmailDelegateReconciliationError,
+    GoogleWorkspaceGmailDelegationReconciliationService,
     GoogleWorkspaceGmailDelegationService,
 )
 from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookup
@@ -1378,6 +1382,8 @@ GMAIL_DELEGATE_HTTP_STATUS = {
     GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_INVALID: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_EXPIRED: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_USED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GMAIL_RECONCILIATION_NOT_AVAILABLE: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GMAIL_RECONCILIATION_EXPIRED: status.HTTP_409_CONFLICT,
 }
 GMAIL_DELEGATE_REJECTION_CODES = frozenset(
     {
@@ -1392,6 +1398,8 @@ GMAIL_DELEGATE_REJECTION_CODES = frozenset(
         GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_INVALID,
         GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_EXPIRED,
         GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_USED,
+        GoogleWorkspaceErrorCode.GMAIL_RECONCILIATION_NOT_AVAILABLE,
+        GoogleWorkspaceErrorCode.GMAIL_RECONCILIATION_EXPIRED,
     }
 )
 
@@ -1482,12 +1490,19 @@ def require_gmail_delegate_admin(
         raise
 
 
-def gmail_delegate_http_error(error: GoogleWorkspaceError) -> HTTPException:
+def gmail_delegate_http_error(
+    error: GoogleWorkspaceError,
+    *,
+    extra_detail: dict[str, object] | None = None,
+) -> HTTPException:
+    detail: dict[str, object] = {"code": error.code.value, "message": str(error)}
+    if extra_detail:
+        detail.update(extra_detail)
     return HTTPException(
         status_code=GMAIL_DELEGATE_HTTP_STATUS.get(
             error.code, status.HTTP_502_BAD_GATEWAY
         ),
-        detail={"code": error.code.value, "message": str(error)},
+        detail=detail,
     )
 
 
@@ -1668,6 +1683,18 @@ def execute_gmail_delegate_change(
             confirmation_token=payload.confirmation_token,
         )
     except GoogleWorkspaceError as error:
+        audit_metadata = None
+        error_detail = None
+        if isinstance(error, GmailDelegateMutationAmbiguousError):
+            audit_metadata = {
+                "correlation_id": error.correlation_id,
+                "timeout_occurred": error.code == GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT,
+                "reconciliation_available": True,
+            }
+            error_detail = {
+                "correlation_id": error.correlation_id,
+                "reconciliation_available": True,
+            }
         record_audit_event(
             db=db,
             actor=current_user,
@@ -1681,8 +1708,9 @@ def execute_gmail_delegate_change(
                 else "failure"
             ),
             reason=error.code.value,
+            metadata=audit_metadata,
         )
-        raise gmail_delegate_http_error(error) from None
+        raise gmail_delegate_http_error(error, extra_detail=error_detail) from None
 
     record_audit_event(
         db=db,
@@ -1732,6 +1760,114 @@ def remove_google_workspace_gmail_delegate(
     current_user: CurrentUser,
 ) -> GmailDelegateMutationRead:
     return execute_gmail_delegate_change(
+        operation="remove",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+def reconcile_gmail_delegate_change(
+    *,
+    operation: DelegateOperation,
+    organization_id: UUID,
+    payload: GmailDelegateMutationRequest,
+    db: Session,
+    current_user: User,
+) -> GmailDelegateReconciliationRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = f"google_workspace.gmail_delegate.{operation}_reconciled"
+    require_gmail_delegate_admin(
+        db=db,
+        current_user=current_user,
+        organization=organization,
+        action=action,
+    )
+    try:
+        result = GoogleWorkspaceGmailDelegationReconciliationService.from_settings(
+            db
+        ).reconcile_change(
+            actor=current_user,
+            organization_id=organization.id,
+            operation=operation,
+            confirmation_token=payload.confirmation_token,
+        )
+    except GoogleWorkspaceError as error:
+        metadata: dict[str, object] = {"final_state": "unknown"}
+        if isinstance(error, GmailDelegateReconciliationError):
+            metadata.update(
+                {
+                    "correlation_id": error.correlation_id,
+                    "reconciliation_attempts": error.attempts,
+                }
+            )
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_mailbox",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome=("rejected" if error.code in GMAIL_DELEGATE_REJECTION_CODES else "failure"),
+            reason=error.code.value,
+            metadata=metadata,
+        )
+        raise gmail_delegate_http_error(error) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_mailbox",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        outcome="success" if result.status == "verified" else "unknown",
+        reason=None if result.status == "verified" else "state_not_observed",
+        metadata={
+            "correlation_id": result.correlation_id,
+            "reconciliation_attempts": result.attempts,
+            "final_state": result.status,
+            "observed_state": result.observed_state,
+            "owner_primary_email": result.owner_primary_email,
+            "delegate_primary_email": result.delegate_primary_email,
+        },
+    )
+    return GmailDelegateReconciliationRead(**result.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/gmail-delegates/create/reconcile",
+    response_model=GmailDelegateReconciliationRead,
+    tags=["google-workspace"],
+)
+def reconcile_google_workspace_gmail_delegate_create(
+    organization_id: UUID,
+    payload: GmailDelegateMutationRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GmailDelegateReconciliationRead:
+    return reconcile_gmail_delegate_change(
+        operation="create",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/gmail-delegates/remove/reconcile",
+    response_model=GmailDelegateReconciliationRead,
+    tags=["google-workspace"],
+)
+def reconcile_google_workspace_gmail_delegate_remove(
+    organization_id: UUID,
+    payload: GmailDelegateMutationRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GmailDelegateReconciliationRead:
+    return reconcile_gmail_delegate_change(
         operation="remove",
         organization_id=organization_id,
         payload=payload,

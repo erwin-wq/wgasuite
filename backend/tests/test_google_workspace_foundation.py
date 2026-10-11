@@ -18,6 +18,7 @@ from app.connectors.google_workspace import (
     GoogleWorkspaceError,
     map_google_api_error,
 )
+from app.connectors.google_workspace_client import VerifiedMailboxOwner
 from app.connectors.google_workspace_credentials import (
     GMAIL_DELEGATE_READ_SCOPE,
     GMAIL_DELEGATE_WRITE_SCOPE,
@@ -462,3 +463,46 @@ def test_client_factory_uses_requested_service_version_scopes_and_fresh_clients(
     assert credential_constructor.call_args_list[1].kwargs["scopes"] == (
         "scope:gmail.delegates",
     )
+
+
+def test_gmail_reconciliation_can_only_shorten_the_configured_request_timeout(
+    db_session: Session,
+) -> None:
+    organization, _, actor = create_tenant_data(db_session)
+    provider = InMemoryCredentialProvider()
+    builder_calls: list[dict] = []
+
+    def client_builder(*args, **kwargs):
+        builder_calls.append(kwargs)
+        return object()
+
+    factory = GoogleWorkspaceClientFactory(
+        db_session,
+        CredentialProviderRegistry([provider]),
+        client_builder=client_builder,
+        request_timeout_seconds=20,
+    )
+    owner = VerifiedMailboxOwner("owner-id", "owner@example.com", "google-customer")
+
+    with patch(
+        "app.connectors.google_workspace_credentials."
+        "service_account.Credentials.from_service_account_info",
+        side_effect=[FakeBaseCredentials(), FakeBaseCredentials()],
+    ):
+        factory.for_gmail_delegates(
+            actor=actor,
+            organization_id=organization.id,
+            owner=owner,
+            scopes=[GMAIL_DELEGATE_READ_SCOPE],
+            request_timeout_seconds=5,
+        )
+        factory.for_gmail_delegates(
+            actor=actor,
+            organization_id=organization.id,
+            owner=owner,
+            scopes=[GMAIL_DELEGATE_READ_SCOPE],
+            request_timeout_seconds=60,
+        )
+
+    assert builder_calls[0]["http"].http.timeout == 5
+    assert builder_calls[1]["http"].http.timeout == 20

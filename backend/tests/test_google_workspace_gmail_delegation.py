@@ -25,7 +25,11 @@ from app.models import AuditEvent, GoogleWorkspaceDelegateConfirmation
 from app.services.google_workspace_gmail_delegation import (
     GmailDelegate,
     GmailDelegateListResult,
+    GmailDelegateMutationAmbiguousError,
     GmailDelegateMutationResult,
+    GmailDelegateReconciliationError,
+    GmailDelegateReconciliationResult,
+    GoogleWorkspaceGmailDelegationReconciliationService,
     GoogleWorkspaceGmailDelegationService,
 )
 from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookupResult
@@ -199,6 +203,45 @@ def preview_create(
         owner_email="owner@example.com",
         delegate_email=delegate_email,
     )
+
+
+def ambiguous_change(
+    db_session: Session,
+    *,
+    operation: str,
+    reconciliation_responses: list[object],
+) -> tuple[
+    GoogleWorkspaceGmailDelegationService,
+    FakeClientFactory,
+    UUID,
+    Any,
+    str,
+]:
+    existing = delegate_response()
+    before = {"delegates": []} if operation == "create" else existing
+    clients = [
+        FakeGmailClient(before),
+        FakeGmailClient(before),
+        FakeGmailClient(TimeoutError("private ambiguous timeout")),
+        *[FakeGmailClient(response) for response in reconciliation_responses],
+    ]
+    service, factory, _, organization_id, actor = delegation_service(db_session, clients)
+    preview = service.preview_change(
+        actor=actor,
+        organization_id=organization_id,
+        operation=operation,  # type: ignore[arg-type]
+        owner_email="owner@example.com",
+        delegate_email="delegate@example.com",
+    )
+    with pytest.raises(GmailDelegateMutationAmbiguousError) as exc_info:
+        service.execute_change(
+            actor=actor,
+            organization_id=organization_id,
+            operation=operation,  # type: ignore[arg-type]
+            confirmation_token=preview.confirmation_token,
+        )
+    assert exc_info.value.code == GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT
+    return service, factory, organization_id, actor, preview.confirmation_token
 
 
 def test_lists_delegates_with_owner_impersonation_and_read_scope(db_session: Session) -> None:
@@ -563,7 +606,7 @@ def test_ambiguous_write_timeout_is_consumed_and_never_retried(db_session: Sessi
     )
     preview = preview_create(service, actor, organization_id)
 
-    with pytest.raises(GoogleWorkspaceError) as exc_info:
+    with pytest.raises(GmailDelegateMutationAmbiguousError) as exc_info:
         service.execute_change(
             actor=actor,
             organization_id=organization_id,
@@ -574,7 +617,8 @@ def test_ambiguous_write_timeout_is_consumed_and_never_retried(db_session: Sessi
     assert exc_info.value.code == GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT
     confirmation = db_session.scalar(select(GoogleWorkspaceDelegateConfirmation))
     assert confirmation is not None
-    assert confirmation.status == "failed"
+    assert confirmation.status == "unknown"
+    assert exc_info.value.correlation_id == str(confirmation.id)
     assert len(factory.calls) == 3
     with pytest.raises(GoogleWorkspaceError) as replay_error:
         service.execute_change(
@@ -584,6 +628,295 @@ def test_ambiguous_write_timeout_is_consumed_and_never_retried(db_session: Sessi
             confirmation_token=preview.confirmation_token,
         )
     assert replay_error.value.code == GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_USED
+
+
+def test_create_timeout_reconciles_when_delegate_later_appears_accepted(
+    db_session: Session,
+) -> None:
+    service, factory, organization_id, actor, token = ambiguous_change(
+        db_session,
+        operation="create",
+        reconciliation_responses=[delegate_response()],
+    )
+    reconciler = GoogleWorkspaceGmailDelegationReconciliationService(
+        db_session, service, poll_delays=(0,)
+    )
+
+    result = reconciler.reconcile_change(
+        actor=actor,
+        organization_id=organization_id,
+        operation="create",
+        confirmation_token=token,
+    )
+
+    assert result.status == "verified"
+    assert result.observed_state == "accepted"
+    assert result.attempts == 1
+    assert len(factory.calls) == 4
+    assert factory.calls[-1]["scopes"] == [GMAIL_DELEGATE_READ_SCOPE]
+    assert factory.calls[-1]["request_timeout_seconds"] <= 5
+    assert sum(call["scopes"] == [GMAIL_DELEGATE_WRITE_SCOPE] for call in factory.calls) == 1
+    confirmation = db_session.scalar(select(GoogleWorkspaceDelegateConfirmation))
+    assert confirmation is not None
+    assert confirmation.status == "reconciled"
+    with pytest.raises(GoogleWorkspaceError) as replay_error:
+        service.execute_change(
+            actor=actor,
+            organization_id=organization_id,
+            operation="create",
+            confirmation_token=token,
+        )
+    assert replay_error.value.code == GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_USED
+    assert sum(call["scopes"] == [GMAIL_DELEGATE_WRITE_SCOPE] for call in factory.calls) == 1
+
+
+def test_create_timeout_remains_unknown_when_delegate_is_absent(
+    db_session: Session,
+) -> None:
+    service, factory, organization_id, actor, token = ambiguous_change(
+        db_session,
+        operation="create",
+        reconciliation_responses=[{"delegates": []}, {"delegates": []}],
+    )
+    reconciler = GoogleWorkspaceGmailDelegationReconciliationService(
+        db_session, service, poll_delays=(0, 0)
+    )
+
+    result = reconciler.reconcile_change(
+        actor=actor,
+        organization_id=organization_id,
+        operation="create",
+        confirmation_token=token,
+    )
+
+    assert result.status == "unknown"
+    assert result.observed_state == "not_observed"
+    assert result.attempts == 2
+    assert sum(call["scopes"] == [GMAIL_DELEGATE_WRITE_SCOPE] for call in factory.calls) == 1
+
+
+def test_create_reconciliation_allows_delayed_google_propagation(
+    db_session: Session,
+) -> None:
+    service, _, organization_id, actor, token = ambiguous_change(
+        db_session,
+        operation="create",
+        reconciliation_responses=[{"delegates": []}, delegate_response()],
+    )
+    reconciler = GoogleWorkspaceGmailDelegationReconciliationService(
+        db_session, service, poll_delays=(0, 0)
+    )
+
+    result = reconciler.reconcile_change(
+        actor=actor,
+        organization_id=organization_id,
+        operation="create",
+        confirmation_token=token,
+    )
+
+    assert result.status == "verified"
+    assert result.attempts == 2
+
+
+def test_delete_timeout_reconciles_when_delegate_later_disappears(
+    db_session: Session,
+) -> None:
+    service, factory, organization_id, actor, token = ambiguous_change(
+        db_session,
+        operation="remove",
+        reconciliation_responses=[{"delegates": []}],
+    )
+    reconciler = GoogleWorkspaceGmailDelegationReconciliationService(
+        db_session, service, poll_delays=(0,)
+    )
+
+    result = reconciler.reconcile_change(
+        actor=actor,
+        organization_id=organization_id,
+        operation="remove",
+        confirmation_token=token,
+    )
+
+    assert result.status == "verified"
+    assert result.observed_state == "absent"
+    assert sum(call["scopes"] == [GMAIL_DELEGATE_WRITE_SCOPE] for call in factory.calls) == 1
+
+
+def test_delete_timeout_remains_unknown_while_delegate_is_present(
+    db_session: Session,
+) -> None:
+    service, factory, organization_id, actor, token = ambiguous_change(
+        db_session,
+        operation="remove",
+        reconciliation_responses=[delegate_response(), delegate_response()],
+    )
+    reconciler = GoogleWorkspaceGmailDelegationReconciliationService(
+        db_session, service, poll_delays=(0, 0)
+    )
+
+    result = reconciler.reconcile_change(
+        actor=actor,
+        organization_id=organization_id,
+        operation="remove",
+        confirmation_token=token,
+    )
+
+    assert result.status == "unknown"
+    assert result.observed_state == "present"
+    assert sum(call["scopes"] == [GMAIL_DELEGATE_WRITE_SCOPE] for call in factory.calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_code"),
+    [
+        (
+            google_http_error(403, "insufficientPermissions"),
+            GoogleWorkspaceErrorCode.GMAIL_SCOPE_MISSING,
+        ),
+        (google_http_error(429), GoogleWorkspaceErrorCode.GOOGLE_RATE_LIMITED),
+        (google_http_error(503), GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE),
+    ],
+)
+def test_reconciliation_maps_google_errors_and_never_repeats_mutation(
+    db_session: Session,
+    failure: Exception,
+    expected_code: GoogleWorkspaceErrorCode,
+) -> None:
+    service, factory, organization_id, actor, token = ambiguous_change(
+        db_session,
+        operation="create",
+        reconciliation_responses=[failure],
+    )
+    reconciler = GoogleWorkspaceGmailDelegationReconciliationService(
+        db_session, service, poll_delays=(0,)
+    )
+
+    with pytest.raises(GmailDelegateReconciliationError) as exc_info:
+        reconciler.reconcile_change(
+            actor=actor,
+            organization_id=organization_id,
+            operation="create",
+            confirmation_token=token,
+        )
+
+    assert exc_info.value.code == expected_code
+    assert exc_info.value.attempts == 1
+    assert sum(call["scopes"] == [GMAIL_DELEGATE_WRITE_SCOPE] for call in factory.calls) == 1
+
+
+def test_reconciliation_respects_explicit_maximum_wait(db_session: Session) -> None:
+    service, factory, organization_id, actor, token = ambiguous_change(
+        db_session,
+        operation="create",
+        reconciliation_responses=[{"delegates": []}],
+    )
+    clock = {"now": 0.0}
+
+    def monotonic() -> float:
+        return clock["now"]
+
+    def sleeper(seconds: float) -> None:
+        clock["now"] += seconds
+
+    reconciler = GoogleWorkspaceGmailDelegationReconciliationService(
+        db_session,
+        service,
+        poll_delays=(0, 1),
+        max_wait_seconds=0.5,
+        sleeper=sleeper,
+        monotonic=monotonic,
+    )
+
+    result = reconciler.reconcile_change(
+        actor=actor,
+        organization_id=organization_id,
+        operation="create",
+        confirmation_token=token,
+    )
+
+    assert result.status == "unknown"
+    assert result.attempts == 1
+    assert len(factory.calls) == 4
+
+
+def test_reconciliation_window_expiry_prevents_further_google_reads(
+    db_session: Session,
+) -> None:
+    service, factory, organization_id, actor, token = ambiguous_change(
+        db_session,
+        operation="create",
+        reconciliation_responses=[],
+    )
+    confirmation = db_session.scalar(select(GoogleWorkspaceDelegateConfirmation))
+    assert confirmation is not None
+    confirmation.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    db_session.commit()
+    reconciler = GoogleWorkspaceGmailDelegationReconciliationService(
+        db_session, service, poll_delays=(0,)
+    )
+
+    with pytest.raises(GmailDelegateReconciliationError) as exc_info:
+        reconciler.reconcile_change(
+            actor=actor,
+            organization_id=organization_id,
+            operation="create",
+            confirmation_token=token,
+        )
+
+    assert exc_info.value.code == GoogleWorkspaceErrorCode.GMAIL_RECONCILIATION_EXPIRED
+    assert len(factory.calls) == 3
+
+
+def test_reconciliation_revalidates_stored_mailbox_owner_identity(
+    db_session: Session,
+) -> None:
+    service, factory, organization_id, actor, token = ambiguous_change(
+        db_session,
+        operation="create",
+        reconciliation_responses=[],
+    )
+    confirmation = db_session.scalar(select(GoogleWorkspaceDelegateConfirmation))
+    assert confirmation is not None
+    confirmation.owner_google_id = "different-owner-id"
+    db_session.commit()
+    reconciler = GoogleWorkspaceGmailDelegationReconciliationService(
+        db_session, service, poll_delays=(0,)
+    )
+
+    with pytest.raises(GmailDelegateReconciliationError) as exc_info:
+        reconciler.reconcile_change(
+            actor=actor,
+            organization_id=organization_id,
+            operation="create",
+            confirmation_token=token,
+        )
+
+    assert exc_info.value.code == GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_INVALID
+    assert len(factory.calls) == 3
+
+
+def test_reconciliation_token_is_bound_to_original_organization(
+    db_session: Session,
+) -> None:
+    service, factory, _, actor, token = ambiguous_change(
+        db_session,
+        operation="create",
+        reconciliation_responses=[],
+    )
+    reconciler = GoogleWorkspaceGmailDelegationReconciliationService(
+        db_session, service, poll_delays=(0,)
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as exc_info:
+        reconciler.reconcile_change(
+            actor=actor,
+            organization_id=uuid4(),
+            operation="create",
+            confirmation_token=token,
+        )
+
+    assert exc_info.value.code == GoogleWorkspaceErrorCode.GMAIL_RECONCILIATION_NOT_AVAILABLE
+    assert len(factory.calls) == 3
 
 
 def test_create_maps_google_conflict_to_existing_delegate(db_session: Session) -> None:
@@ -618,6 +951,11 @@ class FakeEndpointService:
         return self.result
 
     def execute_change(self, **kwargs: Any) -> object:
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+    def reconcile_change(self, **kwargs: Any) -> object:
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
@@ -689,6 +1027,69 @@ def test_viewer_cannot_list_or_mutate_and_denial_is_audited(
     assert "token" not in str(event.metadata_json).lower()
 
 
+def test_viewer_cannot_reconcile_and_denial_is_audited(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    db_session: Session,
+) -> None:
+    customer = create_customer(client, auth_headers, "Reconciliation Security Customer")
+    organization = create_organization(
+        client, auth_headers, customer["id"], "Reconciliation Security Org"
+    )
+    viewer = add_user(db_session, f"reconciliation-viewer-{uuid4().hex}@example.test")
+    add_membership(db_session, viewer, customer["id"], "customer_viewer")
+
+    response = client.post(
+        f"/api/v1/organizations/{organization['id']}/google-workspace/"
+        "gmail-delegates/create/reconcile",
+        json={"confirmation_token": "x" * 48},
+        headers=login_headers(client, viewer.email),
+    )
+
+    assert response.status_code == 403
+    event = db_session.scalar(
+        select(AuditEvent)
+        .where(AuditEvent.action == "google_workspace.gmail_delegate.create_reconciled")
+        .order_by(AuditEvent.created_at.desc())
+    )
+    assert event is not None
+    assert event.outcome == "rejected"
+    assert event.reason == "organization_access_denied"
+    assert "token" not in str(event.metadata_json).lower()
+
+
+def test_customer_admin_cannot_reconcile_another_customers_organization(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    db_session: Session,
+) -> None:
+    customer_a = create_customer(client, auth_headers, "Reconciliation Customer A")
+    customer_b = create_customer(client, auth_headers, "Reconciliation Customer B")
+    organization_b = create_organization(
+        client, auth_headers, customer_b["id"], "Reconciliation Organization B"
+    )
+    customer_admin = add_user(db_session, f"reconciliation-admin-{uuid4().hex}@example.test")
+    add_membership(db_session, customer_admin, customer_a["id"], "customer_admin")
+
+    response = client.post(
+        f"/api/v1/organizations/{organization_b['id']}/google-workspace/"
+        "gmail-delegates/remove/reconcile",
+        json={"confirmation_token": "x" * 48},
+        headers=login_headers(client, customer_admin.email),
+    )
+
+    assert response.status_code == 403
+    event = db_session.scalar(
+        select(AuditEvent)
+        .where(AuditEvent.action == "google_workspace.gmail_delegate.remove_reconciled")
+        .order_by(AuditEvent.created_at.desc())
+    )
+    assert event is not None
+    assert event.customer_id == UUID(customer_b["id"])
+    assert event.outcome == "rejected"
+    assert event.reason == "organization_access_denied"
+
+
 @pytest.mark.parametrize(
     ("result", "expected_status", "expected_outcome", "expected_reason"),
     [
@@ -733,8 +1134,7 @@ def test_mutation_endpoint_audits_success_and_failure_without_confirmation_token
         return_value=FakeEndpointService(result),
     ):
         response = client.post(
-            f"/api/v1/organizations/{organization['id']}/google-workspace/"
-            "gmail-delegates/create",
+            f"/api/v1/organizations/{organization['id']}/google-workspace/gmail-delegates/create",
             json={"confirmation_token": "x" * 48},
             headers=auth_headers,
         )
@@ -750,3 +1150,77 @@ def test_mutation_endpoint_audits_success_and_failure_without_confirmation_token
     assert event.reason == expected_reason
     assert "confirmation" not in str(event.metadata_json).lower()
     assert "x" * 32 not in str(event.metadata_json)
+
+
+def test_timeout_and_reconciliation_keep_separate_correlated_audit_events(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    db_session: Session,
+) -> None:
+    organization = create_organization(client, auth_headers, None, "Correlation Audit Org")
+    correlation_id = uuid4()
+    ambiguous = GmailDelegateMutationAmbiguousError(
+        GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT, correlation_id
+    )
+    with patch(
+        "app.api.v1.router.GoogleWorkspaceGmailDelegationService.from_settings",
+        return_value=FakeEndpointService(ambiguous),
+    ):
+        mutation_response = client.post(
+            f"/api/v1/organizations/{organization['id']}/google-workspace/gmail-delegates/create",
+            json={"confirmation_token": "x" * 48},
+            headers=auth_headers,
+        )
+
+    assert mutation_response.status_code == 504
+    assert mutation_response.json()["detail"] == {
+        "code": "google_timeout",
+        "message": "The Google API request timed out. The operation may still have completed.",
+        "correlation_id": str(correlation_id),
+        "reconciliation_available": True,
+    }
+
+    reconciled = GmailDelegateReconciliationResult(
+        operation="create",
+        owner_primary_email="owner@example.test",
+        delegate_primary_email="delegate@example.test",
+        status="verified",
+        observed_state="accepted",
+        attempts=2,
+        correlation_id=str(correlation_id),
+        message="The requested delegate state is visible.",
+    )
+    with patch(
+        "app.api.v1.router.GoogleWorkspaceGmailDelegationReconciliationService.from_settings",
+        return_value=FakeEndpointService(reconciled),
+    ):
+        reconciliation_response = client.post(
+            f"/api/v1/organizations/{organization['id']}/google-workspace/"
+            "gmail-delegates/create/reconcile",
+            json={"confirmation_token": "x" * 48},
+            headers=auth_headers,
+        )
+
+    assert reconciliation_response.status_code == 200
+    mutation_event = db_session.scalar(
+        select(AuditEvent).where(AuditEvent.action == "google_workspace.gmail_delegate.created")
+    )
+    reconciliation_event = db_session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.action == "google_workspace.gmail_delegate.create_reconciled"
+        )
+    )
+    assert mutation_event is not None
+    assert reconciliation_event is not None
+    assert mutation_event.reason == "google_timeout"
+    assert mutation_event.metadata_json == {
+        "correlation_id": str(correlation_id),
+        "timeout_occurred": True,
+        "reconciliation_available": True,
+    }
+    assert reconciliation_event.outcome == "success"
+    assert reconciliation_event.metadata_json is not None
+    assert reconciliation_event.metadata_json["correlation_id"] == str(correlation_id)
+    assert reconciliation_event.metadata_json["reconciliation_attempts"] == 2
+    assert "confirmation" not in str(mutation_event.metadata_json).lower()
+    assert "confirmation" not in str(reconciliation_event.metadata_json).lower()

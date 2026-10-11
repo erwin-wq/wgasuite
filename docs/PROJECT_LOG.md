@@ -5,6 +5,17 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-11 — CORE-FIX-002 safe Gmail mutation reconciliation
+
+- Preserved the 20-second Gmail mutation timeout and `num_retries=0`; ambiguous create/delete
+  responses now retain an explicit unknown state instead of implying definitive failure.
+- Added actor, tenant, operation and canonical-identity-bound reconciliation endpoints that perform
+  only bounded `delegates.list` polling and can never resubmit the original mutation.
+- Distinguished direct success, state verified after ambiguity, unknown outcome and definitive
+  failure in the responsive UI, including automatic reconciliation and a manual **Check status**.
+- Added safe correlation IDs and separate mutation/reconciliation audit events without storing raw
+  confirmation tokens or Google responses.
+
 ## 2026-10-10 — CORE-002 Gmail mailbox delegation management
 
 - Added Gmail delegate list/create/remove services with canonical Directory resolution, Google

@@ -40,6 +40,8 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GMAIL_CONFIRMATION_INVALID = "gmail_confirmation_invalid"
     GMAIL_CONFIRMATION_EXPIRED = "gmail_confirmation_expired"
     GMAIL_CONFIRMATION_USED = "gmail_confirmation_used"
+    GMAIL_RECONCILIATION_NOT_AVAILABLE = "gmail_reconciliation_not_available"
+    GMAIL_RECONCILIATION_EXPIRED = "gmail_reconciliation_expired"
     GOOGLE_SUBJECT_NOT_FOUND = "google_subject_not_found"
     GOOGLE_SUBJECT_MISMATCH = "google_subject_mismatch"
     ORGANIZATION_ACCESS_DENIED = "organization_access_denied"
@@ -92,10 +94,10 @@ SAFE_ERROR_MESSAGES = {
         "The Google service is temporarily unavailable. Try again later."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT: (
-        "The Google Directory request timed out. Check network access and try again."
+        "The Google API request timed out. The operation may still have completed."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_NETWORK_ERROR: (
-        "The Google Directory request could not reach Google. Check network and DNS access."
+        "The Google API request could not reach Google. Check network and DNS access."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_API_ERROR: "The Google API operation failed.",
     GoogleWorkspaceErrorCode.GOOGLE_USER_NOT_FOUND: (
@@ -138,6 +140,12 @@ SAFE_ERROR_MESSAGES = {
     ),
     GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_USED: (
         "This delegate change was already submitted. Refresh the delegate list before continuing."
+    ),
+    GoogleWorkspaceErrorCode.GMAIL_RECONCILIATION_NOT_AVAILABLE: (
+        "This delegate change is not eligible for read-only reconciliation."
+    ),
+    GoogleWorkspaceErrorCode.GMAIL_RECONCILIATION_EXPIRED: (
+        "The read-only reconciliation window expired. Refresh the delegate list."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_SUBJECT_NOT_FOUND: (
         "Google could not find the configured delegated administrator account."

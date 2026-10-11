@@ -48,8 +48,10 @@ Findings hebben een optionele koppeling naar een asset. De DREAD-score staat in 
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/list`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create/preview`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create/reconcile`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove/preview`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/remove/reconcile`
 - `POST /api/v1/assessments`
 - `GET /api/v1/assessments`
 - `GET /api/v1/assessments/{assessment_id}`
@@ -77,6 +79,9 @@ geautoriseerde actor + organization
 
 Gmail-delegatie voegt na Directory tenant- en identityvalidatie een afzonderlijk, beperkt pad toe:
 canonical mailbox owner als DWD-subject, vaste `gmail/v1` client en exact één read- of write-scope.
+Een onduidelijke mutation-response wordt als `unknown` opgeslagen. De aparte reconciliation-service
+kan met dezelfde actor/organization/operation-bound confirmation uitsluitend begrensde
+`delegates.list` calls uitvoeren; de write-client is vanuit dat pad niet bereikbaar.
 Mutaties gebruiken een database-backed, eenmalige confirmation en worden niet automatisch herhaald.
 
 `connector_configs` bevat alleen metadata, waaronder `credential_provider` en een opaque

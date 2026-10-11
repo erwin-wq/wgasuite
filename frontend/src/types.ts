@@ -243,6 +243,26 @@ export interface GmailDelegateMutationResult {
   message: string;
 }
 
+export type GmailDelegateObservedState =
+  | "accepted"
+  | "absent"
+  | "not_observed"
+  | "pending"
+  | "rejected"
+  | "unknown"
+  | "present";
+
+export interface GmailDelegateReconciliationResult {
+  operation: "create" | "remove";
+  owner_primary_email: string;
+  delegate_primary_email: string;
+  status: "verified" | "unknown";
+  observed_state: GmailDelegateObservedState;
+  attempts: number;
+  correlation_id: string;
+  message: string;
+}
+
 export interface PlatformAdminTotals {
   customers_count: number;
   organizations_count: number;
