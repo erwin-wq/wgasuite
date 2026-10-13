@@ -1,8 +1,8 @@
 # Google Workspace connector
 
-WGASuite provides a five-step wizard, a real read-only connection test, exact Directory user
-lookup by primary email or user alias, and guarded Gmail mailbox delegate management using a
-service account with Domain-Wide Delegation (DWD). It also provides customer-scoped Google Groups
+WGASuite provides a five-step wizard, a real read-only connection test, a paginated read-only
+Directory, exact user lookup by primary email or user alias, and guarded Gmail mailbox delegate
+management using a service account with Domain-Wide Delegation (DWD). It also provides customer-scoped Google Groups
 discovery and guarded direct-user membership changes. The security-check catalog remains mock-only as
 documented in the README.
 
@@ -124,6 +124,42 @@ This feature searches Directory users only. A not-found result does not prove th
 Google Groups, Group aliases, external forwarding destinations, contacts, and mailbox messages are
 separate resources. `isMailboxSetup` describes Google's reported setup state; it does not grant or
 verify Gmail delegation or mailbox access.
+
+## Read-only user directory
+
+The **User Directory** is the default users view for a connected organization. It verifies the
+configured administrator with the exact lookup service, takes Google's returned `customerId`, and
+then performs a bounded list request:
+
+```text
+POST:       /api/v1/organizations/{organization_id}/google-workspace/users/list
+Method:     users.list
+customer:   verified customerId
+projection: basic
+viewType:   admin_view
+maxResults: 25, 50 or 100
+orderBy:    email, givenName or familyName
+sortOrder:  ASCENDING or DESCENDING
+Scope:      https://www.googleapis.com/auth/admin.directory.user.readonly
+```
+
+Server-side Google query clauses provide general, email/alias, given-name, family-name and full-name
+search, plus suspended, super-administrator, delegated-administrator, archived and organizational-
+unit filters. An organizational-unit filter includes descendants, matching the Directory API's
+query behavior. Multiple active clauses are combined with `AND`; user input is escaped and bounded
+before it reaches Google.
+
+The endpoint returns a typed subset of the basic profile: stable ID, primary email, nullable name
+fields, nullable organizational unit and state/admin flags, and nullable creation and last-login
+timestamps. It does not return custom schemas, phone numbers, addresses or credential data. Every
+returned row must carry the same Google `customerId`; one mismatch fails the entire request.
+
+Pagination tokens remain opaque to the browser and are never decoded or persisted. Google does not
+return a total user count and may expire a page token; the UI then requires a return to page one.
+Directory responses and filter values are not persisted, and audit metadata records only safe
+filter categories, request shape and result count—not queries, emails, profile data or page tokens.
+Selecting a row passes its canonical primary email to the existing exact lookup, which remains the
+only user-details path. This feature performs no Google Workspace mutations.
 
 ## Gmail mailbox delegation
 

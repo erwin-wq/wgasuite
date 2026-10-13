@@ -21,6 +21,8 @@ import type {
   GoogleWorkspaceGroupSearchResult,
   GoogleWorkspaceCheck,
   GoogleWorkspaceUser,
+  GoogleWorkspaceUserDirectoryRequest,
+  GoogleWorkspaceUserDirectoryResult,
   GroupMembershipMutationResult,
   GroupMembershipPreview,
   GroupMembershipReconciliationResult,
@@ -270,6 +272,21 @@ export function lookupGoogleWorkspaceUser(
     {
       method: "POST",
       body: JSON.stringify({ email }),
+      signal
+    }
+  );
+}
+
+export function listGoogleWorkspaceUsers(
+  organizationId: string,
+  payload: GoogleWorkspaceUserDirectoryRequest,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceUserDirectoryResult> {
+  return request<GoogleWorkspaceUserDirectoryResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/users/list`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
       signal
     }
   );

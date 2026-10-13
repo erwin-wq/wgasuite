@@ -210,8 +210,8 @@ Wat we nu al hebben:
 - support-access audit events voor geselecteerde read-acties
 - read-only Platform Admin overview voor platformrollen
 - Google Workspace connector metadata en statusoverzicht
-- echte Directory user/alias lookup, bewaakte Gmail mailboxdelegatie en bewaakte Google Groups
-  direct-membership changes
+- echte gepagineerde Directory userlijst en user/alias lookup, bewaakte Gmail mailboxdelegatie en
+  bewaakte Google Groups direct-membership changes
 - mock Google Workspace scan en check catalog
 - DREAD-rapportage en navigatiestructuur
 
@@ -223,7 +223,7 @@ Wat we nog niet hebben:
 - customer impersonation of een volledige supportmodus
 - billing of abonnementenbeheer
 - volledige auditdekking voor alle mutaties
-- brede Google Workspace API-dekking buiten user lookup, Gmail mailboxdelegatie en beperkte Groups
+- brede Google Workspace API-dekking buiten user-directory/lookup, Gmail mailboxdelegatie en beperkte Groups
   direct-membership administratie
 
 ## Implementatiestatus

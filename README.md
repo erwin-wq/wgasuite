@@ -9,8 +9,9 @@ an admin console or custom script.
 
 > **Project status:** early development / pre-release. The current repository provides a working
 > local foundation, service-account authentication/client infrastructure, a real read-only
-> Google Workspace connection test, exact user and alias lookup, and guarded Gmail mailbox
-> delegation and Google Groups direct-membership management. This remains pre-production software.
+> Google Workspace connection test, paginated user directory, exact user and alias lookup, and
+> guarded Gmail mailbox delegation and Google Groups direct-membership management. This remains
+> pre-production software.
 
 WGASuite is an independent open-source project and is not affiliated with or endorsed by Google.
 
@@ -22,8 +23,8 @@ workflows, with customer scoping, security assessment data and auditable operati
 application.
 
 The default interface now focuses on working customer context, connection management, exact
-Directory user/alias lookup, guarded Gmail delegate changes, and customer-scoped Google Groups
-membership administration. The earlier assessment workflow and mock Google Workspace security
+Directory user browsing and exact user/alias lookup, guarded Gmail delegate changes, and
+customer-scoped Google Groups membership administration. The earlier assessment workflow and mock Google Workspace security
 checks remain in the codebase for future evidence-backed work, but are hidden from standard
 navigation. WGASuite must not yet be treated as a production Google Workspace management platform.
 
@@ -46,6 +47,8 @@ Implemented today:
   sanitized audit/error reporting;
 - exact, read-only Google Directory user lookup by primary email or user alias, with tenant-scoped
   authorization and safe account details;
+- read-only, customer-scoped Directory user listing with server-side search and filters, supported
+  sorting, opaque-token pagination, and selection into the exact user detail workflow;
 - Gmail mailbox delegate listing plus explicit-preview, one-time-confirmation create/remove
   operations for authorized administrators, with owner impersonation and structured auditing;
 - customer-ID-scoped Google Groups search/details, direct-member pagination, and confirmed add or
@@ -70,7 +73,7 @@ preserved assessment screens locally; it is disabled by default and ignored by p
 
 Not implemented today:
 
-- Google Workspace user mutations, bulk inventory, group creation/deletion/role changes, Gmail
+- Google Workspace user mutations, bulk export, group creation/deletion/role changes, Gmail
   message access or broader Gmail settings administration;
 - OAuth admin-consent authentication or external cloud secret-manager integrations;
 - production identity management, SSO, account recovery or hardened session management;
@@ -101,6 +104,14 @@ not return a reliable mutation response, WGASuite never resubmits the write: it 
 the current state through bounded, read-only delegate-list calls. The mock scanner remains entirely
 local and fictional.
 
+The **User Directory** uses `users.list(customer=<verified customerId>)`, `projection=basic`, and
+`viewType=admin_view` with the same read-only Directory scope. It supports Google-backed search,
+account/admin/archive and organizational-unit filters, email/given/family-name ordering, page sizes
+of 25, 50 or 100, and opaque next-page tokens. Results can include users from every verified domain
+in the customer and are not persisted. Google does not provide a total result count, and page
+tokens may expire. Selecting a result opens the existing exact lookup rather than expanding the
+list response or granting any write capability.
+
 The **Groups** tool searches with `groups.list(customer=<verified customerId>)`, so secondary-domain
 groups remain in tenant scope without relying on email suffixes. It shows group details and direct
 members only. Existing internal users may be added as `MEMBER`; direct internal non-owner members
@@ -114,7 +125,8 @@ security and live-verification instructions. Gmail delegation cannot read or mod
 Groups management cannot create/delete groups, change roles or perform bulk operations.
 
 After a successful connection, the Google Workspace page shows a compact persisted connection
-status and provides **Users & aliases** and **Groups** administration tabs. Select **Manage
+status and provides **Users & aliases** and **Groups** administration tabs. The users area opens on
+the paginated Directory and retains a separate exact lookup view. Select **Manage
 connection** to reopen the existing five-step wizard. Unconfigured organizations show the wizard
 prominently, while failed connectors show their persisted sanitized failure and an inspection
 action. The page never tests Google automatically on load.
@@ -303,15 +315,15 @@ procedure.
 ## Project status
 
 WGASuite is in early development and is not production-ready. The assessment, scoping, audit,
-mock-scan, Google authentication/client foundation, read-only connection test, and exact Directory
-user/alias lookup can be exercised locally. Write administration and production operations remain
-future work.
+mock-scan, Google authentication/client foundation, read-only connection test, paginated Directory,
+and exact user/alias lookup can be exercised locally. Guarded Gmail and Groups writes exist, but
+broader write administration and production operations remain future work.
 
 ## Roadmap
 
 Potential future work includes:
 
-- broader user inventory, filtering and other feature-specific Google API operations;
+- broader user export and other feature-specific Google API operations;
 - user and group administration workflows;
 - ChromeOS and device administration;
 - organizational-unit and license management;

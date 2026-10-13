@@ -132,12 +132,12 @@ security controls rather than treated as a current claim.
 
 ## First integration vertical: Google Workspace User Directory
 
-The first direct integration will prove the read path before introducing a mutation:
+The first direct integration proves the read path and remains separately guarded from mutations:
 
 1. validate a real connector and report structured setup failures;
 2. list and search users through the Admin SDK Directory API;
 3. inspect a selected user's details;
-4. retrieve relevant group memberships for that user;
+4. retain broader reverse user-membership context as a future bounded read;
 5. enforce customer and organization scoping on every request;
 6. record meaningful, secret-free audit events;
 7. expose structured Google API errors to the product without leaking sensitive data.

@@ -210,6 +210,51 @@ export interface GoogleWorkspaceUser {
   matched_by: GoogleWorkspaceUserMatchType;
 }
 
+export type UserDirectorySearchField =
+  | "all"
+  | "email"
+  | "given_name"
+  | "family_name"
+  | "full_name";
+export type UserDirectorySuspendedFilter = "all" | "active" | "suspended";
+export type UserDirectoryAdminFilter = "all" | "super_admin" | "delegated_admin";
+export type UserDirectoryArchivedFilter = "all" | "archived" | "not_archived";
+export type UserDirectoryOrder = "email" | "given_name" | "family_name";
+export type UserDirectorySortDirection = "ascending" | "descending";
+
+export interface GoogleWorkspaceDirectoryUser {
+  id: string;
+  full_name: string | null;
+  given_name: string | null;
+  family_name: string | null;
+  primary_email: string;
+  org_unit_path: string | null;
+  suspended: boolean | null;
+  archived: boolean | null;
+  is_super_admin: boolean | null;
+  is_delegated_admin: boolean | null;
+  creation_time: string | null;
+  last_login_time: string | null;
+}
+
+export interface GoogleWorkspaceUserDirectoryResult {
+  users: GoogleWorkspaceDirectoryUser[];
+  next_page_token: string | null;
+}
+
+export interface GoogleWorkspaceUserDirectoryRequest {
+  search: string;
+  search_field: UserDirectorySearchField;
+  org_unit_path: string | null;
+  suspended: UserDirectorySuspendedFilter;
+  admin_status: UserDirectoryAdminFilter;
+  archived: UserDirectoryArchivedFilter;
+  order_by: UserDirectoryOrder;
+  sort_direction: UserDirectorySortDirection;
+  page_size: 25 | 50 | 100;
+  page_token: string | null;
+}
+
 export type GmailDelegateVerificationStatus =
   | "accepted"
   | "pending"
