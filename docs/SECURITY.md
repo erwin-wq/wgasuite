@@ -9,13 +9,16 @@
 ## Connectoren
 
 - De Google Workspace connector ondersteunt een echte, read-only Directory API-connection test,
-  exacte user/alias lookup, bevestigde Gmail delegate create/remove en bevestigde Google Groups
-  direct-membership changes via service accounts met Domain-Wide Delegation.
+  customer-scoped user-directory, exacte user/alias lookup, bevestigde Gmail delegate create/remove
+  en bevestigde Google Groups direct-membership changes via service accounts met Domain-Wide Delegation.
 - Service-account JSON staat buiten database, API-responses, frontend, logs en git.
 - De file provider partitioneert credentials op organization-id en accepteert alleen opaque
   references; het runtimepad wordt read-only gemount.
 - Elke feature moet scopes expliciet en minimaal aanvragen. Clients worden niet tussen tenants of
   scope-sets gecachet.
+- Directory listing gebruikt uitsluitend de bestaande `admin.directory.user.readonly` scope,
+  verifieert Google's `customerId` op ieder resultaat en bewaart geen profielen, zoekwaarden of
+  opaque page tokens. Auditmetadata bevat alleen veilige filtercategorieën en aantallen.
 - Gmail delegate reads gebruiken alleen `gmail.settings.basic`; create/delete gebruiken apart
   alleen `gmail.settings.sharing`. De mailboxeigenaar wordt pas geïmpersoneerd nadat actor,
   organization, Google `customerId` en canonical identity zijn gevalideerd.

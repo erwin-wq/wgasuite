@@ -3,8 +3,9 @@
 Dit document beschrijft de huidige technische foundation. Zie
 [PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md) voor de gekozen direct-API richting voor toekomstige
 Google Workspace integraties. De herbruikbare authenticatie- en clientfoundation is beschikbaar;
-de echte API-operaties omvatten read-only connectietests, exacte user/alias lookup, bewaakte Gmail
-mailboxdelegatie en bewaakte Google Groups direct-membership changes.
+de echte API-operaties omvatten read-only connectietests, gepagineerde user-directory, exacte
+user/alias lookup, bewaakte Gmail mailboxdelegatie en bewaakte Google Groups direct-membership
+changes.
 
 ## Overzicht
 
@@ -45,6 +46,7 @@ Findings hebben een optionele koppeling naar een asset. De DREAD-score staat in 
 - `GET /api/v1/organizations`
 - `GET /api/v1/organizations/{organization_id}`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/users/lookup`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/users/list`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/list`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create/preview`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create`
@@ -103,9 +105,15 @@ zet `includeDerivedMembership=false`. Add/remove bevestigingen staan in
 De reconciliation-service kan na een ambigu resultaat uitsluitend begrensde direct-member reads
 uitvoeren en heeft geen pad dat `members.insert` of `members.delete` opnieuw aanroept.
 
+De user-directory verifieert eerst de delegated administrator via de bestaande exacte lookup en
+gebruikt diens Google `customerId` voor `users.list`. Zoekopdrachten en filters worden server-side
+naar een begrensde Directory-query vertaald. Alleen Google's ondersteunde sortering en opaque
+pagination-token worden doorgegeven. Elk resultaat moet dezelfde customer-id dragen; profielen,
+zoektermen en tokens worden niet opgeslagen.
+
 `connector_configs` bevat alleen metadata, waaronder `credential_provider` en een opaque
 `credential_ref`. Credentialmateriaal staat per organization buiten de database. De file provider
 is de eerste implementatie; de abstractie laat een latere secrets manager toe. De connection test
-en exacte user/alias lookup gebruiken echte, minimaal gescopete Directory API-calls zonder
-profielen op te slaan. De mock scanner blijft fictieve findings genereren. Zie
+de gepagineerde user-directory en exacte user/alias lookup gebruiken echte, minimaal gescopete
+Directory API-calls zonder profielen op te slaan. De mock scanner blijft fictieve findings genereren. Zie
 [GOOGLE_WORKSPACE_CONNECTOR.md](GOOGLE_WORKSPACE_CONNECTOR.md).

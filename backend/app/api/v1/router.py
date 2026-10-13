@@ -86,6 +86,11 @@ from app.schemas.google_workspace_user import (
     GoogleWorkspaceUserLookupRequest,
     GoogleWorkspaceUserRead,
 )
+from app.schemas.google_workspace_user_directory import (
+    GoogleWorkspaceDirectoryUserRead,
+    GoogleWorkspaceUserDirectoryRead,
+    GoogleWorkspaceUserDirectoryRequest,
+)
 from app.schemas.organization import OrganizationCreate, OrganizationRead
 from app.schemas.platform_admin import (
     PlatformAdminAuditEventSummary,
@@ -123,6 +128,7 @@ from app.services.google_workspace_groups import (
     GroupMembershipOperation,
     GroupMembershipReconciliationError,
 )
+from app.services.google_workspace_user_directory import GoogleWorkspaceUserDirectory
 from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookup
 from app.services.passwords import verify_password
 from app.services.tokens import encode_access_token
@@ -1382,6 +1388,8 @@ GOOGLE_USER_LOOKUP_HTTP_STATUS = {
     GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT: status.HTTP_504_GATEWAY_TIMEOUT,
     GoogleWorkspaceErrorCode.GOOGLE_NETWORK_ERROR: status.HTTP_503_SERVICE_UNAVAILABLE,
     GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE: status.HTTP_503_SERVICE_UNAVAILABLE,
+    GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH: status.HTTP_403_FORBIDDEN,
+    GoogleWorkspaceErrorCode.GOOGLE_PAGE_TOKEN_INVALID: status.HTTP_400_BAD_REQUEST,
 }
 
 GMAIL_DELEGATE_HTTP_STATUS = {
@@ -1417,6 +1425,98 @@ GMAIL_DELEGATE_REJECTION_CODES = frozenset(
         GoogleWorkspaceErrorCode.GMAIL_RECONCILIATION_EXPIRED,
     }
 )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/list",
+    response_model=GoogleWorkspaceUserDirectoryRead,
+    tags=["google-workspace"],
+)
+def list_google_workspace_users(
+    organization_id: UUID,
+    payload: GoogleWorkspaceUserDirectoryRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GoogleWorkspaceUserDirectoryRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.user_directory.listed"
+    try:
+        require_customer_admin_access(current_user, organization.customer_id)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="organization",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected",
+            reason="organization_access_denied",
+        )
+        raise
+
+    try:
+        result = GoogleWorkspaceUserDirectory.from_settings(db).list_users(
+            actor=current_user,
+            organization_id=organization.id,
+            search=payload.search,
+            search_field=payload.search_field,
+            org_unit_path=payload.org_unit_path,
+            suspended=payload.suspended,
+            admin_status=payload.admin_status,
+            archived=payload.archived,
+            order_by=payload.order_by,
+            sort_direction=payload.sort_direction,
+            page_size=payload.page_size,
+            page_token=payload.page_token,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="organization",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+            metadata={
+                "has_search": bool(payload.search),
+                "has_ou_filter": bool(payload.org_unit_path),
+                "page_requested": bool(payload.page_token),
+            },
+        )
+        raise HTTPException(
+            status_code=GOOGLE_USER_LOOKUP_HTTP_STATUS.get(
+                error.code, status.HTTP_502_BAD_GATEWAY
+            ),
+            detail={"code": error.code.value, "message": str(error)},
+        ) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="organization",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "result_count": len(result.users),
+            "has_next_page": bool(result.next_page_token),
+            "has_search": bool(payload.search),
+            "has_ou_filter": bool(payload.org_unit_path),
+            "suspended_filter": payload.suspended,
+            "admin_filter": payload.admin_status,
+            "archived_filter": payload.archived,
+            "order_by": payload.order_by,
+            "sort_direction": payload.sort_direction,
+            "page_size": payload.page_size,
+        },
+    )
+    return GoogleWorkspaceUserDirectoryRead(
+        users=[GoogleWorkspaceDirectoryUserRead(**user.__dict__) for user in result.users],
+        next_page_token=result.next_page_token,
+    )
 
 
 @api_router.post(

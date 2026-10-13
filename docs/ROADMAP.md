@@ -18,7 +18,7 @@ commitments. The README is authoritative for current capabilities.
 - tenant-scoped file credential provider, service-account Domain-Wide Delegation and generic,
   explicitly scoped Google API client factory
 - Google Workspace check catalog and mock scans
-- real read-only Google connection testing and exact Directory user/alias lookup
+- real read-only Google connection testing, paginated user directory and exact user/alias lookup
 - guarded Gmail mailbox delegate listing, creation and removal with owner impersonation and audit
 - customer-scoped Google Groups discovery and guarded direct internal-user membership changes
 
@@ -57,8 +57,8 @@ principles are documented in [PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md).
 
 ### 5. User directory inventory
 
-- exact lookup by primary email or user alias and focused user details are now implemented;
-- add bounded list/filter inventory separately without weakening tenant or quota controls;
+- exact lookup by primary email or user alias and focused user details are implemented;
+- bounded customer-scoped list/filter inventory with opaque pagination is implemented;
 - expose freshness, loading and structured error states clearly.
 
 ### 6. Group membership context

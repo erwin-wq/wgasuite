@@ -9,7 +9,7 @@ import {
   UserRound,
   X
 } from "lucide-react";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, lookupGoogleWorkspaceUser } from "../../api/client";
 import type { ConnectorConfig, GoogleWorkspaceUser } from "../../types";
@@ -21,6 +21,7 @@ interface UserLookupProps {
   connectorConfig: ConnectorConfig | null;
   canSearch: boolean;
   canManageDelegates: boolean;
+  initialEmail?: string | null;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -76,7 +77,8 @@ export function UserLookup({
   organizationName,
   connectorConfig,
   canSearch,
-  canManageDelegates
+  canManageDelegates,
+  initialEmail = null
 }: UserLookupProps) {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<GoogleWorkspaceUser | null>(null);
@@ -85,6 +87,32 @@ export function UserLookup({
   const requestSequence = useRef(0);
   const requestController = useRef<AbortController | null>(null);
   const connectorReady = connectorConfig?.status === "connected";
+
+  const runLookup = useCallback(async (email: string) => {
+    if (!organizationId || !connectorReady || !canSearch) return;
+
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    const sequence = requestSequence.current + 1;
+    requestSequence.current = sequence;
+    setResult(null);
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const user = await lookupGoogleWorkspaceUser(organizationId, email, controller.signal);
+      if (requestSequence.current === sequence) setResult(user);
+    } catch (lookupError) {
+      if (controller.signal.aborted || requestSequence.current !== sequence) return;
+      setError(lookupErrorMessage(lookupError));
+    } finally {
+      if (requestSequence.current === sequence) {
+        requestController.current = null;
+        setIsLoading(false);
+      }
+    }
+  }, [canSearch, connectorReady, organizationId]);
 
   useEffect(() => {
     requestSequence.current += 1;
@@ -95,6 +123,14 @@ export function UserLookup({
     setError(null);
     setIsLoading(false);
   }, [organizationId]);
+
+  useEffect(() => {
+    if (!initialEmail) return;
+    const normalizedEmail = initialEmail.trim().toLowerCase();
+    if (!EMAIL_PATTERN.test(normalizedEmail)) return;
+    setQuery(normalizedEmail);
+    void runLookup(normalizedEmail);
+  }, [initialEmail, runLookup]);
 
   function clearLookup() {
     requestSequence.current += 1;
@@ -114,33 +150,7 @@ export function UserLookup({
       setError("Enter a valid full email address.");
       return;
     }
-    if (!organizationId || !connectorReady || !canSearch) return;
-
-    requestController.current?.abort();
-    const controller = new AbortController();
-    requestController.current = controller;
-    const sequence = requestSequence.current + 1;
-    requestSequence.current = sequence;
-    setResult(null);
-    setError(null);
-    setIsLoading(true);
-
-    try {
-      const user = await lookupGoogleWorkspaceUser(
-        organizationId,
-        normalizedQuery,
-        controller.signal
-      );
-      if (requestSequence.current === sequence) setResult(user);
-    } catch (lookupError) {
-      if (controller.signal.aborted || requestSequence.current !== sequence) return;
-      setError(lookupErrorMessage(lookupError));
-    } finally {
-      if (requestSequence.current === sequence) {
-        requestController.current = null;
-        setIsLoading(false);
-      }
-    }
+    await runLookup(normalizedQuery);
   }
 
   return (

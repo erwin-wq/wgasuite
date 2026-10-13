@@ -30,6 +30,7 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_USER_NOT_FOUND = "google_user_not_found"
     GOOGLE_USER_LOOKUP_MISMATCH = "google_user_lookup_mismatch"
     GOOGLE_TENANT_MISMATCH = "google_tenant_mismatch"
+    GOOGLE_PAGE_TOKEN_INVALID = "google_page_token_invalid"
     GMAIL_API_UNAVAILABLE = "gmail_api_unavailable"
     GMAIL_SCOPE_MISSING = "gmail_scope_missing"
     GMAIL_MAILBOX_NOT_CONFIGURED = "gmail_mailbox_not_configured"
@@ -120,7 +121,10 @@ SAFE_ERROR_MESSAGES = {
         "Google returned a user that did not match the requested primary email or alias."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH: (
-        "The mailbox owner and delegate must belong to the configured Google Workspace tenant."
+        "Google returned an identity outside the configured Google Workspace tenant."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_PAGE_TOKEN_INVALID: (
+        "The Google Directory page token is invalid or expired. Restart from the first page."
     ),
     GoogleWorkspaceErrorCode.GMAIL_API_UNAVAILABLE: (
         "The Gmail API is not enabled or accessible for this Google Cloud project."

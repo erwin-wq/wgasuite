@@ -18,7 +18,7 @@ import {
   Target,
   X
 } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -65,7 +65,7 @@ import { ConnectionWizard } from "./features/google-workspace/ConnectionWizard";
 import { GmailDelegationAuthorization } from "./features/google-workspace/GmailDelegationAuthorization";
 import { GroupManagement } from "./features/google-workspace/GroupManagement";
 import { GoogleWorkspaceAdministration } from "./features/google-workspace/GoogleWorkspaceAdministration";
-import { UserLookup } from "./features/google-workspace/UserLookup";
+import { UserDirectoryAdministration } from "./features/google-workspace/UserDirectoryAdministration";
 import { DashboardOverview } from "./features/dashboard/DashboardOverview";
 import { AppNavigation, type ActiveSection } from "./features/navigation/AppNavigation";
 
@@ -189,6 +189,7 @@ function App() {
   const [report, setReport] = useState<AssessmentReport | null>(null);
   const [platformAdminOverview, setPlatformAdminOverview] =
     useState<PlatformAdminOverview | null>(null);
+  const connectorConfigRequestSequence = useRef(0);
   const [isPlatformAdminOverviewLoading, setIsPlatformAdminOverviewLoading] = useState(false);
 
   const customerById = useMemo(
@@ -323,16 +324,23 @@ function App() {
 
   const loadOrganizationConnectorConfigs = useCallback(
     async (organizationId: string) => {
+      const sequence = connectorConfigRequestSequence.current + 1;
+      connectorConfigRequestSequence.current = sequence;
       if (!organizationId) {
         setConnectorConfigs([]);
         return;
       }
 
+      setConnectorConfigs([]);
       try {
         const loadedConnectorConfigs = await listOrganizationConnectorConfigs(organizationId);
-        setConnectorConfigs(loadedConnectorConfigs);
+        if (connectorConfigRequestSequence.current === sequence) {
+          setConnectorConfigs(loadedConnectorConfigs);
+        }
       } catch (connectorError) {
-        handleRequestError(connectorError);
+        if (connectorConfigRequestSequence.current === sequence) {
+          handleRequestError(connectorError);
+        }
       }
     },
     [handleRequestError]
@@ -1532,7 +1540,7 @@ function App() {
                 <GmailDelegationAuthorization connectorConfig={googleWorkspaceConnectorConfig} />
               }
               userLookup={
-                <UserLookup
+                <UserDirectoryAdministration
                   organizationId={selectedOrganizationId}
                   organizationName={selectedOrganization?.name ?? null}
                   connectorConfig={googleWorkspaceConnectorConfig}

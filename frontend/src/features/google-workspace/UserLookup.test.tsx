@@ -85,6 +85,22 @@ describe("UserLookup", () => {
     expect(lookupGoogleWorkspaceUser).not.toHaveBeenCalled();
   });
 
+  it("opens an existing user detail from a canonical directory selection", async () => {
+    vi.mocked(lookupGoogleWorkspaceUser).mockResolvedValue(aliasResult);
+
+    renderLookup({ initialEmail: "Person@Primary.Example" });
+
+    expect(lookupGoogleWorkspaceUser).toHaveBeenCalledWith(
+      "organization-1",
+      "person@primary.example",
+      expect.any(AbortSignal)
+    );
+    expect(await screen.findByRole("heading", { name: "Example Person" })).toBeVisible();
+    expect(screen.getByTestId("mailbox-delegates")).toHaveTextContent(
+      "Delegates for person@primary.example"
+    );
+  });
+
   it("distinguishes permission and connector readiness states", () => {
     const { rerender } = renderLookup({ canSearch: false });
     expect(screen.getByText(/Administrator access is required/)).toBeVisible();

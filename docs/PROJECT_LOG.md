@@ -5,6 +5,16 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-13 — GW-003 read-only Google Workspace user directory
+
+- Added a customer-ID-scoped `users.list` service with bounded Google-backed search and filters,
+  supported sorting, opaque pagination, strict result tenant validation and no automatic retries.
+- Added a responsive Directory-first users interface with explicit loading, empty and safe error
+  states; selecting a canonical result reuses the existing exact lookup and related detail tools.
+- Reused only `admin.directory.user.readonly`, persisted no profiles, queries or page tokens, and
+  kept audit metadata limited to safe filter categories and result counts. No user mutation was
+  introduced.
+
 ## 2026-10-11 — CORE-003 Google Groups membership management
 
 - Added customer-ID-scoped `groups.list` discovery, verified `groups.get` details and paginated
