@@ -426,6 +426,10 @@ class GoogleWorkspaceGroupsService:
         )
         return admin.customer_id
 
+    def verified_customer_id(self, actor: User, organization_id: UUID) -> str:
+        """Resolve the trusted Google customer through the configured delegated administrator."""
+        return self._verified_customer_id(actor, organization_id)
+
     def _resolve_change_identities(
         self,
         actor: User,

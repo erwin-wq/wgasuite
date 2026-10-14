@@ -17,6 +17,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiError,
   executeGroupMembershipChange,
+  getGoogleWorkspaceGroup,
   listGoogleWorkspaceGroupMembers,
   previewGroupMembershipChange,
   reconcileGroupMembershipChange,
@@ -32,6 +33,8 @@ interface GroupManagementProps {
   organizationId: string;
   canSearch: boolean;
   canMutate: boolean;
+  initialGroupEmail?: string | null;
+  navigationRequestId?: number;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -78,7 +81,9 @@ function memberLabel(member: GoogleWorkspaceGroupMember): string {
 export function GroupManagement({
   organizationId,
   canSearch,
-  canMutate
+  canMutate,
+  initialGroupEmail = null,
+  navigationRequestId
 }: GroupManagementProps) {
   const [query, setQuery] = useState("");
   const [groups, setGroups] = useState<GoogleWorkspaceGroup[]>([]);
@@ -176,6 +181,55 @@ export function GroupManagement({
     [organizationId]
   );
 
+  const openRequestedGroup = useCallback(
+    async (groupEmail: string) => {
+      controller.current?.abort();
+      const nextController = new AbortController();
+      controller.current = nextController;
+      const sequence = requestSequence.current + 1;
+      requestSequence.current = sequence;
+      setIsGroupsLoading(false);
+      setIsMembersLoading(true);
+      setGroupError(null);
+      setMemberError(null);
+      setFeedback(null);
+      setMembers([]);
+      setMemberTokens([null]);
+      setMemberPage(0);
+      setMemberNextToken(null);
+      try {
+        const group = await getGoogleWorkspaceGroup(
+          organizationId,
+          groupEmail,
+          nextController.signal
+        );
+        if (requestSequence.current !== sequence) return;
+        setSelectedGroup(group);
+        const result = await listGoogleWorkspaceGroupMembers(
+          organizationId,
+          group.primary_email,
+          null,
+          nextController.signal
+        );
+        if (requestSequence.current !== sequence) return;
+        setSelectedGroup(result.group);
+        setMembers(result.members);
+        setMemberNextToken(result.next_page_token);
+      } catch (error) {
+        if (nextController.signal.aborted || requestSequence.current !== sequence) return;
+        setSelectedGroup(null);
+        setMembers([]);
+        setGroupError(groupErrorMessage(error));
+      } finally {
+        if (requestSequence.current === sequence) {
+          controller.current = null;
+          setIsMembersLoading(false);
+        }
+      }
+    },
+    [organizationId]
+  );
+
   useEffect(() => {
     requestSequence.current += 1;
     controller.current?.abort();
@@ -199,6 +253,11 @@ export function GroupManagement({
     if (canSearch && organizationId) void loadGroups("", null, 0);
     return () => controller.current?.abort();
   }, [canSearch, loadGroups, organizationId]);
+
+  useEffect(() => {
+    if (!canSearch || !initialGroupEmail || navigationRequestId === undefined) return;
+    void openRequestedGroup(initialGroupEmail);
+  }, [canSearch, initialGroupEmail, navigationRequestId, openRequestedGroup]);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

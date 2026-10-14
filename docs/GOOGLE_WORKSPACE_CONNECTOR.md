@@ -161,6 +161,41 @@ filter categories, request shape and result count—not queries, emails, profile
 Selecting a row passes its canonical primary email to the existing exact lookup, which remains the
 only user-details path. This feature performs no Google Workspace mutations.
 
+## User detail and reverse group memberships
+
+The exact user detail combines Directory identity, aliases, account/admin flags and available
+timestamps with the existing Gmail delegation section and a read-only direct-group section:
+
+```text
+POST /api/v1/organizations/{organization_id}/google-workspace/users/group-memberships
+Discovery:    groups.list(userKey=<canonical immutable user ID>)
+Ownership:    groups.list(customer=<verified customerId>, query=email=<candidate primary email>)
+Direct role:  members.get(groupKey=<verified group ID>, memberKey=<canonical user ID>)
+Page sizes:   10 or 25 candidates
+Scopes:       admin.directory.user.readonly + admin.directory.group.readonly
+```
+
+Google does not allow `userKey` and `customer` in the same `groups.list` call. Candidate discovery
+therefore is not treated as tenant or direct-membership proof. WGASuite first resolves the user
+through the existing tenant-authorized exact lookup and compares its `customerId`; it then requires
+each candidate's immutable ID and primary email to match an exact customer-scoped group result.
+Email-domain suffixes are never ownership evidence. Only after that check does `members.get`
+establish a direct `MEMBER`, `MANAGER` or `OWNER` role and optional status.
+
+External groups and candidates for which no direct member exists are omitted from the primary list,
+with page-level omitted counts. Nested/transitive membership is not represented as direct;
+comprehensive transitive relationships may require a future Cloud Identity implementation. The
+Google continuation token is preserved even if all candidates on a page are filtered, and the UI
+supports that empty-page continuation. No total is invented.
+
+Each page is bounded to 25 candidates and 50 ownership/member verification calls, with
+`num_retries=0`; oversized or unsafe work returns an actionable budget error. Rate limits,
+expired tokens, permissions, timeouts and outages use the connector's sanitized error mapping.
+No profile, membership, query or token is persisted, and audits record only match type, safe
+counts, page shape and outcome. Opening a membership reuses the existing customer-verified Groups
+screen and its existing authorization. This read path has no access to `members.insert` or
+`members.delete`.
+
 ## Gmail mailbox delegation
 
 After an administrator resolves a Directory user, the **Mailbox Delegates** section lists that

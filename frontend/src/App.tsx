@@ -72,6 +72,11 @@ import { AppNavigation, type ActiveSection } from "./features/navigation/AppNavi
 type DreadScoreKey = keyof DreadScoreCreate;
 type Feedback = { type: "success" | "error"; message: string } | null;
 type SavingTarget = "customer" | "organization" | "assessment" | "asset" | "finding" | null;
+interface GroupNavigationTarget {
+  organizationId: string;
+  groupEmail: string;
+  requestId: number;
+}
 const DEMO_FEATURES_ENABLED =
   import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEMO_FEATURES === "true";
 
@@ -185,6 +190,8 @@ function App() {
   const [showGoogleWorkspaceChecks, setShowGoogleWorkspaceChecks] = useState(false);
   const [saving, setSaving] = useState<SavingTarget>(null);
   const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
+  const [groupNavigationTarget, setGroupNavigationTarget] =
+    useState<GroupNavigationTarget | null>(null);
   const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
   const [report, setReport] = useState<AssessmentReport | null>(null);
   const [platformAdminOverview, setPlatformAdminOverview] =
@@ -241,6 +248,10 @@ function App() {
       ) ?? null,
     [connectorConfigs, selectedOrganizationId]
   );
+  const activeGroupNavigation =
+    groupNavigationTarget?.organizationId === selectedOrganizationId
+      ? groupNavigationTarget
+      : null;
   const assetById = useMemo(
     () => new Map(assets.map((asset) => [asset.id, asset])),
     [assets]
@@ -1513,6 +1524,7 @@ function App() {
               organizationName={selectedOrganization?.name ?? null}
               connectorConfig={googleWorkspaceConnectorConfig}
               canManageConnection={canManageConnectorCredentials}
+              groupNavigationRequestId={activeGroupNavigation?.requestId}
               connectionWizard={
                 <ConnectionWizard
                   key={selectedOrganizationId}
@@ -1546,6 +1558,13 @@ function App() {
                   connectorConfig={googleWorkspaceConnectorConfig}
                   canSearch={canManageConnectorCredentials}
                   canManageDelegates={canManageConnectorCredentials}
+                  onOpenGroup={(groupEmail) =>
+                    setGroupNavigationTarget((current) => ({
+                      organizationId: selectedOrganizationId,
+                      groupEmail,
+                      requestId: (current?.requestId ?? 0) + 1
+                    }))
+                  }
                 />
               }
               groupManagement={
@@ -1553,6 +1572,8 @@ function App() {
                   organizationId={selectedOrganizationId}
                   canSearch={canOperateConnector}
                   canMutate={canManageConnectorCredentials}
+                  initialGroupEmail={activeGroupNavigation?.groupEmail}
+                  navigationRequestId={activeGroupNavigation?.requestId}
                 />
               }
             />

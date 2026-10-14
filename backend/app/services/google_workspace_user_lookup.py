@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 USER_LOOKUP_FIELDS = (
     "id,primaryEmail,customerId,name(fullName),aliases,nonEditableAliases,suspended,archived,"
-    "orgUnitPath,isMailboxSetup"
+    "orgUnitPath,isMailboxSetup,isAdmin,isDelegatedAdmin,creationTime,lastLoginTime"
 )
 MatchType = Literal["primary_email", "alias", "non_editable_alias"]
 
@@ -39,6 +40,10 @@ class GoogleWorkspaceUserLookupResult:
     org_unit_path: str | None
     is_mailbox_setup: bool | None
     matched_by: MatchType
+    is_super_admin: bool | None = None
+    is_delegated_admin: bool | None = None
+    creation_time: datetime | None = None
+    last_login_time: datetime | None = None
 
 
 class GoogleWorkspaceUserLookup:
@@ -138,6 +143,8 @@ class GoogleWorkspaceUserLookup:
 
         archived = response.get("archived")
         mailbox_setup = response.get("isMailboxSetup")
+        is_admin = response.get("isAdmin")
+        is_delegated_admin = response.get("isDelegatedAdmin")
         return GoogleWorkspaceUserLookupResult(
             id=google_user_id,
             customer_id=customer_id,
@@ -150,7 +157,28 @@ class GoogleWorkspaceUserLookup:
             org_unit_path=org_unit_path,
             is_mailbox_setup=mailbox_setup if isinstance(mailbox_setup, bool) else None,
             matched_by=matched_by,
+            is_super_admin=is_admin if isinstance(is_admin, bool) else None,
+            is_delegated_admin=(
+                is_delegated_admin if isinstance(is_delegated_admin, bool) else None
+            ),
+            creation_time=GoogleWorkspaceUserLookup._optional_datetime(
+                response.get("creationTime")
+            ),
+            last_login_time=GoogleWorkspaceUserLookup._optional_datetime(
+                response.get("lastLoginTime")
+            ),
         )
+
+    @staticmethod
+    def _optional_datetime(value: Any) -> datetime | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_API_ERROR)
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_API_ERROR) from None
 
     @staticmethod
     def _string_list(value: Any) -> list[str]:

@@ -70,6 +70,26 @@ describe("GoogleWorkspaceAdministration", () => {
     expect(screen.queryByTestId("user-lookup")).not.toBeInTheDocument();
   });
 
+  it("switches to Groups when user detail requests a group", () => {
+    const view = renderAdministration();
+
+    view.rerender(
+      <GoogleWorkspaceAdministration
+        organizationId="organization-1"
+        organizationName="Northstar Workspace"
+        connectorConfig={connectedConfig}
+        canManageConnection
+        connectionWizard={<div />}
+        userLookup={<div data-testid="user-lookup">User lookup tool</div>}
+        groupManagement={<div data-testid="group-management">Group management tool</div>}
+        groupNavigationRequestId={1}
+      />
+    );
+
+    expect(screen.getByTestId("group-management")).toBeVisible();
+    expect(screen.queryByTestId("user-lookup")).not.toBeInTheDocument();
+  });
+
   it("shows setup prominently when no connector is configured", () => {
     renderAdministration(null);
 

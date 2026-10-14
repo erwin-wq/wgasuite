@@ -19,6 +19,7 @@ commitments. The README is authoritative for current capabilities.
   explicitly scoped Google API client factory
 - Google Workspace check catalog and mock scans
 - real read-only Google connection testing, paginated user directory and exact user/alias lookup
+- bounded, read-only selected-user direct group context with verified tenant ownership and roles
 - guarded Gmail mailbox delegate listing, creation and removal with owner impersonation and audit
 - customer-scoped Google Groups discovery and guarded direct internal-user membership changes
 
@@ -66,7 +67,8 @@ principles are documented in [PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md).
 - tenant group search/details and paginated direct-member listing are implemented;
 - guarded add/remove for direct internal users is implemented with explicit nested, external,
   owner and special-group limitations;
-- selected-user reverse membership context remains future work and must avoid unbounded fan-out.
+- selected-user reverse membership context is implemented with opaque pagination and bounded,
+  per-candidate tenant/direct-role verification.
 
 ### 7. Audited, guarded suspend and restore
 

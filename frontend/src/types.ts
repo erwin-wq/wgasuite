@@ -207,7 +207,34 @@ export interface GoogleWorkspaceUser {
   archived: boolean | null;
   org_unit_path: string | null;
   is_mailbox_setup: boolean | null;
+  is_super_admin: boolean | null;
+  is_delegated_admin: boolean | null;
+  creation_time: string | null;
+  last_login_time: string | null;
   matched_by: GoogleWorkspaceUserMatchType;
+}
+
+export type GoogleWorkspaceUserGroupRole = "MEMBER" | "MANAGER" | "OWNER";
+
+export interface GoogleWorkspaceUserGroupMembership {
+  group_id: string;
+  group_name: string;
+  group_primary_email: string;
+  role: GoogleWorkspaceUserGroupRole;
+  member_type: "USER";
+  status: string | null;
+}
+
+export interface GoogleWorkspaceUserGroupMembershipResult {
+  user_id: string;
+  user_primary_email: string;
+  matched_by: GoogleWorkspaceUserMatchType;
+  memberships: GoogleWorkspaceUserGroupMembership[];
+  next_page_token: string | null;
+  verification_complete: boolean;
+  candidates_examined: number;
+  omitted_external_count: number;
+  omitted_indirect_count: number;
 }
 
 export type UserDirectorySearchField =

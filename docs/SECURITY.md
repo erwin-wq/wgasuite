@@ -19,6 +19,11 @@
 - Directory listing gebruikt uitsluitend de bestaande `admin.directory.user.readonly` scope,
   verifieert Google's `customerId` op ieder resultaat en bewaart geen profielen, zoekwaarden of
   opaque page tokens. Auditmetadata bevat alleen veilige filtercategorieën en aantallen.
+- Reverse user-group listing gebruikt alleen de bestaande user- en group-readonly scopes. Omdat
+  `groups.list(userKey)` geen `customer` accepteert, wordt iedere kandidaat eerst met immutable ID
+  en primary email in de geverifieerde customer-scope bevestigd en daarna met `members.get` als
+  direct lid gevalideerd. Externe/indirecte resultaten lekken niet door; fan-out is begrensd tot 25
+  kandidaten en 50 verificatiecalls en wordt niet gecachet of opgeslagen.
 - Gmail delegate reads gebruiken alleen `gmail.settings.basic`; create/delete gebruiken apart
   alleen `gmail.settings.sharing`. De mailboxeigenaar wordt pas geïmpersoneerd nadat actor,
   organization, Google `customerId` en canonical identity zijn gevalideerd.

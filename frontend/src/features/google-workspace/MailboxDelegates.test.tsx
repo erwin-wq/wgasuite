@@ -38,6 +38,10 @@ const owner: GoogleWorkspaceUser = {
   archived: false,
   org_unit_path: "/People",
   is_mailbox_setup: true,
+  is_super_admin: false,
+  is_delegated_admin: false,
+  creation_time: "2020-01-02T03:04:05Z",
+  last_login_time: "2026-10-12T08:30:00Z",
   matched_by: "primary_email"
 };
 

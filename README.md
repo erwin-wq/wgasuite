@@ -9,8 +9,9 @@ an admin console or custom script.
 
 > **Project status:** early development / pre-release. The current repository provides a working
 > local foundation, service-account authentication/client infrastructure, a real read-only
-> Google Workspace connection test, paginated user directory, exact user and alias lookup, and
-> guarded Gmail mailbox delegation and Google Groups direct-membership management. This remains
+> Google Workspace connection test, paginated user directory, exact user and alias lookup,
+> verified user-to-group context, and guarded Gmail mailbox delegation and Google Groups
+> direct-membership management. This remains
 > pre-production software.
 
 WGASuite is an independent open-source project and is not affiliated with or endorsed by Google.
@@ -49,6 +50,8 @@ Implemented today:
   authorization and safe account details;
 - read-only, customer-scoped Directory user listing with server-side search and filters, supported
   sorting, opaque-token pagination, and selection into the exact user detail workflow;
+- bounded, read-only reverse group membership pages for a canonical user, with current-customer
+  ownership and direct MEMBER/MANAGER/OWNER role verification;
 - Gmail mailbox delegate listing plus explicit-preview, one-time-confirmation create/remove
   operations for authorized administrators, with owner impersonation and structured auditing;
 - customer-ID-scoped Google Groups search/details, direct-member pagination, and confirmed add or
@@ -110,7 +113,18 @@ account/admin/archive and organizational-unit filters, email/given/family-name o
 of 25, 50 or 100, and opaque next-page tokens. Results can include users from every verified domain
 in the customer and are not persisted. Google does not provide a total result count, and page
 tokens may expire. Selecting a result opens the existing exact lookup rather than expanding the
-list response or granting any write capability.
+list response or granting any write capability. The unified detail also lists bounded pages of
+verified direct group memberships and can open a selected group in the existing Groups tool.
+
+Reverse membership discovery calls `groups.list(userKey=<immutable user ID>)`. Because Google does
+not permit `userKey` and `customer` together, every candidate is separately matched by ID and
+primary email through an exact `groups.list(customer=<verified customerId>)` query before
+`members.get` establishes a direct role. External candidates and indirect-only memberships are
+omitted with page-level counts. Pages are limited to 10 or 25 candidates and at most 50 ownership
+and membership verification calls; no tenant-wide scan, membership cache or shadow directory is
+created. The response remains explicit about verification and preserves Google's opaque
+continuation token, including when filtering leaves an empty page. This path uses only the existing
+user and group read-only scopes and never invokes a group mutation.
 
 The **Groups** tool searches with `groups.list(customer=<verified customerId>)`, so secondary-domain
 groups remain in tenant scope without relying on email suffixes. It shows group details and direct

@@ -111,6 +111,16 @@ naar een begrensde Directory-query vertaald. Alleen Google's ondersteunde sorter
 pagination-token worden doorgegeven. Elk resultaat moet dezelfde customer-id dragen; profielen,
 zoektermen en tokens worden niet opgeslagen.
 
+De centrale user-detail gebruikt dezelfde canonical `users.get` identity voor reverse
+group-membership context. `groups.list(userKey=<immutable user-id>)` kan volgens Google niet met
+`customer` worden gecombineerd en levert daarom alleen kandidaten. Per kandidaat bewijst een
+exacte `groups.list(customer=<verified customerId>, query=email=...)` match op group-id én primary
+email het tenant-eigendom; pas daarna bepaalt `members.get(groupKey=<id>, memberKey=<user-id>)` de
+directe MEMBER/MANAGER/OWNER-rol. Maximaal 25 kandidaten en 50 verificatiecalls worden per pagina
+toegestaan. Externe en indirect-only resultaten worden met veilige aantallen weggelaten. Er is geen
+tenant-brede scan, cache of persistent membershipkopie en dit pad gebruikt uitsluitend de bestaande
+user- en group-readonly scopes.
+
 `connector_configs` bevat alleen metadata, waaronder `credential_provider` en een opaque
 `credential_ref`. Credentialmateriaal staat per organization buiten de database. De file provider
 is de eerste implementatie; de abstractie laat een latere secrets manager toe. De connection test

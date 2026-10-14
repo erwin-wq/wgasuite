@@ -21,6 +21,7 @@ interface GoogleWorkspaceAdministrationProps {
   gmailAuthorization?: ReactNode;
   userLookup: ReactNode;
   groupManagement: ReactNode;
+  groupNavigationRequestId?: number;
 }
 
 function formatTestTime(value: string | null): string {
@@ -39,7 +40,8 @@ export function GoogleWorkspaceAdministration({
   connectionWizard,
   gmailAuthorization,
   userLookup,
-  groupManagement
+  groupManagement,
+  groupNavigationRequestId
 }: GoogleWorkspaceAdministrationProps) {
   const needsSetup =
     !connectorConfig ||
@@ -55,6 +57,10 @@ export function GoogleWorkspaceAdministration({
     setShowWizard(needsSetup);
     setActiveTool("users");
   }, [organizationId, needsSetup]);
+
+  useEffect(() => {
+    if (groupNavigationRequestId !== undefined) setActiveTool("groups");
+  }, [groupNavigationRequestId]);
 
   return (
     <div className="workspace-administration">

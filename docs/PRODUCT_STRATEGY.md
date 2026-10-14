@@ -137,7 +137,7 @@ The first direct integration proves the read path and remains separately guarded
 1. validate a real connector and report structured setup failures;
 2. list and search users through the Admin SDK Directory API;
 3. inspect a selected user's details;
-4. retain broader reverse user-membership context as a future bounded read;
+4. provide bounded, current-customer direct group-membership context with verified roles;
 5. enforce customer and organization scoping on every request;
 6. record meaningful, secret-free audit events;
 7. expose structured Google API errors to the product without leaking sensitive data.
