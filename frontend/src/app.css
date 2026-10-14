@@ -1533,6 +1533,152 @@ h4 {
   width: 1.1rem;
 }
 
+.user-memberships {
+  background: white;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+}
+
+.user-memberships-heading {
+  align-items: start;
+  display: flex;
+  gap: var(--space-4);
+  justify-content: space-between;
+}
+
+.user-memberships-heading h4,
+.user-memberships-heading p,
+.user-membership-note {
+  margin: 0;
+}
+
+.user-memberships-heading p,
+.user-membership-note {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-1);
+}
+
+.user-membership-state {
+  align-items: center;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-muted);
+  display: flex;
+  font-size: var(--font-size-sm);
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.user-membership-state.error {
+  background: var(--color-red-soft);
+  border-color: #fecaca;
+  color: var(--color-red-strong);
+}
+
+.user-membership-state svg {
+  flex: 0 0 auto;
+  height: 1.15rem;
+  width: 1.15rem;
+}
+
+.user-membership-table-wrap {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.user-membership-table {
+  border-collapse: collapse;
+  min-width: 42rem;
+  width: 100%;
+}
+
+.user-membership-table th,
+.user-membership-table td {
+  border-bottom: 1px solid var(--color-line);
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.user-membership-table th {
+  background: var(--color-surface-muted);
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-xs);
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.user-membership-table td:first-child {
+  min-width: 14rem;
+}
+
+.user-membership-table td strong,
+.user-membership-table td span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.user-membership-table td span {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-xs);
+  margin-top: var(--space-1);
+}
+
+.user-membership-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.user-membership-table button {
+  min-height: 2.5rem;
+  padding: 0.6rem 0.8rem;
+  white-space: nowrap;
+}
+
+.user-membership-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}
+
+.user-membership-controls label {
+  align-items: center;
+  color: var(--color-ink-soft);
+  display: flex;
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  gap: var(--space-2);
+  margin-right: auto;
+}
+
+.user-membership-controls select,
+.user-membership-controls button {
+  min-height: 2.5rem;
+}
+
+.user-membership-controls select {
+  padding: 0.5rem 2rem 0.5rem 0.7rem;
+}
+
+.user-membership-controls button {
+  padding: 0.6rem 0.8rem;
+}
+
+.user-membership-controls > span {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+}
+
 .mailbox-delegates {
   background: white;
   border: 1px solid var(--color-line);
@@ -3801,6 +3947,7 @@ h4 {
   }
 
   .mailbox-delegates-heading,
+  .user-memberships-heading,
   .directory-heading,
   .directory-toolbar,
   .directory-state,
@@ -3815,6 +3962,7 @@ h4 {
   }
 
   .mailbox-delegates-heading button,
+  .user-memberships-heading button,
   .directory-heading button,
   .directory-state button,
   .group-heading button,
@@ -3828,9 +3976,20 @@ h4 {
 
   .workspace-tool-navigation,
   .user-directory-navigation,
-  .pagination-controls {
+  .pagination-controls,
+  .user-membership-controls {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .user-membership-controls label {
+    margin-right: 0;
+  }
+
+  .user-membership-controls button,
+  .user-membership-controls label,
+  .user-membership-controls select {
+    width: 100%;
   }
 
   .group-add-form button,

@@ -17,6 +17,12 @@ vi.mock("./MailboxDelegates", () => ({
   )
 }));
 
+vi.mock("./UserGroupMemberships", () => ({
+  UserGroupMemberships: ({ user }: { user: GoogleWorkspaceUser }) => (
+    <div data-testid="user-group-memberships">Groups for {user.primary_email}</div>
+  )
+}));
+
 const connectedConfig: ConnectorConfig = {
   id: "connector-1",
   organization_id: "organization-1",
@@ -48,6 +54,10 @@ const aliasResult: GoogleWorkspaceUser = {
   archived: false,
   org_unit_path: "/Engineering",
   is_mailbox_setup: true,
+  is_super_admin: false,
+  is_delegated_admin: true,
+  creation_time: "2020-01-02T03:04:05Z",
+  last_login_time: "2026-10-12T08:30:00Z",
   matched_by: "alias"
 };
 
@@ -58,6 +68,7 @@ function renderLookup(overrides = {}) {
     connectorConfig: connectedConfig,
     canSearch: true,
     canManageDelegates: true,
+    onOpenGroup: vi.fn(),
     ...overrides
   };
   return { ...render(<UserLookup {...props} />), props };
@@ -112,6 +123,7 @@ describe("UserLookup", () => {
         connectorConfig={{ ...connectedConfig, status: "configured" }}
         canSearch
         canManageDelegates
+        onOpenGroup={vi.fn()}
       />
     );
     expect(screen.getByText(/successfully test Google Workspace/)).toBeVisible();
@@ -235,6 +247,7 @@ describe("UserLookup", () => {
         connectorConfig={{ ...connectedConfig, organization_id: "organization-2" }}
         canSearch
         canManageDelegates
+        onOpenGroup={vi.fn()}
       />
     );
     const newInput = screen.getByLabelText("Primary email or user alias");

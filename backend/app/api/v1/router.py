@@ -91,6 +91,11 @@ from app.schemas.google_workspace_user_directory import (
     GoogleWorkspaceUserDirectoryRead,
     GoogleWorkspaceUserDirectoryRequest,
 )
+from app.schemas.google_workspace_user_group_membership import (
+    UserDirectGroupMembershipRead,
+    UserGroupMembershipListRead,
+    UserGroupMembershipListRequest,
+)
 from app.schemas.organization import OrganizationCreate, OrganizationRead
 from app.schemas.platform_admin import (
     PlatformAdminAuditEventSummary,
@@ -129,6 +134,9 @@ from app.services.google_workspace_groups import (
     GroupMembershipReconciliationError,
 )
 from app.services.google_workspace_user_directory import GoogleWorkspaceUserDirectory
+from app.services.google_workspace_user_group_memberships import (
+    GoogleWorkspaceUserGroupMemberships,
+)
 from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookup
 from app.services.passwords import verify_password
 from app.services.tokens import encode_access_token
@@ -1998,6 +2006,9 @@ GROUP_HTTP_STATUS = {
     GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_USED: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.GROUP_RECONCILIATION_NOT_AVAILABLE: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.GROUP_RECONCILIATION_EXPIRED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_OPERATION_BUDGET_EXCEEDED: (
+        status.HTTP_502_BAD_GATEWAY
+    ),
 }
 GROUP_REJECTION_CODES = frozenset(
     {
@@ -2074,6 +2085,80 @@ def group_http_error(
 
 def group_read(value: object) -> GoogleWorkspaceGroupRead:
     return GoogleWorkspaceGroupRead(**value.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/group-memberships",
+    response_model=UserGroupMembershipListRead,
+    tags=["google-workspace"],
+)
+def list_google_workspace_user_group_memberships(
+    organization_id: UUID,
+    payload: UserGroupMembershipListRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> UserGroupMembershipListRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.user_group_memberships.listed"
+    require_groups_admin(
+        db=db,
+        current_user=current_user,
+        organization=organization,
+        action=action,
+    )
+    try:
+        result = GoogleWorkspaceUserGroupMemberships.from_settings(db).list_memberships(
+            actor=current_user,
+            organization_id=organization.id,
+            email=payload.email,
+            page_size=payload.page_size,
+            page_token=payload.page_token,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_user",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+            metadata={"page_requested": bool(payload.page_token)},
+        )
+        raise group_http_error(error) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_user",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "matched_by": result.matched_by,
+            "result_count": len(result.memberships),
+            "candidates_examined": result.candidates_examined,
+            "omitted_external_count": result.omitted_external_count,
+            "omitted_indirect_count": result.omitted_indirect_count,
+            "has_next_page": bool(result.next_page_token),
+            "page_size": payload.page_size,
+        },
+    )
+    return UserGroupMembershipListRead(
+        user_id=result.user_id,
+        user_primary_email=result.user_primary_email,
+        matched_by=result.matched_by,
+        memberships=[
+            UserDirectGroupMembershipRead(**membership.__dict__)
+            for membership in result.memberships
+        ],
+        next_page_token=result.next_page_token,
+        verification_complete=result.verification_complete,
+        candidates_examined=result.candidates_examined,
+        omitted_external_count=result.omitted_external_count,
+        omitted_indirect_count=result.omitted_indirect_count,
+    )
 
 
 @api_router.post(

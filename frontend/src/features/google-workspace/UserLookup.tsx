@@ -14,6 +14,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, lookupGoogleWorkspaceUser } from "../../api/client";
 import type { ConnectorConfig, GoogleWorkspaceUser } from "../../types";
 import { MailboxDelegates } from "./MailboxDelegates";
+import { UserGroupMemberships } from "./UserGroupMemberships";
 
 interface UserLookupProps {
   organizationId: string;
@@ -22,6 +23,7 @@ interface UserLookupProps {
   canSearch: boolean;
   canManageDelegates: boolean;
   initialEmail?: string | null;
+  onOpenGroup: (groupEmail: string) => void;
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -72,13 +74,29 @@ function mailboxLabel(value: boolean | null): string {
   return "Mailbox setup unknown";
 }
 
+function formatDirectoryTime(value: string | null): string {
+  if (!value) return "Not available";
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(value));
+}
+
+function administratorLabel(user: GoogleWorkspaceUser): string {
+  if (user.is_super_admin) return "Super administrator";
+  if (user.is_delegated_admin) return "Delegated administrator";
+  if (user.is_super_admin === null || user.is_delegated_admin === null) return "Unknown";
+  return "Standard user";
+}
+
 export function UserLookup({
   organizationId,
   organizationName,
   connectorConfig,
   canSearch,
   canManageDelegates,
-  initialEmail = null
+  initialEmail = null,
+  onOpenGroup
 }: UserLookupProps) {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<GoogleWorkspaceUser | null>(null);
@@ -256,6 +274,18 @@ export function UserLookup({
                       <dt>Archived</dt>
                       <dd>{result.archived === null ? "Unknown" : result.archived ? "Yes" : "No"}</dd>
                     </div>
+                    <div>
+                      <dt>Administrator role</dt>
+                      <dd>{administratorLabel(result)}</dd>
+                    </div>
+                    <div>
+                      <dt>Created</dt>
+                      <dd>{formatDirectoryTime(result.creation_time)}</dd>
+                    </div>
+                    <div>
+                      <dt>Last sign-in</dt>
+                      <dd>{formatDirectoryTime(result.last_login_time)}</dd>
+                    </div>
                   </dl>
                 </section>
 
@@ -302,6 +332,12 @@ export function UserLookup({
                 <CheckCircle2 aria-hidden="true" />
                 Read-only Directory result. Mailbox setup does not imply Gmail delegation or access.
               </div>
+
+              <UserGroupMemberships
+                organizationId={organizationId}
+                user={result}
+                onOpenGroup={onOpenGroup}
+              />
 
               <MailboxDelegates
                 organizationId={organizationId}

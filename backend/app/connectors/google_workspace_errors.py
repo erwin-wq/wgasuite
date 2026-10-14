@@ -31,6 +31,7 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_USER_LOOKUP_MISMATCH = "google_user_lookup_mismatch"
     GOOGLE_TENANT_MISMATCH = "google_tenant_mismatch"
     GOOGLE_PAGE_TOKEN_INVALID = "google_page_token_invalid"
+    GOOGLE_OPERATION_BUDGET_EXCEEDED = "google_operation_budget_exceeded"
     GMAIL_API_UNAVAILABLE = "gmail_api_unavailable"
     GMAIL_SCOPE_MISSING = "gmail_scope_missing"
     GMAIL_MAILBOX_NOT_CONFIGURED = "gmail_mailbox_not_configured"
@@ -125,6 +126,9 @@ SAFE_ERROR_MESSAGES = {
     ),
     GoogleWorkspaceErrorCode.GOOGLE_PAGE_TOKEN_INVALID: (
         "The Google Directory page token is invalid or expired. Restart from the first page."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_OPERATION_BUDGET_EXCEEDED: (
+        "The Google Directory result exceeded the safe verification budget. Request a smaller page."
     ),
     GoogleWorkspaceErrorCode.GMAIL_API_UNAVAILABLE: (
         "The Gmail API is not enabled or accessible for this Google Cloud project."

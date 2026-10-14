@@ -46,6 +46,10 @@ def lookup_response(**overrides: object) -> dict[str, object]:
         "archived": False,
         "orgUnitPath": "/Engineering",
         "isMailboxSetup": True,
+        "isAdmin": True,
+        "isDelegatedAdmin": False,
+        "creationTime": "2024-01-02T03:04:05Z",
+        "lastLoginTime": "2026-09-10T11:12:13Z",
     }
     response.update(overrides)
     return response
@@ -73,6 +77,10 @@ def test_lookup_by_primary_email_uses_exact_read_only_directory_request(
     assert result.archived is False
     assert result.org_unit_path == "/Engineering"
     assert result.is_mailbox_setup is True
+    assert result.is_super_admin is True
+    assert result.is_delegated_admin is False
+    assert result.creation_time is not None
+    assert result.last_login_time is not None
     assert factory.calls == [
         {
             "actor": actor,
@@ -125,6 +133,10 @@ def test_lookup_handles_no_aliases_and_optional_fields(db_session: Session) -> N
         archived=None,
         orgUnitPath=None,
         isMailboxSetup=None,
+        isAdmin=None,
+        isDelegatedAdmin=None,
+        creationTime=None,
+        lastLoginTime=None,
         suspended=True,
     )
 
@@ -141,6 +153,10 @@ def test_lookup_handles_no_aliases_and_optional_fields(db_session: Session) -> N
     assert result.archived is None
     assert result.org_unit_path is None
     assert result.is_mailbox_setup is None
+    assert result.is_super_admin is None
+    assert result.is_delegated_admin is None
+    assert result.creation_time is None
+    assert result.last_login_time is None
 
 
 def test_lookup_rejects_a_response_that_does_not_match_the_requested_address(
@@ -260,6 +276,10 @@ def test_lookup_endpoint_returns_only_typed_safe_fields_and_safe_audit_metadata(
         "org_unit_path": "/Engineering",
         "is_mailbox_setup": True,
         "matched_by": "alias",
+        "is_super_admin": True,
+        "is_delegated_admin": False,
+        "creation_time": "2024-01-02T03:04:05Z",
+        "last_login_time": "2026-09-10T11:12:13Z",
     }
     serialized = str(body)
     assert "private" not in serialized.lower()

@@ -11,6 +11,7 @@ interface UserDirectoryAdministrationProps {
   connectorConfig: ConnectorConfig | null;
   canSearch: boolean;
   canManageDelegates: boolean;
+  onOpenGroup: (groupEmail: string) => void;
 }
 
 interface SelectedUser {
@@ -23,7 +24,8 @@ export function UserDirectoryAdministration({
   organizationName,
   connectorConfig,
   canSearch,
-  canManageDelegates
+  canManageDelegates,
+  onOpenGroup
 }: UserDirectoryAdministrationProps) {
   const [activeView, setActiveView] = useState<"directory" | "lookup">("directory");
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
@@ -80,6 +82,7 @@ export function UserDirectoryAdministration({
           canSearch={canSearch}
           canManageDelegates={canManageDelegates}
           initialEmail={selectedEmail}
+          onOpenGroup={onOpenGroup}
         />
       )}
     </div>

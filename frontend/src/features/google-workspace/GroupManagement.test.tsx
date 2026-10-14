@@ -12,6 +12,7 @@ import { GroupManagement } from "./GroupManagement";
 
 const api = vi.hoisted(() => ({
   searchGoogleWorkspaceGroups: vi.fn(),
+  getGoogleWorkspaceGroup: vi.fn(),
   listGoogleWorkspaceGroupMembers: vi.fn(),
   previewGroupMembershipChange: vi.fn(),
   executeGroupMembershipChange: vi.fn(),
@@ -90,6 +91,7 @@ const preview: GroupMembershipPreview = {
 beforeEach(() => {
   vi.clearAllMocks();
   api.searchGoogleWorkspaceGroups.mockResolvedValue(searchResult);
+  api.getGoogleWorkspaceGroup.mockResolvedValue(group);
   api.listGoogleWorkspaceGroupMembers.mockResolvedValue(memberResult);
   api.previewGroupMembershipChange.mockResolvedValue(preview);
   api.executeGroupMembershipChange.mockResolvedValue({
@@ -112,6 +114,31 @@ beforeEach(() => {
 });
 
 describe("GroupManagement", () => {
+  it("opens a requested customer group through the existing detail view", async () => {
+    render(
+      <GroupManagement
+        organizationId="organization-1"
+        canSearch
+        canMutate
+        initialGroupEmail="team@primary.example"
+        navigationRequestId={1}
+      />
+    );
+
+    expect(await screen.findByRole("heading", { name: "Direct members" })).toBeVisible();
+    expect(api.getGoogleWorkspaceGroup).toHaveBeenCalledWith(
+      "organization-1",
+      "team@primary.example",
+      expect.any(AbortSignal)
+    );
+    expect(api.listGoogleWorkspaceGroupMembers).toHaveBeenCalledWith(
+      "organization-1",
+      "team@primary.example",
+      null,
+      expect.any(AbortSignal)
+    );
+  });
+
   it("searches customer groups and paginates without using a domain", async () => {
     const user = userEvent.setup();
     render(<GroupManagement organizationId="organization-1" canSearch canMutate />);

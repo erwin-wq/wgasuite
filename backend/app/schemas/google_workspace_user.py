@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -31,3 +32,7 @@ class GoogleWorkspaceUserRead(BaseModel):
     org_unit_path: str | None
     is_mailbox_setup: bool | None
     matched_by: Literal["primary_email", "alias", "non_editable_alias"]
+    is_super_admin: bool | None
+    is_delegated_admin: bool | None
+    creation_time: datetime | None
+    last_login_time: datetime | None

@@ -5,6 +5,18 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-13 — GW-004 central user detail and direct group memberships
+
+- Extended the existing exact user detail with Directory admin flags/timestamps and bounded,
+  read-only reverse group membership pages while preserving Gmail delegation behavior.
+- Resolved aliases to canonical immutable users, verified every `groups.list(userKey)` candidate
+  through the trusted customer boundary, and used `members.get` to establish only direct
+  MEMBER/MANAGER/OWNER roles.
+- Added opaque pagination, strict operation budgets, safe external/indirect filtering, tenant-safe
+  auditing, responsive table containment and navigation into the existing Groups detail tool.
+- Reused only existing Directory user/group read-only scopes; no Google mutation or persistent
+  profile/membership copy was added.
+
 ## 2026-10-13 — GW-003 read-only Google Workspace user directory
 
 - Added a customer-ID-scoped `users.list` service with bounded Google-backed search and filters,
