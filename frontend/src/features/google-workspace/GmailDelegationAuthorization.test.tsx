@@ -7,6 +7,7 @@ import { DIRECTORY_USER_READONLY_SCOPE } from "./ConnectionWizard";
 import {
   DIRECTORY_GROUP_MEMBER_SCOPE,
   DIRECTORY_GROUP_READONLY_SCOPE,
+  DIRECTORY_USER_WRITE_SCOPE,
   GMAIL_DELEGATE_READ_SCOPE,
   GMAIL_DELEGATE_WRITE_SCOPE,
   GmailDelegationAuthorization
@@ -42,14 +43,16 @@ describe("GmailDelegationAuthorization", () => {
     expect(screen.getByText("Gmail delegate writes")).toBeVisible();
     expect(screen.getByText("Groups and direct members")).toBeVisible();
     expect(screen.getByText("Group member writes")).toBeVisible();
+    expect(screen.getByText("User suspension writes")).toBeVisible();
     expect(screen.getByText("Verified")).toBeVisible();
     expect(screen.getByText("Verify by loading a mailbox")).toBeVisible();
-    expect(screen.getAllByText("Not tested automatically")).toHaveLength(2);
+    expect(screen.getAllByText("Not tested automatically")).toHaveLength(3);
     expect(screen.getByText(DIRECTORY_USER_READONLY_SCOPE)).toBeVisible();
     expect(screen.getByText(GMAIL_DELEGATE_READ_SCOPE)).toBeVisible();
     expect(screen.getByText(GMAIL_DELEGATE_WRITE_SCOPE)).toBeVisible();
     expect(screen.getByText(DIRECTORY_GROUP_READONLY_SCOPE)).toBeVisible();
     expect(screen.getByText(DIRECTORY_GROUP_MEMBER_SCOPE)).toBeVisible();
+    expect(screen.getByText(DIRECTORY_USER_WRITE_SCOPE)).toBeVisible();
   });
 
   it("copies all required scopes while preserving the Directory scope", async () => {
@@ -62,6 +65,7 @@ describe("GmailDelegationAuthorization", () => {
     expect(writeText).toHaveBeenCalledWith(
       [
         DIRECTORY_USER_READONLY_SCOPE,
+        DIRECTORY_USER_WRITE_SCOPE,
         GMAIL_DELEGATE_READ_SCOPE,
         GMAIL_DELEGATE_WRITE_SCOPE,
         DIRECTORY_GROUP_READONLY_SCOPE,

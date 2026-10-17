@@ -15,6 +15,7 @@ import { ApiError, lookupGoogleWorkspaceUser } from "../../api/client";
 import type { ConnectorConfig, GoogleWorkspaceUser } from "../../types";
 import { MailboxDelegates } from "./MailboxDelegates";
 import { UserGroupMemberships } from "./UserGroupMemberships";
+import { UserStatusManagement } from "./UserStatusManagement";
 
 interface UserLookupProps {
   organizationId: string;
@@ -270,6 +271,12 @@ export function UserLookup({
                         </span>
                       </dd>
                     </div>
+                    {result.suspended && (
+                      <div>
+                        <dt>Suspension reason</dt>
+                        <dd>{result.suspension_reason ?? "Not verified"}</dd>
+                      </div>
+                    )}
                     <div>
                       <dt>Archived</dt>
                       <dd>{result.archived === null ? "Unknown" : result.archived ? "Yes" : "No"}</dd>
@@ -330,8 +337,16 @@ export function UserLookup({
 
               <div className="user-result-note">
                 <CheckCircle2 aria-hidden="true" />
-                Read-only Directory result. Mailbox setup does not imply Gmail delegation or access.
+                Live Directory result. Mailbox setup does not imply Gmail delegation or access.
               </div>
+
+              <UserStatusManagement
+                organizationId={organizationId}
+                connectorConfig={connectorConfig}
+                user={result}
+                canMutate={canManageDelegates}
+                onRefresh={() => runLookup(result.primary_email)}
+              />
 
               <UserGroupMemberships
                 organizationId={organizationId}

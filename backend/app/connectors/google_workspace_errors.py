@@ -32,6 +32,25 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_TENANT_MISMATCH = "google_tenant_mismatch"
     GOOGLE_PAGE_TOKEN_INVALID = "google_page_token_invalid"
     GOOGLE_OPERATION_BUDGET_EXCEEDED = "google_operation_budget_exceeded"
+    GOOGLE_CONFLICT = "google_conflict"
+    GOOGLE_USER_ADMIN_PROTECTED = "google_user_admin_protected"
+    GOOGLE_USER_SELF_PROTECTED = "google_user_self_protected"
+    GOOGLE_USER_SERVICE_ACCOUNT_PROTECTED = "google_user_service_account_protected"
+    GOOGLE_USER_ARCHIVED = "google_user_archived"
+    GOOGLE_USER_DELETED = "google_user_deleted"
+    GOOGLE_USER_ALREADY_SUSPENDED = "google_user_already_suspended"
+    GOOGLE_USER_ALREADY_ACTIVE = "google_user_already_active"
+    GOOGLE_USER_SUSPENSION_REASON_UNSUPPORTED = (
+        "google_user_suspension_reason_unsupported"
+    )
+    GOOGLE_USER_STATE_CHANGED = "google_user_state_changed"
+    GOOGLE_USER_CONFIRMATION_INVALID = "google_user_confirmation_invalid"
+    GOOGLE_USER_CONFIRMATION_EXPIRED = "google_user_confirmation_expired"
+    GOOGLE_USER_CONFIRMATION_USED = "google_user_confirmation_used"
+    GOOGLE_USER_RECONCILIATION_NOT_AVAILABLE = (
+        "google_user_reconciliation_not_available"
+    )
+    GOOGLE_USER_RECONCILIATION_EXPIRED = "google_user_reconciliation_expired"
     GMAIL_API_UNAVAILABLE = "gmail_api_unavailable"
     GMAIL_SCOPE_MISSING = "gmail_scope_missing"
     GMAIL_MAILBOX_NOT_CONFIGURED = "gmail_mailbox_not_configured"
@@ -129,6 +148,51 @@ SAFE_ERROR_MESSAGES = {
     ),
     GoogleWorkspaceErrorCode.GOOGLE_OPERATION_BUDGET_EXCEEDED: (
         "The Google Directory result exceeded the safe verification budget. Request a smaller page."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_CONFLICT: (
+        "Google rejected the change because the account state changed. Refresh and try again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_ADMIN_PROTECTED: (
+        "Administrator accounts are protected and cannot be suspended or reactivated here."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_SELF_PROTECTED: (
+        "You cannot suspend or reactivate your own Google Workspace account."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_SERVICE_ACCOUNT_PROTECTED: (
+        "The configured Google Workspace service identity is protected."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_ARCHIVED: (
+        "Archived Google Workspace users cannot be changed here."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_DELETED: (
+        "Deleted Google Workspace users cannot be changed here."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_ALREADY_SUSPENDED: (
+        "This Google Workspace user is already suspended."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_ALREADY_ACTIVE: (
+        "This Google Workspace user is already active."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_SUSPENSION_REASON_UNSUPPORTED: (
+        "This suspension was not verified as administrator-controlled and cannot be reversed here."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_STATE_CHANGED: (
+        "The Google Workspace user changed after preview. Refresh and preview the change again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_CONFIRMATION_INVALID: (
+        "The user status confirmation is invalid. Preview the operation again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_CONFIRMATION_EXPIRED: (
+        "The user status confirmation expired. Preview the operation again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_CONFIRMATION_USED: (
+        "This user status change was already submitted. Refresh the user before continuing."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_RECONCILIATION_NOT_AVAILABLE: (
+        "This user status change is not eligible for read-only reconciliation."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_RECONCILIATION_EXPIRED: (
+        "The read-only reconciliation window expired. Refresh the user."
     ),
     GoogleWorkspaceErrorCode.GMAIL_API_UNAVAILABLE: (
         "The Gmail API is not enabled or accessible for this Google Cloud project."
@@ -284,6 +348,8 @@ def map_google_api_error(error: Exception) -> GoogleWorkspaceError:
         code = GoogleWorkspaceErrorCode.GOOGLE_RATE_LIMITED
     elif status_code in {500, 502, 503, 504}:
         code = GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE
+    elif status_code == 409:
+        code = GoogleWorkspaceErrorCode.GOOGLE_CONFLICT
     else:
         code = GoogleWorkspaceErrorCode.GOOGLE_API_ERROR
 

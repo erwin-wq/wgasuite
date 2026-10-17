@@ -12,15 +12,13 @@ from google.oauth2 import service_account
 from sqlalchemy.orm import Session
 
 from app.connectors.google_workspace_credentials import (
+    DIRECTORY_USER_READONLY_SCOPE,
     REQUIRED_SERVICE_ACCOUNT_FIELDS,
     FileCredentialProvider,
 )
 from app.connectors.google_workspace_errors import GoogleWorkspaceError
 from app.models import ConnectorConfig
-from app.services.google_workspace_connection import (
-    DIRECTORY_USER_READONLY_SCOPE,
-    invalidate_connection_result,
-)
+from app.services.google_workspace_connection import invalidate_connection_result
 
 MANAGED_CREDENTIAL_REFERENCE = "service-account"
 GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"

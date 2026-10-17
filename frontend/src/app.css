@@ -1533,6 +1533,77 @@ h4 {
   width: 1.1rem;
 }
 
+.user-status-management {
+  background: linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+}
+
+.user-status-heading {
+  align-items: start;
+  display: flex;
+  gap: var(--space-4);
+  justify-content: space-between;
+}
+
+.user-status-heading h4,
+.user-status-heading p,
+.user-status-protected {
+  margin: 0;
+}
+
+.user-status-heading p {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-1);
+}
+
+.user-status-heading button {
+  flex: 0 0 auto;
+}
+
+.user-status-protected {
+  align-items: center;
+  color: var(--color-ink-soft);
+  display: flex;
+  font-size: var(--font-size-sm);
+  font-weight: 760;
+  gap: var(--space-2);
+}
+
+.user-status-protected svg {
+  flex: 0 0 auto;
+  height: 1.1rem;
+  width: 1.1rem;
+}
+
+.user-status-management .message {
+  margin: 0;
+}
+
+.message.warning,
+.message.info {
+  background: #fffaf0;
+  color: #854d0e;
+}
+
+.confirmation-checkbox {
+  align-items: flex-start;
+  display: flex;
+  font-size: var(--font-size-sm);
+  font-weight: 760;
+  gap: var(--space-3);
+}
+
+.confirmation-checkbox input {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+}
+
 .user-memberships {
   background: white;
   border: 1px solid var(--color-line);
@@ -3947,6 +4018,7 @@ h4 {
   }
 
   .mailbox-delegates-heading,
+  .user-status-heading,
   .user-memberships-heading,
   .directory-heading,
   .directory-toolbar,
@@ -3962,6 +4034,7 @@ h4 {
   }
 
   .mailbox-delegates-heading button,
+  .user-status-heading button,
   .user-memberships-heading button,
   .directory-heading button,
   .directory-state button,

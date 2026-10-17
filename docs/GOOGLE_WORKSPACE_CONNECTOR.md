@@ -3,8 +3,9 @@
 WGASuite provides a five-step wizard, a real read-only connection test, a paginated read-only
 Directory, exact user lookup by primary email or user alias, and guarded Gmail mailbox delegate
 management using a service account with Domain-Wide Delegation (DWD). It also provides customer-scoped Google Groups
-discovery and guarded direct-user membership changes. The security-check catalog remains mock-only as
-documented in the README.
+discovery and guarded direct-user membership changes. Customer administrators can also perform
+guarded suspension and safe reactivation from the central user detail. The security-check catalog
+remains mock-only as documented in the README.
 
 ## Wizard setup flow
 
@@ -63,6 +64,18 @@ used only for a confirmed `members.insert` or `members.delete`. The UI exposes t
 client ID, each individual scope and one copyable comma-separated scope set. WGASuite never edits
 Google Admin DWD grants and never performs a write to test authorization.
 
+For user suspension and reactivation, add this separate Directory write scope while preserving
+every read-only, Gmail and Groups scope:
+
+```text
+https://www.googleapis.com/auth/admin.directory.user
+```
+
+This scope is used only after an explicit preview and one-time confirmation. The existing
+connection test remains read-only and does not prove that this write grant or the delegated
+administrator's write privilege is available. WGASuite never edits DWD grants or performs a test
+user write.
+
 See Google's official [service-account credential guide](https://developers.google.com/workspace/guides/create-credentials#service-account),
 [API enablement guide](https://developers.google.com/workspace/guides/enable-apis), and
 [DWD guide](https://support.google.com/a/answer/162106). The Directory connection test itself still
@@ -105,7 +118,8 @@ userKey:    submitted primary email or user alias
 projection: basic
 viewType:   admin_view
 fields:     id,primaryEmail,customerId,name(fullName),aliases,nonEditableAliases,suspended,
-            archived,orgUnitPath,isMailboxSetup
+            archived,orgUnitPath,isMailboxSetup,isAdmin,isDelegatedAdmin,suspensionReason,
+            deletionTime
 Scope:      https://www.googleapis.com/auth/admin.directory.user.readonly
 ```
 
@@ -195,6 +209,57 @@ No profile, membership, query or token is persisted, and audits record only matc
 counts, page shape and outcome. Opening a membership reuses the existing customer-verified Groups
 screen and its existing authorization. This read path has no access to `members.insert` or
 `members.delete`.
+
+## User suspension and reactivation
+
+The central user detail provides guarded suspend/reactivate preview, mutation and reconciliation
+endpoints under:
+
+```text
+POST /api/v1/organizations/{organization_id}/google-workspace/users/{suspend|reactivate}/preview
+POST /api/v1/organizations/{organization_id}/google-workspace/users/{suspend|reactivate}
+POST /api/v1/organizations/{organization_id}/google-workspace/users/{suspend|reactivate}/reconcile
+```
+
+Only a platform administrator or active customer administrator may use these endpoints. Before
+preview and again immediately before a write, WGASuite resolves the configured DWD administrator
+and requested user through Directory, compares Google's opaque `customerId`, canonicalizes aliases
+and binds the operation to the immutable Google user ID. It never trusts an email suffix or a
+browser-supplied customer identifier.
+
+Super administrators, delegated administrators, the configured DWD administrator, an identifiable
+acting administrator, the configured service identity, archived/deleted users and accounts already
+in the requested state are blocked. Reactivation is available only when Google reports a suspended
+account with `suspensionReason=ADMIN`; missing, abuse/security/Terms-of-Service and other reasons
+fail closed and must be handled in Google Admin. Administrator accounts remain protected for both
+directions in this release.
+
+Preview stores only safe binding data and a SHA-256 confirmation-token digest in
+`google_workspace_user_status_confirmations`. The five-minute token is bound to actor, local
+customer, organization, connector, Google customer, immutable user, operation and expected state.
+Consumption is atomic and single-use. After revalidation the write client uses only
+`admin.directory.user` and makes exactly one request with no automatic retries:
+
+```text
+users.update(userKey=<immutable user ID>, body={"suspended": true|false})
+```
+
+No full profile, alias, name, organizational unit, password, role or membership is submitted.
+Suspension restricts access to Google Workspace services but does not delete the user's data;
+license charges may continue. Reactivation removes an eligible administrator-controlled suspension
+and is not deleted-user recovery (`users.undelete` is never called).
+
+Timeouts, transport interruptions and ambiguous Google 5xx responses move the consumed operation
+to `unknown`; the write is never retried. Reconciliation uses only
+`admin.directory.user.readonly`, performs at most four `users.get` calls by immutable ID with a
+0/0.5/1/2-second backoff, five-second read timeout and 20-second total ceiling, and verifies tenant
+and current suspension state. That observation does not prove which request caused the state.
+Unknown outcomes remain visible with a **Check status** action.
+
+Mutation and reconciliation audits are separate. They retain actor, organization/customer,
+immutable target ID, previous/requested state, sanitized outcome/reason, and safe correlation data;
+they never store confirmation tokens, credentials, OAuth tokens, raw Google responses or full user
+profiles. No live user write is part of automated tests or routine QA.
 
 ## Gmail mailbox delegation
 

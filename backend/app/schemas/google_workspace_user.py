@@ -36,3 +36,5 @@ class GoogleWorkspaceUserRead(BaseModel):
     is_delegated_admin: bool | None
     creation_time: datetime | None
     last_login_time: datetime | None
+    suspension_reason: str | None
+    deletion_time: datetime | None

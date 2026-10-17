@@ -10,19 +10,20 @@ from googleapiclient.errors import HttpError
 from sqlalchemy.orm import Session
 
 from app.connectors.google_workspace_client import GoogleWorkspaceClientFactory
+from app.connectors.google_workspace_credentials import DIRECTORY_USER_READONLY_SCOPE
 from app.connectors.google_workspace_errors import (
     GoogleWorkspaceError,
     GoogleWorkspaceErrorCode,
     map_google_api_error,
 )
 from app.models import User
-from app.services.google_workspace_connection import DIRECTORY_USER_READONLY_SCOPE
 
 logger = logging.getLogger(__name__)
 
 USER_LOOKUP_FIELDS = (
     "id,primaryEmail,customerId,name(fullName),aliases,nonEditableAliases,suspended,archived,"
-    "orgUnitPath,isMailboxSetup,isAdmin,isDelegatedAdmin,creationTime,lastLoginTime"
+    "orgUnitPath,isMailboxSetup,isAdmin,isDelegatedAdmin,creationTime,lastLoginTime,"
+    "suspensionReason,deletionTime"
 )
 MatchType = Literal["primary_email", "alias", "non_editable_alias"]
 
@@ -44,6 +45,8 @@ class GoogleWorkspaceUserLookupResult:
     is_delegated_admin: bool | None = None
     creation_time: datetime | None = None
     last_login_time: datetime | None = None
+    suspension_reason: str | None = None
+    deletion_time: datetime | None = None
 
 
 class GoogleWorkspaceUserLookup:
@@ -166,6 +169,15 @@ class GoogleWorkspaceUserLookup:
             ),
             last_login_time=GoogleWorkspaceUserLookup._optional_datetime(
                 response.get("lastLoginTime")
+            ),
+            suspension_reason=(
+                response["suspensionReason"]
+                if isinstance(response.get("suspensionReason"), str)
+                and response["suspensionReason"].strip()
+                else None
+            ),
+            deletion_time=GoogleWorkspaceUserLookup._optional_datetime(
+                response.get("deletionTime")
             ),
         )
 

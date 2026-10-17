@@ -5,6 +5,20 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-14 — GW-005 safe user suspension and reactivation
+
+- Added customer-admin-only suspension and reactivation to the central user detail, using canonical
+  Directory identity, immutable Google user IDs and opaque Google customer ownership checks.
+- Isolated the new `admin.directory.user` write scope from all read-only clients and limited writes
+  to one `users.update` payload containing only the `suspended` property with no automatic retry.
+- Protected administrator, configured DWD, identifiable self, service, archived/deleted and
+  already-target-state accounts; reactivation fails closed unless Google reports an `ADMIN`
+  suspension reason.
+- Added five-minute hashed, actor/tenant/connector/user/action/state-bound confirmations with atomic
+  consumption, separate audit outcomes and bounded read-only reconciliation after ambiguous writes.
+- Integrated responsive preview/confirmation, explicit unknown-state checking and safe DWD setup
+  guidance. All automated writes are mocked; no live Google user was suspended or reactivated.
+
 ## 2026-10-13 — GW-004 central user detail and direct group memberships
 
 - Extended the existing exact user detail with Directory admin flags/timestamps and bounded,

@@ -11,13 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.connectors.google_workspace_client import GoogleWorkspaceClientFactory
+from app.connectors.google_workspace_credentials import DIRECTORY_USER_READONLY_SCOPE
 from app.connectors.google_workspace_errors import (
     GoogleWorkspaceError,
     GoogleWorkspaceErrorCode,
     map_google_api_error,
 )
 from app.models import ConnectorConfig, User
-from app.services.google_workspace_connection import DIRECTORY_USER_READONLY_SCOPE
 from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookup
 
 logger = logging.getLogger(__name__)

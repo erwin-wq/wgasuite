@@ -57,6 +57,9 @@ Implemented today:
 - customer-ID-scoped Google Groups search/details, direct-member pagination, and confirmed add or
   remove operations for existing internal users, with read-only reconciliation after ambiguous
   writes;
+- customer-admin-only Google Workspace user suspension and safe reactivation of verified
+  administrator-suspended accounts, with protected-admin checks, one-time confirmation and
+  read-only reconciliation after ambiguous writes;
 - a catalog of Google Workspace security checks;
 - mock scan runs, generated demo findings and recent scan-run history.
 
@@ -76,8 +79,8 @@ preserved assessment screens locally; it is disabled by default and ignored by p
 
 Not implemented today:
 
-- Google Workspace user mutations, bulk export, group creation/deletion/role changes, Gmail
-  message access or broader Gmail settings administration;
+- unrestricted or bulk Google Workspace user updates, deleted-user recovery, bulk export, group
+  creation/deletion/role changes, Gmail message access or broader Gmail settings administration;
 - OAuth admin-consent authentication or external cloud secret-manager integrations;
 - production identity management, SSO, account recovery or hardened session management;
 - user, group, ChromeOS/device, organizational-unit or license administration;
@@ -133,6 +136,20 @@ may be removed after a server-issued, one-time confirmation. Nested, external, c
 owner, dynamic and other unsupported memberships remain visible but read-only. Read and write
 clients use separate `admin.directory.group.readonly` and `admin.directory.group.member` scopes.
 Ambiguous writes are never replayed and can only be checked with bounded direct-member reads.
+
+The central user detail also allows customer administrators to suspend an eligible standard user
+or reactivate a user only when Google reports an administrator-controlled suspension. Super and
+delegated administrators, the configured DWD administrator, the identifiable acting administrator,
+archived/deleted accounts, configured service identities and unknown or Google-enforced suspension
+reasons are blocked server-side. Preview creates an actor/customer/organization/connector/user/
+action/state-bound five-minute confirmation whose token is stored only as a digest. Confirmation
+revalidates the current account and sends one `users.update` request by immutable Google user ID
+with only `{"suspended": true}` or `{"suspended": false}` and `num_retries=0`. Ambiguous responses
+are never replayed; bounded `users.get` calls using the read-only scope can verify only the current
+state. This capability requires separately authorizing
+`https://www.googleapis.com/auth/admin.directory.user`; the existing read-only connection test does
+not verify write permission. Suspension restricts service access without deleting data and license
+charges may continue. Reactivation is not deleted-user recovery.
 
 See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup, scope,
 security and live-verification instructions. Gmail delegation cannot read or modify messages, and
