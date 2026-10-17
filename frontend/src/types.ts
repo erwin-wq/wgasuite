@@ -211,7 +211,45 @@ export interface GoogleWorkspaceUser {
   is_delegated_admin: boolean | null;
   creation_time: string | null;
   last_login_time: string | null;
+  suspension_reason?: string | null;
+  deletion_time?: string | null;
   matched_by: GoogleWorkspaceUserMatchType;
+}
+
+export type GoogleWorkspaceUserStatusOperation = "suspend" | "reactivate";
+
+export interface GoogleWorkspaceUserStatusPreview {
+  operation: GoogleWorkspaceUserStatusOperation;
+  organization_id: string;
+  customer_id: string;
+  target_google_id: string;
+  target_primary_email: string;
+  previous_suspended: boolean;
+  requested_suspended: boolean;
+  confirmation_token: string;
+  expires_at: string;
+  effect: string;
+}
+
+export interface GoogleWorkspaceUserStatusMutationResult {
+  operation: GoogleWorkspaceUserStatusOperation;
+  target_google_id: string;
+  target_primary_email: string;
+  previous_suspended: boolean;
+  suspended: boolean;
+  outcome: "suspended" | "reactivated";
+  message: string;
+}
+
+export interface GoogleWorkspaceUserStatusReconciliationResult {
+  operation: GoogleWorkspaceUserStatusOperation;
+  target_google_id: string;
+  target_primary_email: string;
+  status: "verified" | "unknown";
+  observed_suspended: boolean;
+  attempts: number;
+  correlation_id: string;
+  message: string;
 }
 
 export type GoogleWorkspaceUserGroupRole = "MEMBER" | "MANAGER" | "OWNER";

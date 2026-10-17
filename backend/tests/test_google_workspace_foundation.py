@@ -22,6 +22,8 @@ from app.connectors.google_workspace_client import VerifiedMailboxOwner
 from app.connectors.google_workspace_credentials import (
     DIRECTORY_GROUP_MEMBER_SCOPE,
     DIRECTORY_GROUP_READONLY_SCOPE,
+    DIRECTORY_USER_READONLY_SCOPE,
+    DIRECTORY_USER_WRITE_SCOPE,
     GMAIL_DELEGATE_READ_SCOPE,
     GMAIL_DELEGATE_WRITE_SCOPE,
 )
@@ -282,6 +284,57 @@ def test_group_credentials_reject_unapproved_or_combined_scopes(
 
     with pytest.raises(GoogleWorkspaceError) as error:
         factory.create_for_directory_groups(connector_config(uuid4()), scopes)
+
+    assert_error_code(error, "missing_scope_or_permission")
+
+
+@pytest.mark.parametrize("scope", [DIRECTORY_USER_READONLY_SCOPE, DIRECTORY_USER_WRITE_SCOPE])
+def test_directory_user_credentials_accept_only_one_operation_scope(
+    tmp_path: Path, scope: str
+) -> None:
+    organization_id = uuid4()
+    credential_info = fake_service_account_info()
+    write_credential_file(tmp_path, organization_id, credential_info)
+    factory = DelegatedCredentialFactory(
+        CredentialProviderRegistry([FileCredentialProvider(tmp_path)])
+    )
+    base_credentials = FakeBaseCredentials()
+
+    with patch(
+        "app.connectors.google_workspace_credentials."
+        "service_account.Credentials.from_service_account_info",
+        return_value=base_credentials,
+    ) as from_service_account_info:
+        delegated, scopes = factory.create_for_directory_users(
+            connector_config(organization_id), [scope]
+        )
+
+    assert delegated is base_credentials
+    assert base_credentials.subject == "admin@example.com"
+    assert scopes == (scope,)
+    from_service_account_info.assert_called_once_with(
+        credential_info,
+        scopes=(scope,),
+    )
+
+
+@pytest.mark.parametrize(
+    "scopes",
+    [
+        [DIRECTORY_USER_READONLY_SCOPE, DIRECTORY_USER_WRITE_SCOPE],
+        [DIRECTORY_GROUP_MEMBER_SCOPE],
+        ["https://www.googleapis.com/auth/admin.directory.user.security"],
+    ],
+)
+def test_directory_user_credentials_reject_broad_or_combined_scopes(
+    tmp_path: Path, scopes: list[str]
+) -> None:
+    factory = DelegatedCredentialFactory(
+        CredentialProviderRegistry([FileCredentialProvider(tmp_path)])
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as error:
+        factory.create_for_directory_users(connector_config(uuid4()), scopes)
 
     assert_error_code(error, "missing_scope_or_permission")
 
@@ -578,3 +631,54 @@ def test_group_client_allows_customer_user_reads_but_rejects_member_writes(
     assert provider.organization_ids == [organization.id]
     assert builder_calls[0][0] == ("admin", "directory_v1")
     assert builder_calls[0][1]["http"].credentials.subject == "admin@example.com"
+
+
+def test_directory_user_client_separates_read_and_admin_only_write(
+    db_session: Session,
+) -> None:
+    organization, _, actor = create_tenant_data(db_session)
+    membership = db_session.scalar(
+        select(CustomerMembership).where(CustomerMembership.user_id == actor.id)
+    )
+    assert membership is not None
+    membership.role = "customer_user"
+    db_session.commit()
+    provider = InMemoryCredentialProvider()
+    builder_calls: list[tuple[tuple, dict]] = []
+
+    def client_builder(*args, **kwargs):
+        builder_calls.append((args, kwargs))
+        return object()
+
+    factory = GoogleWorkspaceClientFactory(
+        db_session,
+        CredentialProviderRegistry([provider]),
+        client_builder=client_builder,
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as error:
+        factory.for_directory_users(
+            actor=actor,
+            organization_id=organization.id,
+            scopes=[DIRECTORY_USER_WRITE_SCOPE],
+        )
+
+    assert_error_code(error, "organization_access_denied")
+    assert provider.organization_ids == []
+
+    with patch(
+        "app.connectors.google_workspace_credentials."
+        "service_account.Credentials.from_service_account_info",
+        return_value=FakeBaseCredentials(),
+    ):
+        factory.for_directory_users(
+            actor=actor,
+            organization_id=organization.id,
+            scopes=[DIRECTORY_USER_READONLY_SCOPE],
+            request_timeout_seconds=5,
+        )
+
+    assert provider.organization_ids == [organization.id]
+    assert builder_calls[0][0] == ("admin", "directory_v1")
+    assert builder_calls[0][1]["http"].credentials.subject == "admin@example.com"
+    assert builder_calls[0][1]["http"].http.timeout == 5

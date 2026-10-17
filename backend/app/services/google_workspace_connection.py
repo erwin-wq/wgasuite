@@ -10,6 +10,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.connectors.google_workspace_client import GoogleWorkspaceClientFactory
+from app.connectors.google_workspace_credentials import DIRECTORY_USER_READONLY_SCOPE
 from app.connectors.google_workspace_errors import (
     GoogleWorkspaceError,
     GoogleWorkspaceErrorCode,
@@ -19,9 +20,6 @@ from app.models import ConnectorConfig, User
 
 logger = logging.getLogger(__name__)
 
-DIRECTORY_USER_READONLY_SCOPE = (
-    "https://www.googleapis.com/auth/admin.directory.user.readonly"
-)
 CONNECTION_CRITICAL_FIELDS = frozenset(
     {
         "auth_method",

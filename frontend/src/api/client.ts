@@ -21,6 +21,10 @@ import type {
   GoogleWorkspaceGroupSearchResult,
   GoogleWorkspaceCheck,
   GoogleWorkspaceUser,
+  GoogleWorkspaceUserStatusMutationResult,
+  GoogleWorkspaceUserStatusOperation,
+  GoogleWorkspaceUserStatusPreview,
+  GoogleWorkspaceUserStatusReconciliationResult,
   GoogleWorkspaceUserGroupMembershipResult,
   GoogleWorkspaceUserDirectoryRequest,
   GoogleWorkspaceUserDirectoryResult,
@@ -273,6 +277,54 @@ export function lookupGoogleWorkspaceUser(
     {
       method: "POST",
       body: JSON.stringify({ email }),
+      signal
+    }
+  );
+}
+
+export function previewGoogleWorkspaceUserStatusChange(
+  organizationId: string,
+  operation: GoogleWorkspaceUserStatusOperation,
+  userEmail: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceUserStatusPreview> {
+  return request<GoogleWorkspaceUserStatusPreview>(
+    `/api/v1/organizations/${organizationId}/google-workspace/users/${operation}/preview`,
+    {
+      method: "POST",
+      body: JSON.stringify({ user_email: userEmail }),
+      signal
+    }
+  );
+}
+
+export function executeGoogleWorkspaceUserStatusChange(
+  organizationId: string,
+  operation: GoogleWorkspaceUserStatusOperation,
+  confirmationToken: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceUserStatusMutationResult> {
+  return request<GoogleWorkspaceUserStatusMutationResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/users/${operation}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
+      signal
+    }
+  );
+}
+
+export function reconcileGoogleWorkspaceUserStatusChange(
+  organizationId: string,
+  operation: GoogleWorkspaceUserStatusOperation,
+  confirmationToken: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceUserStatusReconciliationResult> {
+  return request<GoogleWorkspaceUserStatusReconciliationResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/users/${operation}/reconcile`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
       signal
     }
   );

@@ -5,7 +5,7 @@ Dit document beschrijft de huidige technische foundation. Zie
 Google Workspace integraties. De herbruikbare authenticatie- en clientfoundation is beschikbaar;
 de echte API-operaties omvatten read-only connectietests, gepagineerde user-directory, exacte
 user/alias lookup, bewaakte Gmail mailboxdelegatie en bewaakte Google Groups direct-membership
-changes.
+changes, plus bewaakte user suspension/reactivation.
 
 ## Overzicht
 
@@ -47,6 +47,12 @@ Findings hebben een optionele koppeling naar een asset. De DREAD-score staat in 
 - `GET /api/v1/organizations/{organization_id}`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/users/lookup`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/users/list`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/users/suspend/preview`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/users/suspend`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/users/suspend/reconcile`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/users/reactivate/preview`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/users/reactivate`
+- `POST /api/v1/organizations/{organization_id}/google-workspace/users/reactivate/reconcile`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/list`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create/preview`
 - `POST /api/v1/organizations/{organization_id}/google-workspace/gmail-delegates/create`
@@ -120,6 +126,16 @@ directe MEMBER/MANAGER/OWNER-rol. Maximaal 25 kandidaten en 50 verificatiecalls 
 toegestaan. Externe en indirect-only resultaten worden met veilige aantallen weggelaten. Er is geen
 tenant-brede scan, cache of persistent membershipkopie en dit pad gebruikt uitsluitend de bestaande
 user- en group-readonly scopes.
+
+User-statusmutaties gebruiken een eigen operation-scoped Directory-client: reads uitsluitend
+`admin.directory.user.readonly`, writes uitsluitend `admin.directory.user`. De service bindt een
+vijf minuten geldige confirmation aan actor, lokale customer, organization, connector, Google
+customer, immutable user-id, action en verwachte status. Alleen het token-digest en veilige
+bindingsmetadata staan in `google_workspace_user_status_confirmations`. Na volledige hervalidatie
+wordt exact één `users.update` met uitsluitend het `suspended` veld en `num_retries=0` uitgevoerd.
+Admin-, DWD-, self-, service-, archived/deleted en onbetrouwbaar gesuspendeerde accounts zijn
+server-side beschermd. Een ambigu resultaat kan uitsluitend via begrensde read-only `users.get`
+polling worden waargenomen; de write-client is niet bereikbaar vanuit reconciliation.
 
 `connector_configs` bevat alleen metadata, waaronder `credential_provider` en een opaque
 `credential_ref`. Credentialmateriaal staat per organization buiten de database. De file provider

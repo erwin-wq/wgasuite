@@ -40,6 +40,12 @@ DIRECTORY_GROUP_ALLOWED_SCOPE_SETS = {
     (DIRECTORY_GROUP_READONLY_SCOPE,),
     (DIRECTORY_GROUP_MEMBER_SCOPE,),
 }
+DIRECTORY_USER_READONLY_SCOPE = "https://www.googleapis.com/auth/admin.directory.user.readonly"
+DIRECTORY_USER_WRITE_SCOPE = "https://www.googleapis.com/auth/admin.directory.user"
+DIRECTORY_USER_ALLOWED_SCOPE_SETS = {
+    (DIRECTORY_USER_READONLY_SCOPE,),
+    (DIRECTORY_USER_WRITE_SCOPE,),
+}
 
 
 class CredentialProvider(Protocol):
@@ -193,6 +199,24 @@ class DelegatedCredentialFactory:
 
         normalized_scopes = normalize_scopes(scopes)
         if normalized_scopes not in DIRECTORY_GROUP_ALLOWED_SCOPE_SETS:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.MISSING_SCOPE_OR_PERMISSION)
+        if not is_valid_admin_subject(connector_config.admin_subject_email):
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.INVALID_ADMIN_SUBJECT)
+        return self._create_with_subject(
+            connector_config,
+            normalized_scopes,
+            connector_config.admin_subject_email,
+        )
+
+    def create_for_directory_users(
+        self,
+        connector_config: ConnectorConfig,
+        scopes: Sequence[str],
+    ) -> tuple[Credentials, tuple[str, ...]]:
+        """Create only an operation-scoped Directory users client."""
+
+        normalized_scopes = normalize_scopes(scopes)
+        if normalized_scopes not in DIRECTORY_USER_ALLOWED_SCOPE_SETS:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.MISSING_SCOPE_OR_PERMISSION)
         if not is_valid_admin_subject(connector_config.admin_subject_email):
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.INVALID_ADMIN_SUBJECT)

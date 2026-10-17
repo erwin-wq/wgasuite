@@ -280,6 +280,8 @@ def test_lookup_endpoint_returns_only_typed_safe_fields_and_safe_audit_metadata(
         "is_delegated_admin": False,
         "creation_time": "2024-01-02T03:04:05Z",
         "last_login_time": "2026-09-10T11:12:13Z",
+        "suspension_reason": None,
+        "deletion_time": None,
     }
     serialized = str(body)
     assert "private" not in serialized.lower()

@@ -96,6 +96,13 @@ from app.schemas.google_workspace_user_group_membership import (
     UserGroupMembershipListRead,
     UserGroupMembershipListRequest,
 )
+from app.schemas.google_workspace_user_status import (
+    UserStatusMutationRead,
+    UserStatusMutationRequest,
+    UserStatusPreviewRead,
+    UserStatusPreviewRequest,
+    UserStatusReconciliationRead,
+)
 from app.schemas.organization import OrganizationCreate, OrganizationRead
 from app.schemas.platform_admin import (
     PlatformAdminAuditEventSummary,
@@ -138,6 +145,13 @@ from app.services.google_workspace_user_group_memberships import (
     GoogleWorkspaceUserGroupMemberships,
 )
 from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookup
+from app.services.google_workspace_user_status import (
+    GoogleWorkspaceUserStatusReconciliationService,
+    GoogleWorkspaceUserStatusService,
+    UserStatusMutationAmbiguousError,
+    UserStatusOperation,
+    UserStatusReconciliationError,
+)
 from app.services.passwords import verify_password
 from app.services.tokens import encode_access_token
 
@@ -1586,6 +1600,377 @@ def lookup_google_workspace_user(
         metadata={"matched_by": result.matched_by},
     )
     return GoogleWorkspaceUserRead(**result.__dict__)
+
+
+USER_STATUS_HTTP_STATUS = {
+    **GOOGLE_USER_LOOKUP_HTTP_STATUS,
+    GoogleWorkspaceErrorCode.GOOGLE_CONFLICT: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_ADMIN_PROTECTED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_SELF_PROTECTED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_SERVICE_ACCOUNT_PROTECTED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_ARCHIVED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_DELETED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_ALREADY_SUSPENDED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_ALREADY_ACTIVE: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_SUSPENSION_REASON_UNSUPPORTED: (
+        status.HTTP_409_CONFLICT
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_STATE_CHANGED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_CONFIRMATION_INVALID: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_CONFIRMATION_EXPIRED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_CONFIRMATION_USED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_RECONCILIATION_NOT_AVAILABLE: (
+        status.HTTP_409_CONFLICT
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_RECONCILIATION_EXPIRED: (
+        status.HTTP_409_CONFLICT
+    ),
+}
+USER_STATUS_REJECTION_CODES = frozenset(
+    {
+        GoogleWorkspaceErrorCode.GOOGLE_USER_NOT_FOUND,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_LOOKUP_MISMATCH,
+        GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_ADMIN_PROTECTED,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_SELF_PROTECTED,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_SERVICE_ACCOUNT_PROTECTED,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_ARCHIVED,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_DELETED,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_ALREADY_SUSPENDED,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_ALREADY_ACTIVE,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_SUSPENSION_REASON_UNSUPPORTED,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_STATE_CHANGED,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_CONFIRMATION_INVALID,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_CONFIRMATION_EXPIRED,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_CONFIRMATION_USED,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_RECONCILIATION_NOT_AVAILABLE,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_RECONCILIATION_EXPIRED,
+    }
+)
+
+
+def user_status_http_error(
+    error: GoogleWorkspaceError,
+    *,
+    extra_detail: dict[str, object] | None = None,
+) -> HTTPException:
+    detail: dict[str, object] = {"code": error.code.value, "message": str(error)}
+    if extra_detail:
+        detail.update(extra_detail)
+    return HTTPException(
+        status_code=USER_STATUS_HTTP_STATUS.get(error.code, status.HTTP_502_BAD_GATEWAY),
+        detail=detail,
+    )
+
+
+def require_user_status_admin(
+    *, db: Session, current_user: User, organization: Organization, action: str
+) -> None:
+    try:
+        require_customer_admin_access(current_user, organization.customer_id)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_user",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected",
+            reason="organization_access_denied",
+        )
+        raise
+
+
+def preview_user_status_change(
+    *,
+    operation: UserStatusOperation,
+    organization_id: UUID,
+    payload: UserStatusPreviewRequest,
+    db: Session,
+    current_user: User,
+) -> UserStatusPreviewRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = f"google_workspace.user.{operation}_previewed"
+    require_user_status_admin(
+        db=db, current_user=current_user, organization=organization, action=action
+    )
+    try:
+        result = GoogleWorkspaceUserStatusService.from_settings(db).preview_change(
+            actor=current_user,
+            organization_id=organization.id,
+            operation=operation,
+            user_email=payload.user_email,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_user",
+            object_id=getattr(error, "target_google_id", None) or organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected" if error.code in USER_STATUS_REJECTION_CODES else "failure",
+            reason=error.code.value,
+        )
+        raise user_status_http_error(error) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_user",
+        object_id=result.target_google_id,
+        customer_id=organization.customer_id,
+        metadata={
+            "operation": operation,
+            "previous_suspended": result.previous_suspended,
+            "requested_suspended": result.requested_suspended,
+        },
+    )
+    return UserStatusPreviewRead(**result.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/suspend/preview",
+    response_model=UserStatusPreviewRead,
+    tags=["google-workspace"],
+)
+def preview_google_workspace_user_suspend(
+    organization_id: UUID,
+    payload: UserStatusPreviewRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> UserStatusPreviewRead:
+    return preview_user_status_change(
+        operation="suspend",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/reactivate/preview",
+    response_model=UserStatusPreviewRead,
+    tags=["google-workspace"],
+)
+def preview_google_workspace_user_reactivate(
+    organization_id: UUID,
+    payload: UserStatusPreviewRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> UserStatusPreviewRead:
+    return preview_user_status_change(
+        operation="reactivate",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+def execute_user_status_change(
+    *,
+    operation: UserStatusOperation,
+    organization_id: UUID,
+    payload: UserStatusMutationRequest,
+    db: Session,
+    current_user: User,
+) -> UserStatusMutationRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = f"google_workspace.user.{'suspended' if operation == 'suspend' else 'reactivated'}"
+    require_user_status_admin(
+        db=db, current_user=current_user, organization=organization, action=action
+    )
+    try:
+        result = GoogleWorkspaceUserStatusService.from_settings(db).execute_change(
+            actor=current_user,
+            organization_id=organization.id,
+            operation=operation,
+            confirmation_token=payload.confirmation_token,
+        )
+    except GoogleWorkspaceError as error:
+        metadata: dict[str, object] | None = None
+        detail: dict[str, object] | None = None
+        if isinstance(error, UserStatusMutationAmbiguousError):
+            metadata = {
+                "correlation_id": error.correlation_id,
+                "timeout_occurred": error.code == GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT,
+                "reconciliation_available": True,
+            }
+            detail = {
+                "correlation_id": error.correlation_id,
+                "reconciliation_available": True,
+            }
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_user",
+            object_id=getattr(error, "target_google_id", None) or organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected" if error.code in USER_STATUS_REJECTION_CODES else "failure",
+            reason=error.code.value,
+            metadata=metadata,
+        )
+        raise user_status_http_error(error, extra_detail=detail) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_user",
+        object_id=result.target_google_id,
+        customer_id=organization.customer_id,
+        metadata={
+            "operation": operation,
+            "previous_suspended": result.previous_suspended,
+            "suspended": result.suspended,
+        },
+    )
+    return UserStatusMutationRead(**result.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/suspend",
+    response_model=UserStatusMutationRead,
+    tags=["google-workspace"],
+)
+def suspend_google_workspace_user(
+    organization_id: UUID,
+    payload: UserStatusMutationRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> UserStatusMutationRead:
+    return execute_user_status_change(
+        operation="suspend",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/reactivate",
+    response_model=UserStatusMutationRead,
+    tags=["google-workspace"],
+)
+def reactivate_google_workspace_user(
+    organization_id: UUID,
+    payload: UserStatusMutationRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> UserStatusMutationRead:
+    return execute_user_status_change(
+        operation="reactivate",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+def reconcile_user_status_change(
+    *,
+    operation: UserStatusOperation,
+    organization_id: UUID,
+    payload: UserStatusMutationRequest,
+    db: Session,
+    current_user: User,
+) -> UserStatusReconciliationRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = f"google_workspace.user.{operation}_reconciled"
+    require_user_status_admin(
+        db=db, current_user=current_user, organization=organization, action=action
+    )
+    try:
+        result = GoogleWorkspaceUserStatusReconciliationService.from_settings(
+            db
+        ).reconcile_change(
+            actor=current_user,
+            organization_id=organization.id,
+            operation=operation,
+            confirmation_token=payload.confirmation_token,
+        )
+    except GoogleWorkspaceError as error:
+        metadata: dict[str, object] = {"final_state": "unknown"}
+        if isinstance(error, UserStatusReconciliationError):
+            metadata.update(
+                {
+                    "correlation_id": error.correlation_id,
+                    "reconciliation_attempts": error.attempts,
+                }
+            )
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_user",
+            object_id=getattr(error, "target_google_id", None) or organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected" if error.code in USER_STATUS_REJECTION_CODES else "failure",
+            reason=error.code.value,
+            metadata=metadata,
+        )
+        raise user_status_http_error(error) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_user",
+        object_id=result.target_google_id,
+        customer_id=organization.customer_id,
+        outcome="success" if result.status == "verified" else "unknown",
+        reason=None if result.status == "verified" else "state_not_observed",
+        metadata={
+            "correlation_id": result.correlation_id,
+            "reconciliation_attempts": result.attempts,
+            "final_state": result.status,
+            "observed_suspended": result.observed_suspended,
+        },
+    )
+    return UserStatusReconciliationRead(**result.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/suspend/reconcile",
+    response_model=UserStatusReconciliationRead,
+    tags=["google-workspace"],
+)
+def reconcile_google_workspace_user_suspend(
+    organization_id: UUID,
+    payload: UserStatusMutationRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> UserStatusReconciliationRead:
+    return reconcile_user_status_change(
+        operation="suspend",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/reactivate/reconcile",
+    response_model=UserStatusReconciliationRead,
+    tags=["google-workspace"],
+)
+def reconcile_google_workspace_user_reactivate(
+    organization_id: UUID,
+    payload: UserStatusMutationRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> UserStatusReconciliationRead:
+    return reconcile_user_status_change(
+        operation="reactivate",
+        organization_id=organization_id,
+        payload=payload,
+        db=db,
+        current_user=current_user,
+    )
 
 
 def require_gmail_delegate_admin(

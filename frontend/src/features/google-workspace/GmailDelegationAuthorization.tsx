@@ -19,12 +19,14 @@ export const DIRECTORY_GROUP_READONLY_SCOPE =
   "https://www.googleapis.com/auth/admin.directory.group.readonly";
 export const DIRECTORY_GROUP_MEMBER_SCOPE =
   "https://www.googleapis.com/auth/admin.directory.group.member";
+export const DIRECTORY_USER_WRITE_SCOPE =
+  "https://www.googleapis.com/auth/admin.directory.user";
 
 interface GmailDelegationAuthorizationProps {
   connectorConfig: ConnectorConfig | null;
 }
 
-type CopyTarget = "client" | "directory" | "read" | "write" | "groups-read" | "groups-write" | "all";
+type CopyTarget = "client" | "directory" | "user-write" | "read" | "write" | "groups-read" | "groups-write" | "all";
 
 export function GmailDelegationAuthorization({
   connectorConfig
@@ -33,6 +35,7 @@ export function GmailDelegationAuthorization({
   const [copyError, setCopyError] = useState(false);
   const allScopes = [
     DIRECTORY_USER_READONLY_SCOPE,
+    DIRECTORY_USER_WRITE_SCOPE,
     GMAIL_DELEGATE_READ_SCOPE,
     GMAIL_DELEGATE_WRITE_SCOPE,
     DIRECTORY_GROUP_READONLY_SCOPE,
@@ -55,6 +58,11 @@ export function GmailDelegationAuthorization({
       label: "Directory user lookup (preserve)",
       value: DIRECTORY_USER_READONLY_SCOPE,
       target: "directory"
+    },
+    {
+      label: "Suspend and reactivate Directory users",
+      value: DIRECTORY_USER_WRITE_SCOPE,
+      target: "user-write"
     },
     { label: "Read Gmail delegates", value: GMAIL_DELEGATE_READ_SCOPE, target: "read" },
     { label: "Create and remove Gmail delegates", value: GMAIL_DELEGATE_WRITE_SCOPE, target: "write" },
@@ -93,6 +101,11 @@ export function GmailDelegationAuthorization({
         </div>
         <div className="unverified">
           <ShieldAlert aria-hidden="true" />
+          <span>User suspension writes</span>
+          <strong>Not tested automatically</strong>
+        </div>
+        <div className="unverified">
+          <ShieldAlert aria-hidden="true" />
           <span>Group member writes</span>
           <strong>Not tested automatically</strong>
         </div>
@@ -107,7 +120,7 @@ export function GmailDelegationAuthorization({
         <li>Enable the Gmail API in the same Google Cloud project.</li>
         <li>Open Security → Access and data control → API controls in Google Admin.</li>
         <li>Open Manage Domain Wide Delegation and edit the existing numeric client ID.</li>
-        <li>Add the four Gmail and Groups scopes below and preserve the Directory user scope.</li>
+        <li>Add the five Gmail, Groups, and Directory write scopes below and preserve the read-only Directory user scope.</li>
         <li>Look up a mailbox owner and search Groups to verify each read capability.</li>
       </ol>
 
@@ -165,7 +178,8 @@ export function GmailDelegationAuthorization({
       </div>
       <p className="connector-disclaimer">
         WGASuite never changes Google Admin domain-wide delegation grants. A successful Directory
-        test does not prove Gmail or Groups capabilities, and WGASuite never performs a test write.
+        test does not prove Gmail, Groups, or user-write capabilities, and WGASuite never performs
+        a test write.
       </p>
     </section>
   );

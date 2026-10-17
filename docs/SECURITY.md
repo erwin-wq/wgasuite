@@ -10,7 +10,8 @@
 
 - De Google Workspace connector ondersteunt een echte, read-only Directory API-connection test,
   customer-scoped user-directory, exacte user/alias lookup, bevestigde Gmail delegate create/remove
-  en bevestigde Google Groups direct-membership changes via service accounts met Domain-Wide Delegation.
+  en bevestigde Google Groups direct-membership changes via service accounts met Domain-Wide
+  Delegation. Bevestigde user suspension en veilig beperkte reactivation zijn eveneens beschikbaar.
 - Service-account JSON staat buiten database, API-responses, frontend, logs en git.
 - De file provider partitioneert credentials op organization-id en accepteert alleen opaque
   references; het runtimepad wordt read-only gemount.
@@ -48,6 +49,17 @@
 - Group-audits bevatten geen credentials, confirmation tokens, headers of ruwe Google-responses.
   Mutation- en reconciliation-events blijven afzonderlijk zodat het oorspronkelijke onbekende
   resultaat behouden blijft.
+- User-status reads en writes gebruiken afzonderlijk `admin.directory.user.readonly` en
+  `admin.directory.user`. Alleen customer-admins kunnen muteren; canonical immutable ID en Google
+  `customerId` worden opnieuw gevalideerd. Admin-, DWD-, self-, service-, archived/deleted en
+  onbekend/Google-gesuspendeerde accounts zijn fail-closed beschermd.
+- User-status confirmations zijn vijf minuten geldig, atomisch single-use en gebonden aan actor,
+  customer, organization, connector, Google customer, user-id, action en verwachte status. De
+  database bevat alleen het SHA-256 token-digest en veilige metadata. Eén `users.update` wijzigt
+  uitsluitend `suspended`; timeouts leiden alleen tot begrensde read-only `users.get`
+  reconciliation en nooit tot een herhaalde write.
+- User-status audits gebruiken immutable target-ID en veilige state/outcome/correlation metadata;
+  confirmation tokens, userprofielen, credentials en ruwe Google-responses worden niet opgeslagen.
 
 ## Applicatiebeveiliging
 
