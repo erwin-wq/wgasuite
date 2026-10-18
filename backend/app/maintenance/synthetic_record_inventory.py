@@ -3,149 +3,56 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from sqlalchemy import Select, and_, func, not_, select, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.models import (
-    Assessment,
-    Asset,
-    AuditEvent,
-    ConnectorAccount,
-    ConnectorConfig,
-    Customer,
-    CustomerMembership,
-    Finding,
-    Organization,
-    ScanRun,
+from app.maintenance.synthetic_record_analysis import (
+    SyntheticDataAnalysis,
+    analyze_synthetic_records,
 )
 
-SMOKE_MARKER = "Created by scripts/dev/smoke_api.sh"
 
-
-def _customer_fingerprint() -> Any:
-    return and_(
-        Customer.name.like("Smoke Customer %"),
-        Customer.slug.like("smoke-customer-%"),
-        Customer.contact_name == "Smoke Tester",
-        Customer.contact_email == "smoke@example.local",
-        Customer.notes == SMOKE_MARKER,
-    )
-
-
-def _organization_fingerprint() -> Any:
-    return and_(
-        Organization.name.like("Smoke Test Org %"),
-        Organization.description == SMOKE_MARKER,
-    )
-
-
-def _count(session: Session, statement: Select[Any]) -> int:
-    return int(session.scalar(statement) or 0)
+def _cleanup_eligibility(analysis: SyntheticDataAnalysis) -> str:
+    counts = analysis.aggregate_counts()
+    if not analysis.candidates and not (
+        analysis.candidate_like_customers or analysis.candidate_like_organizations
+    ):
+        return "none_found"
+    if counts.get("credential_bearing_connector_configs", 0) > 0:
+        return "manual_review_required_credentials_present"
+    if analysis.blocker_codes:
+        return "manual_review_required_ambiguous_or_mixed_data"
+    return "eligible_for_manual_review_only"
 
 
 def build_inventory(session: Session) -> dict[str, Any]:
     """Return aggregate-only likely-synthetic record metadata without changing data."""
-    customer_ids = select(Customer.id).where(_customer_fingerprint())
-    organization_ids = select(Organization.id).where(_organization_fingerprint())
-    assessment_ids = select(Assessment.id).where(Assessment.organization_id.in_(organization_ids))
-
-    customer_count = _count(
-        session,
-        select(func.count()).select_from(Customer).where(_customer_fingerprint()),
-    )
-    organization_count = _count(
-        session,
-        select(func.count()).select_from(Organization).where(_organization_fingerprint()),
-    )
-    customer_organization_count = _count(
-        session,
-        select(func.count())
-        .select_from(Organization)
-        .where(Organization.customer_id.in_(customer_ids)),
-    )
-    non_candidate_customer_organizations = _count(
-        session,
-        select(func.count())
-        .select_from(Organization)
-        .where(
-            Organization.customer_id.in_(customer_ids),
-            not_(_organization_fingerprint()),
-        ),
-    )
-    connector_configs = _count(
-        session,
-        select(func.count())
-        .select_from(ConnectorConfig)
-        .where(ConnectorConfig.organization_id.in_(organization_ids)),
-    )
-    credential_bearing_connectors = _count(
-        session,
-        select(func.count())
-        .select_from(ConnectorConfig)
-        .where(
-            ConnectorConfig.organization_id.in_(organization_ids),
-            ConnectorConfig.credential_ref.is_not(None),
-        ),
-    )
-    assessments = _count(
-        session,
-        select(func.count())
-        .select_from(Assessment)
-        .where(Assessment.organization_id.in_(organization_ids)),
-    )
-    assets = _count(
-        session,
-        select(func.count()).select_from(Asset).where(Asset.organization_id.in_(organization_ids)),
-    )
-    connector_accounts = _count(
-        session,
-        select(func.count())
-        .select_from(ConnectorAccount)
-        .where(ConnectorAccount.organization_id.in_(organization_ids)),
-    )
-    findings = _count(
-        session,
-        select(func.count()).select_from(Finding).where(Finding.assessment_id.in_(assessment_ids)),
-    )
-    scan_runs = _count(
-        session,
-        select(func.count()).select_from(ScanRun).where(ScanRun.assessment_id.in_(assessment_ids)),
-    )
-    memberships = _count(
-        session,
-        select(func.count())
-        .select_from(CustomerMembership)
-        .where(CustomerMembership.customer_id.in_(customer_ids)),
-    )
-    audit_events = _count(
-        session,
-        select(func.count())
-        .select_from(AuditEvent)
-        .where(AuditEvent.customer_id.in_(customer_ids)),
-    )
-
-    if customer_count == 0 and organization_count == 0:
-        cleanup_eligibility = "none_found"
-    elif credential_bearing_connectors > 0:
-        cleanup_eligibility = "manual_review_required_credentials_present"
-    elif non_candidate_customer_organizations > 0:
-        cleanup_eligibility = "manual_review_required_mixed_customer_data"
-    else:
-        cleanup_eligibility = "eligible_for_manual_review_only"
-
+    analysis = analyze_synthetic_records(session)
+    counts = analysis.aggregate_counts()
     associations = {
-        "customer_organizations": customer_organization_count,
-        "non_candidate_customer_organizations": non_candidate_customer_organizations,
-        "connector_configs": connector_configs,
-        "credential_bearing_connector_configs": credential_bearing_connectors,
-        "connector_accounts": connector_accounts,
-        "assessments": assessments,
-        "assets": assets,
-        "findings": findings,
-        "scan_runs": scan_runs,
-        "customer_memberships": memberships,
-        "audit_events": audit_events,
+        "customer_organizations": counts.get("organizations", 0),
+        "non_candidate_customer_organizations": counts.get(
+            "non_candidate_customer_organizations", 0
+        ),
+        "connector_configs": counts.get("connector_configs", 0),
+        "credential_bearing_connector_configs": counts.get(
+            "credential_bearing_connector_configs", 0
+        ),
+        "connector_accounts": counts.get("connector_accounts", 0),
+        "assessments": counts.get("assessments", 0),
+        "assets": counts.get("assets", 0),
+        "findings": counts.get("findings", 0),
+        "dread_scores": counts.get("dread_scores", 0),
+        "scan_runs": counts.get("scan_runs", 0),
+        "customer_memberships": counts.get("customer_memberships", 0),
+        "audit_events": counts.get("audit_events_preserved_and_detached", 0),
+        "delegate_confirmations": counts.get("delegate_confirmations", 0),
+        "group_membership_confirmations": counts.get(
+            "group_membership_confirmations", 0
+        ),
+        "user_status_confirmations": counts.get("user_status_confirmations", 0),
+        "cross_tenant_findings": counts.get("cross_tenant_findings", 0),
     }
 
     return {
@@ -154,38 +61,52 @@ def build_inventory(session: Session) -> dict[str, Any]:
         "candidate_groups": [
             {
                 "record_type": "customer",
-                "record_count": customer_count,
+                "record_count": len(analysis.candidates),
                 "reason": (
-                    "Exact smoke-api fingerprint: generated name and slug patterns, local smoke "
-                    "contact, and the script marker."
+                    "Exact smoke-api fingerprint: correlated generated name and slug token, "
+                    "local smoke contact, active status, and script marker."
                 ),
             },
             {
                 "record_type": "organization",
-                "record_count": organization_count,
-                "reason": "Exact smoke-api organization name pattern and script marker.",
+                "record_count": len(analysis.candidates),
+                "reason": (
+                    "Exact smoke-api organization token and marker, linked to its matching "
+                    "customer."
+                ),
             },
         ],
+        "candidate_like_records": {
+            "customers": analysis.candidate_like_customers,
+            "organizations": analysis.candidate_like_organizations,
+        },
         "associated_data": associations,
+        "review_blockers": analysis.blocker_counts,
         "deletion_impact": [
             (
-                "Organization deletion would cascade to assessments, assets, connector accounts, "
-                "and connector configs."
+                "A separately approved cleanup would explicitly delete candidate organizations, "
+                "cascading to assessments, assets, connector accounts, connector configs, and "
+                "Google mutation confirmations."
             ),
             "Assessment deletion would cascade to findings, DREAD scores, and scan runs.",
             (
-                "Customer deletion would remove memberships, detach organizations, and detach "
-                "audit-event customer references."
+                "Customer deletion would remove memberships. Candidate organizations must be "
+                "deleted explicitly because the customer foreign key otherwise detaches them."
+            ),
+            (
+                "Audit events would be preserved; their customer references would be detached by "
+                "the database foreign key."
             ),
             (
                 "Credential-bearing connector records require credential-store reconciliation "
                 "and are never auto-approved."
             ),
         ],
-        "cleanup_eligibility": cleanup_eligibility,
+        "cleanup_eligibility": _cleanup_eligibility(analysis),
         "safe_to_delete_now": False,
         "required_next_step": (
-            "Backup, inspect candidates privately, dry-run, and obtain explicit approval."
+            "Privately review the exact manifest and rollback-only restored-database validation; "
+            "separate approval remains required for any future cleanup implementation."
         ),
     }
 

@@ -231,8 +231,11 @@ Optionally verify the running API:
 make smoke-api
 ```
 
-The smoke test reads the configured development credentials from the backend container and does not
-print the password.
+The smoke target creates a uniquely named, temporary PostgreSQL and backend Compose project. Its
+database has no host port, its backend uses a random loopback port, and neither local Google
+credential directory nor the managed credential volume is mounted. Synthetic rows exist only in
+that disposable database, which is removed on success, failure or interruption. The normal
+WGASuite stack remains running and unchanged.
 
 Stop the local stack with:
 
@@ -322,8 +325,9 @@ The frontend component suite uses Vitest, jsdom and Testing Library and runs in 
 
 ### Read-only smoke-record inventory
 
-The API smoke test intentionally creates synthetic records. Inventory strict smoke-script
-fingerprints without printing names, IDs, domains, emails or credential references:
+Older versions of the API smoke test wrote synthetic records to the normal development database.
+Inventory those legacy rows using strict, correlated smoke-script fingerprints without printing
+names, IDs, domains, emails or credential references:
 
 ```sh
 docker compose exec -T backend python -m app.maintenance.synthetic_record_inventory
@@ -332,7 +336,7 @@ docker compose exec -T backend python -m app.maintenance.synthetic_record_invent
 This command sets its PostgreSQL transaction to read-only and emits aggregate counts plus
 association and deletion-impact guidance. It never deletes records. See
 [Synthetic data cleanup](docs/SYNTHETIC_DATA_CLEANUP.md) for the separately approved future cleanup
-procedure.
+procedure, private manifest workflow and rollback-only restored-database validation.
 
 ## Security
 

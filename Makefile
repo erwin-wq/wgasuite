@@ -1,4 +1,5 @@
-.PHONY: check-env backend-checks docker-up docker-down db-upgrade smoke-api frontend-install frontend-dev
+.PHONY: check-env backend-checks docker-up docker-down db-upgrade smoke-api \
+	synthetic-cleanup-dry-run synthetic-cleanup-validate-restore frontend-install frontend-dev
 
 check-env:
 	./scripts/dev/check_environment.sh
@@ -17,9 +18,14 @@ db-upgrade:
 	docker compose exec backend python -m app.configure_development_admin
 
 smoke-api:
-	@DEVELOPMENT_ADMIN_EMAIL="$$(docker compose exec -T backend printenv DEVELOPMENT_ADMIN_EMAIL)" \
-	DEVELOPMENT_ADMIN_PASSWORD="$$(docker compose exec -T backend printenv DEVELOPMENT_ADMIN_PASSWORD)" \
-	./scripts/dev/smoke_api.sh
+	./scripts/dev/smoke_api_isolated.sh
+
+synthetic-cleanup-dry-run:
+	./scripts/dev/synthetic_cleanup_dry_run.sh
+
+synthetic-cleanup-validate-restore:
+	@test -n "$(BACKUP_PATH)" || (echo "Set BACKUP_PATH to a private PostgreSQL dump." >&2; exit 1)
+	./scripts/dev/validate_synthetic_cleanup_restore.sh "$(BACKUP_PATH)"
 
 frontend-install:
 	npm --prefix frontend ci

@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    labels:
+      com.wgasuite.qa-isolated: "true"
+    environment:
+      POSTGRES_DB: ${QA_POSTGRES_DB:?Set QA_POSTGRES_DB in the isolated runner}
+      POSTGRES_USER: ${QA_POSTGRES_USER:?Set QA_POSTGRES_USER in the isolated runner}
+      POSTGRES_PASSWORD: ${QA_POSTGRES_PASSWORD:?Set QA_POSTGRES_PASSWORD in the isolated runner}
+    volumes:
+      - qa_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  backend:
+    build:
+      context: ./backend
+    labels:
+      com.wgasuite.qa-isolated: "true"
+    environment:
+      ENVIRONMENT: qa-isolated
+      POSTGRES_DB: ${QA_POSTGRES_DB:?Set QA_POSTGRES_DB in the isolated runner}
+      POSTGRES_USER: ${QA_POSTGRES_USER:?Set QA_POSTGRES_USER in the isolated runner}
+      POSTGRES_PASSWORD: ${QA_POSTGRES_PASSWORD:?Set QA_POSTGRES_PASSWORD in the isolated runner}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      AUTH_SECRET_KEY: ${QA_AUTH_SECRET_KEY:?Set QA_AUTH_SECRET_KEY in the isolated runner}
+      DEVELOPMENT_ADMIN_EMAIL: ${QA_ADMIN_EMAIL:?Set QA_ADMIN_EMAIL in the isolated runner}
+      DEVELOPMENT_ADMIN_PASSWORD: ${QA_ADMIN_PASSWORD:?Set QA_ADMIN_PASSWORD in the isolated runner}
+      GOOGLE_WORKSPACE_CONNECTOR_ENABLED: "false"
+      GOOGLE_WORKSPACE_CREDENTIALS_DIRECTORY: /run/wgasuite/empty-google-credentials
+      GOOGLE_WORKSPACE_MANAGED_CREDENTIALS_DIRECTORY: /var/lib/wgasuite/empty-google-credentials
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1::8000"
+    tmpfs:
+      - /run/wgasuite/empty-google-credentials:mode=0500,uid=10001,gid=10001
+      - /var/lib/wgasuite/empty-google-credentials:mode=0700,uid=10001,gid=10001
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  qa_postgres_data:

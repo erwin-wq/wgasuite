@@ -6,6 +6,35 @@ DEVELOPMENT_ADMIN_EMAIL="${DEVELOPMENT_ADMIN_EMAIL:-}"
 DEVELOPMENT_ADMIN_PASSWORD="${DEVELOPMENT_ADMIN_PASSWORD:-}"
 AUTH_TOKEN=""
 
+case "${WGASUITE_SMOKE_ISOLATED_PROJECT:-}" in
+  wgasuite_smoke_*) ;;
+  *)
+    printf "Refusing to run fixture-writing smoke checks outside the isolated runner.\n" >&2
+    printf "Use: make smoke-api\n" >&2
+    exit 1
+    ;;
+esac
+case "$API_BASE_URL" in
+  http://127.0.0.1:[0-9]*) ;;
+  *)
+    printf "Refusing a non-loopback or non-isolated API target: %s\n" "$API_BASE_URL" >&2
+    exit 1
+    ;;
+esac
+api_port=${API_BASE_URL#http://127.0.0.1:}
+case "$api_port" in
+  ""|*[!0-9]*)
+    printf "Refusing a non-numeric isolated API port.\n" >&2
+    exit 1
+    ;;
+esac
+case "$API_BASE_URL" in
+  http://127.0.0.1:8000)
+    printf "Refusing the normal WGASuite backend port.\n" >&2
+    exit 1
+    ;;
+esac
+
 if [ -z "$DEVELOPMENT_ADMIN_EMAIL" ] || [ -z "$DEVELOPMENT_ADMIN_PASSWORD" ]; then
   printf "Missing development login configuration.\n"
   printf "Set DEVELOPMENT_ADMIN_EMAIL and DEVELOPMENT_ADMIN_PASSWORD before running this test.\n"
