@@ -5,6 +5,20 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-17 — QA-FIX-001 isolated API smoke data
+
+- Replaced the live-stack API smoke target with a random, disposable Compose project whose
+  PostgreSQL service is not published and whose backend has no real Google credential mounts.
+- Added fail-closed direct-run guards and guaranteed project-scoped cleanup so fixture records never
+  enter the normal WGASuite database and the running development stack is preserved.
+- Strengthened legacy smoke-record analysis with correlated script fingerprints, complete dependent
+  graphs, credential/membership/confirmation checks and cross-tenant relationship blockers.
+- Added an ignored, permission-restricted exact-UUID manifest plus safe aggregate checksum output.
+  Audit rows are explicitly retained and distinguished from future deletion candidates.
+- Added sentinel-guarded cascade validation for isolated restored backups. Candidate deletion is
+  exercised only inside an unconditionally rolled-back transaction; no committed cleanup mode was
+  introduced.
+
 ## 2026-10-14 — GW-005 safe user suspension and reactivation
 
 - Added customer-admin-only suspension and reactivation to the central user detail, using canonical

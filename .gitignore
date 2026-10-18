@@ -35,3 +35,6 @@ coverage/
 
 # Local connector credential material. Mount read-only at runtime; never commit it.
 /secrets/
+
+# Private exact-identifier manifests produced by cleanup dry-runs.
+/backend/app/maintenance/.private/
