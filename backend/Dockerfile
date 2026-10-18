@@ -16,6 +16,11 @@ COPY alembic.ini .
 COPY alembic ./alembic
 COPY app ./app
 
+# Git worktrees created under a restrictive umask can leave source at 0600. The image runs as
+# UID/GID 10001, so normalize only copied source/config (private artifacts are dockerignored).
+RUN chmod -R u=rwX,go=rX /app/app /app/alembic \
+    && chmod 0644 /app/alembic.ini
+
 USER wgasuite
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

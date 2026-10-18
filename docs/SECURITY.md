@@ -70,6 +70,22 @@
 - Houd database-migraties reviewbaar en klein.
 - Beperk CORS per omgeving via `BACKEND_CORS_ORIGINS`.
 
+## Synthetische data cleanup
+
+- Een cleanup-reviewplan is read-only, maximaal 30 minuten geldig en op zichzelf nooit toestemming
+  om data te verwijderen. Exacte UUID's en audit/customer-koppelingen blijven in genegeerde,
+  private bestanden met directorymodus `0700` en bestandsmodus `0600`.
+- De offline executor mag niet als API, UI-actie, scheduler of automatische job worden aangeboden.
+  Uitvoering vereist een aparte menselijke goedkeuring, volledig database/credential-backupherstel,
+  expliciete UUID-selecties en de volledige plan-digestbevestiging.
+- Uitvoering gebruikt één `SERIALIZABLE` PostgreSQL-transactie, een transactionele advisory lock en
+  row locks. Iedere drift of lockconflict weigert en rolt terug. Na een ambigu commitresultaat is
+  alleen read-only reconciliation toegestaan; nooit automatisch opnieuw uitvoeren.
+- Google-credentialvolumes en Workspace-API's maken geen deel uit van cleanup. Audit-events blijven
+  bestaan en alleen hun verwijzing naar een verwijderde, goedgekeurde synthetische customer wordt
+  via de bestaande foreign key losgekoppeld.
+- Zie `docs/SYNTHETIC_DATA_CLEANUP.md` voor het volledige operator- en herstelproces.
+
 ## Logging
 
 - Log geen request bodies met gevoelige informatie.

@@ -33,6 +33,13 @@ def test_private_cleanup_manifests_are_excluded_from_backend_images():
     assert "app/maintenance/.private/" in dockerignore
 
 
+def test_backend_image_normalizes_source_read_permissions_before_non_root_user():
+    dockerfile = (REPOSITORY_ROOT / "backend/Dockerfile").read_text()
+
+    assert "chmod -R u=rwX,go=rX /app/app /app/alembic" in dockerfile
+    assert dockerfile.index("chmod -R u=rwX,go=rX") < dockerfile.index("USER wgasuite")
+
+
 def test_isolated_runner_has_project_scoped_cleanup_and_random_binding_checks():
     runner = (REPOSITORY_ROOT / "scripts/dev/smoke_api_isolated.sh").read_text()
 
@@ -53,3 +60,18 @@ def test_fixture_writer_refuses_direct_or_normal_stack_execution():
     assert "/delegates" not in smoke_script
     assert "/members" not in smoke_script
     assert "/status" not in smoke_script
+
+
+def test_committed_cleanup_test_is_scoped_to_disposable_infrastructure():
+    runner = (
+        REPOSITORY_ROOT / "scripts/dev/test_synthetic_cleanup_isolated.sh"
+    ).read_text()
+
+    assert 'PROJECT_NAME="wgasuite_cleanup_test_${random_suffix}"' in runner
+    assert "docker-compose.qa-isolated.yml" in runner
+    assert "down --volumes --remove-orphans --rmi local" in runner
+    assert 'published_port=$(compose port backend 8000)' in runner
+    assert "empty isolated credential archive" not in runner
+    assert "docker volume prune" not in runner
+    assert "docker system prune" not in runner
+    assert "docker compose down -v" not in runner

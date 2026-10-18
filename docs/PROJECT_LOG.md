@@ -5,6 +5,20 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-18 — QA-CLEANUP-001 guarded synthetic cleanup
+
+- Added a short-lived Phase A review plan bound to the exact PostgreSQL cluster/database, Alembic
+  revision, selected UUID graph, row identities, counts and retained audit contents.
+- Added an offline-only Phase B executor requiring checksum-verified private artifacts, a complete
+  database/credential recovery attestation, separately supplied human approval, exact UUID
+  repetitions and a full-digest typed confirmation.
+- Made execution serializable and one-time, with advisory/row locks, a fresh strict analysis,
+  exact post-delete and audit-detachment checks, rollback on drift and a durable aggregate audit
+  marker. Uncertain commits are never retried and have a read-only reconciliation command.
+- Exercised committed deletion only in a random disposable PostgreSQL project, including restore,
+  drift, concurrency, replay, audit retention and unrelated-customer checks. No normal WGASuite
+  database records or Google credential volume are used by that harness.
+
 ## 2026-10-17 — QA-FIX-001 isolated API smoke data
 
 - Replaced the live-stack API smoke target with a random, disposable Compose project whose
