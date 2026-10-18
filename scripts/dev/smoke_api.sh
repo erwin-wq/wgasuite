@@ -7,7 +7,7 @@ DEVELOPMENT_ADMIN_PASSWORD="${DEVELOPMENT_ADMIN_PASSWORD:-}"
 AUTH_TOKEN=""
 
 case "${WGASUITE_SMOKE_ISOLATED_PROJECT:-}" in
-  wgasuite_smoke_*) ;;
+  wgasuite_smoke_*|wgasuite_cleanup_test_*) ;;
   *)
     printf "Refusing to run fixture-writing smoke checks outside the isolated runner.\n" >&2
     printf "Use: make smoke-api\n" >&2

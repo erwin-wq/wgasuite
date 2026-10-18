@@ -29,6 +29,12 @@ Include only the information needed to reproduce and assess the issue:
 Use synthetic data. Remove secrets and real tenant/customer information from logs, requests,
 screenshots and attachments.
 
+Private synthetic-cleanup manifests, approval files and backup attestations also contain sensitive
+operational identifiers. Keep them outside Git and shared tickets, require mode `0600`, and never
+treat a dry-run plan as deletion authorization. The guarded executor is an offline maintenance
+command only; do not expose it through an API, UI, scheduler or automatic retry. An uncertain
+commit must be resolved with read-only reconciliation.
+
 ## Response and disclosure
 
 Because the project is pre-release, no response-time SLA is currently offered. Maintainers should

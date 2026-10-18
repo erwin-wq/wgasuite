@@ -5,9 +5,11 @@ They created customers, organizations, connector metadata, assessments, assets, 
 scores, mock scan runs and related audit history without removing them. A synthetic-looking name is
 never, by itself, permission to delete data.
 
-No tool described here can perform a committed cleanup. Existing records, Google Workspace
-connectors, credential files and audit history must remain unchanged until a separately reviewed
-cleanup implementation and exact allowlist are explicitly approved.
+The cleanup workflow has two deliberately separate phases. Phase A is a read-only review plan;
+creating it is never deletion authorization. Phase B is a narrow PostgreSQL maintenance command,
+not an API endpoint or scheduled job. It can commit only after a current plan, exact database
+identity, verified backup attestation, separate human approval, exact UUID repetitions and typed
+confirmation all agree. Never run Phase B merely because a plan exists.
 
 ## Isolated smoke tests
 
@@ -66,11 +68,16 @@ Generate a private manifest from the normal database with:
 make synthetic-cleanup-dry-run
 ```
 
-The database transaction is read-only. Exact UUIDs are written beneath
+The database transaction is read-only. Exact UUIDs and canonical row-identity hashes are written beneath
 `backend/app/maintenance/.private/`, which is excluded from Git. The directory is mode `0700`; the
 manifest and checksum sidecar are mode `0600`. The directory is also excluded from the backend
 Docker build context. Standard output contains only aggregate counts, the manifest filename and its
 SHA-256 checksum, so that summary can be shared without exposing the identifier allowlist.
+
+Plans expire after 30 minutes. They bind the PostgreSQL system identifier, database OID/name/user,
+server version and Alembic revision, plus the exact customer/organization/dependent UUID graph,
+per-table content hashes, expected counts and retained audit-event contents. Any database drift
+requires a new plan and review; do not edit or re-checksum an old plan.
 
 The tool refuses to create a manifest when any candidate is ambiguous or mixed. Connector
 credential reference values are never copied into the manifest; it records only whether credential
@@ -105,18 +112,92 @@ customer references, then unconditionally rolls the transaction back and verifie
 returned. The disposable database volume is removed afterward. No Google credential archive or
 credential volume is mounted.
 
-There is deliberately no commit option and no production cleanup execution mode.
+## Guarded Phase B execution
 
-## Future cleanup procedure (separate approval required)
+Phase B is intentionally not exposed through HTTP, the UI or a Make target. Its private approval
+JSON must be created outside the planning command by the approving human and contain:
 
-1. Review the aggregate summary, private manifest, checksum and rollback-validation result.
-2. Verify database and credential backups through isolated recovery tests.
-3. Obtain explicit approval for the exact UUID allowlist, cascade impact and audit handling.
-4. Implement and review a separate cleanup mechanism limited to that allowlist.
-5. Coordinate any approved credential-file handling separately and recoverably.
-6. Verify foreign-key integrity, tenant scoping, connector status, audit retention and application
-   behavior before retiring backups.
+- `schema_version: 1` and `mode: synthetic_cleanup_human_approval`;
+- the exact plan digest and manifest SHA-256;
+- the customer and organization UUID lists repeated in manifest order;
+- a non-empty approver identity and external approval reference; and
+- an approval time and expiry no more than 15 minutes apart and within the plan lifetime.
 
-This remains a plan, not deletion authorization. Do not run `DELETE`, `TRUNCATE`, database resets,
-global Docker volume pruning, `docker compose down --volumes` for the normal WGASuite project, or
-credential-volume removal as part of inventory or dry-run work.
+A separate mode-`0600` backup-attestation JSON must bind the same plan and database-context digest.
+It names a backup set and attester, and supplies an absolute path, SHA-256, creation timestamp and
+verification reference for both backups. The PostgreSQL backup requires a successful isolated
+restore timestamp. The credential archive requires a complete recovery timestamp—not merely a tar
+listing or integrity check. Both backup files must be regular, non-symlink, mode-`0600`, owned by
+the executing user, checksum-valid and no more than 24 hours old. The attestation must also record a
+successful rollback-only cascade validation whose deleted/audit counts exactly match the plan. A prior credential archive that
+has only passed integrity inspection is not sufficient.
+
+The executor requires all of these values explicitly and has no wildcard, discovery, force or
+all-candidates option:
+
+```sh
+python -m app.maintenance.synthetic_cleanup_execution execute \
+  --manifest /private/review.json \
+  --manifest-sha256 MANIFEST_SHA256 \
+  --plan-digest PLAN_DIGEST \
+  --approval /private/approval.json \
+  --approval-sha256 APPROVAL_SHA256 \
+  --backup-attestation /private/backup-attestation.json \
+  --backup-attestation-sha256 ATTESTATION_SHA256 \
+  --approve-customer EXACT_CUSTOMER_UUID \
+  --approve-organization EXACT_ORGANIZATION_UUID \
+  --confirmation "DELETE REVIEWED SYNTHETIC RECORDS PLAN_DIGEST"
+```
+
+Repeat each UUID option once for every reviewed pair, in manifest order. Avoid placing private
+identifiers in shared shell history, logs, tickets or pull requests. The executor rechecks private
+file ownership/permissions and checksums before starting. It then opens one `SERIALIZABLE`
+transaction, obtains a global transaction-scoped advisory lock, locks every allowlisted row with
+`NOWAIT`, runs the strict smoke-fingerprint analysis again, and compares the complete fresh graph
+and database identity to the plan. It explicitly deletes only the listed organizations and
+customers; database cascades remove only their verified dependants. It verifies every listed row is
+gone and every audit event remains content-identical with only `customer_id` detached. A
+non-customer audit marker records the plan/checksum references and aggregate impact before commit.
+
+Drift, ambiguity, lock contention, a stale artifact, wrong database, altered content, missing
+backup verification, selection mismatch or existing commit marker rolls back/refuses. A plan can
+commit once only. If the connection fails during commit, the tool reports an uncertain outcome and
+must not be retried. Reconcile it read-only—even after plan expiry—with:
+
+```sh
+python -m app.maintenance.synthetic_cleanup_execution reconcile \
+  --manifest /private/review.json \
+  --manifest-sha256 MANIFEST_SHA256 \
+  --plan-digest PLAN_DIGEST
+```
+
+Reconciliation returns `committed`, `not_committed` or `unknown_manual_review` and never retries or
+modifies data. Keep backups until post-cleanup integrity, tenant-scoping, connector and application
+checks are complete.
+
+After a separately approved real cleanup, first run the inventory and reconciliation read-only,
+verify unrelated customer/organization/connector aggregates and inspect the credential volume
+without changing it. Then use the existing connector screen's read-only connection test for each
+unrelated configured Workspace connector whose operator has authorized that Google API access.
+Confirm the stored connector status and delegated administrator still match their pre-cleanup
+record. Do not upload/rewrite credentials or invoke Gmail, Groups or user-status mutations as a
+cleanup verification step. A connector failure is an investigation signal, never a reason to
+restore automatically over the main database.
+
+## Isolated committed-path validation
+
+Run the entire guarded path only against a disposable PostgreSQL project with:
+
+```sh
+make synthetic-cleanup-test-isolated
+```
+
+The harness creates one isolated smoke set and an unrelated control customer, produces and restores
+its own PostgreSQL backup, recovers a synthetic secret-free credential archive, verifies drift refusal,
+runs competing execution attempts, verifies exactly one commit, refuses replay, reconciles the
+result and confirms the control customer remains. It mounts no real Google credential volume and
+removes only its randomly named project and volume on exit.
+
+Do not run `DELETE`, `TRUNCATE`, database resets, global Docker volume pruning,
+`docker compose down --volumes` for the normal WGASuite project, or credential-volume removal as a
+substitute for this workflow.

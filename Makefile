@@ -1,5 +1,6 @@
 .PHONY: check-env backend-checks docker-up docker-down db-upgrade smoke-api \
-	synthetic-cleanup-dry-run synthetic-cleanup-validate-restore frontend-install frontend-dev
+	synthetic-cleanup-dry-run synthetic-cleanup-validate-restore \
+	synthetic-cleanup-test-isolated frontend-install frontend-dev
 
 check-env:
 	./scripts/dev/check_environment.sh
@@ -26,6 +27,9 @@ synthetic-cleanup-dry-run:
 synthetic-cleanup-validate-restore:
 	@test -n "$(BACKUP_PATH)" || (echo "Set BACKUP_PATH to a private PostgreSQL dump." >&2; exit 1)
 	./scripts/dev/validate_synthetic_cleanup_restore.sh "$(BACKUP_PATH)"
+
+synthetic-cleanup-test-isolated:
+	./scripts/dev/test_synthetic_cleanup_isolated.sh
 
 frontend-install:
 	npm --prefix frontend ci

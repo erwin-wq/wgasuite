@@ -105,8 +105,8 @@ def build_inventory(session: Session) -> dict[str, Any]:
         "cleanup_eligibility": _cleanup_eligibility(analysis),
         "safe_to_delete_now": False,
         "required_next_step": (
-            "Privately review the exact manifest and rollback-only restored-database validation; "
-            "separate approval remains required for any future cleanup implementation."
+            "Privately review a current exact plan, verified recovery evidence, and audit impact; "
+            "separate human approval remains required before guarded execution."
         ),
     }
 

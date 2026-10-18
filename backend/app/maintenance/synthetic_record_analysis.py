@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import date, datetime
+from hashlib import sha256
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Select, func, not_, or_, select
+from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session
 
 from app.connectors.google_workspace_checks import GOOGLE_WORKSPACE_CHECKS
@@ -41,6 +45,48 @@ def _count(session: Session, statement: Select[Any]) -> int:
 
 def _ids(records: list[Any]) -> list[str]:
     return sorted(str(record.id) for record in records)
+
+
+def _canonical_value(value: Any) -> Any:
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _canonical_value(item) for key, item in sorted(value.items())}
+    if isinstance(value, (list, tuple)):
+        return [_canonical_value(item) for item in value]
+    return value
+
+
+def _canonical_digest(value: Any) -> str:
+    payload = json.dumps(
+        _canonical_value(value),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    return sha256(payload).hexdigest()
+
+
+def _record_identity_digest(records: list[Any], *, excluded: set[str] | None = None) -> str:
+    excluded = excluded or set()
+    rows = []
+    for record in sorted(records, key=lambda item: str(item.id)):
+        mapper = inspect(type(record))
+        rows.append(
+            {
+                column.key: _canonical_value(getattr(record, column.key))
+                for column in mapper.columns
+                if column.key not in excluded
+            }
+        )
+    return _canonical_digest(rows)
+
+
+def audit_event_content_digest(event: AuditEvent) -> str:
+    """Hash retained audit contents while deliberately excluding the detachable customer FK."""
+    return _record_identity_digest([event], excluded={"customer_id"})
 
 
 def customer_run_token(customer: Customer) -> str | None:
@@ -117,6 +163,21 @@ class CandidateSet:
         }
 
     def private_manifest_entry(self) -> dict[str, Any]:
+        deleted_records = {
+            "customers": [self.customer],
+            "organizations": [self.organization],
+            "connector_configs": self.connector_configs,
+            "connector_accounts": self.connector_accounts,
+            "assessments": self.assessments,
+            "assets": self.assets,
+            "findings": self.findings,
+            "dread_scores": self.dread_scores,
+            "scan_runs": self.scan_runs,
+            "customer_memberships": self.memberships,
+            "delegate_confirmations": self.delegate_confirmations,
+            "group_membership_confirmations": self.group_membership_confirmations,
+            "user_status_confirmations": self.user_status_confirmations,
+        }
         return {
             "run_token": self.token,
             "customer_id": str(self.customer.id),
@@ -141,6 +202,18 @@ class CandidateSet:
             "records_expected_to_be_preserved": {
                 "audit_events_detached_from_customer": _ids(self.audit_events),
             },
+            "record_identity_sha256": {
+                name: _record_identity_digest(records)
+                for name, records in deleted_records.items()
+            },
+            "audit_event_original_customer_associations": [
+                {
+                    "audit_event_id": str(event.id),
+                    "original_customer_id": str(self.customer.id),
+                    "retained_content_sha256": audit_event_content_digest(event),
+                }
+                for event in sorted(self.audit_events, key=lambda item: str(item.id))
+            ],
             "connector_credential_state": [
                 {
                     "connector_config_id": str(config.id),
@@ -528,6 +601,21 @@ def manifest_uuid_sets(analysis: SyntheticDataAnalysis) -> dict[str, list[UUID]]
         ],
         "customer_memberships": [
             item.id for candidate in analysis.candidates for item in candidate.memberships
+        ],
+        "delegate_confirmations": [
+            item.id
+            for candidate in analysis.candidates
+            for item in candidate.delegate_confirmations
+        ],
+        "group_membership_confirmations": [
+            item.id
+            for candidate in analysis.candidates
+            for item in candidate.group_membership_confirmations
+        ],
+        "user_status_confirmations": [
+            item.id
+            for candidate in analysis.candidates
+            for item in candidate.user_status_confirmations
         ],
         "audit_events": [
             item.id for candidate in analysis.candidates for item in candidate.audit_events

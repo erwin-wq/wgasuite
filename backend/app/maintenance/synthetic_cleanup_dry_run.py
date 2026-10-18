@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
-import stat
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +10,12 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
+from app.maintenance.synthetic_cleanup_plan import (
+    build_review_manifest,
+    get_database_context,
+    safe_plan_summary,
+    write_review_manifest,
+)
 from app.maintenance.synthetic_record_analysis import (
     SyntheticDataAnalysis,
     analyze_synthetic_records,
@@ -35,6 +38,8 @@ from app.models import (
 VALIDATION_DATABASE = "wgasuite_cleanup_validation"
 VALIDATION_GUARD_TABLE = "wgasuite_cleanup_validation_guard"
 VALIDATION_MODE = "isolated_restored_backup"
+COMMITTED_TEST_DATABASE = "wgasuite_cleanup_test"
+COMMITTED_TEST_VALIDATION_MODE = "isolated_committed_cleanup_test"
 
 
 def _aggregate_summary(
@@ -56,7 +61,7 @@ def _aggregate_summary(
             else "refused_ambiguous_or_mixed_data"
         ),
         "safe_to_delete_now": False,
-        "cleanup_execution_supported": False,
+        "requires_separate_human_approval": True,
         "audit_handling": "preserve rows and detach customer references",
     }
     if checksum is not None:
@@ -66,80 +71,6 @@ def _aggregate_summary(
     if cascade_validation is not None:
         summary["cascade_validation"] = cascade_validation
     return summary
-
-
-def _private_manifest(analysis: SyntheticDataAnalysis) -> dict[str, Any]:
-    return {
-        "schema_version": 1,
-        "generated_at": datetime.now(UTC).isoformat(),
-        "mode": "private_cleanup_dry_run",
-        "contains_private_identifiers": True,
-        "safe_to_delete_now": False,
-        "cleanup_execution_supported": False,
-        "selection_policy": (
-            "Exact correlated scripts/dev/smoke_api.sh fingerprints and relationships only."
-        ),
-        "audit_policy": (
-            "Audit rows are outside the deletion candidate set and would be preserved with their "
-            "customer_id detached by ON DELETE SET NULL."
-        ),
-        "aggregate_counts": analysis.aggregate_counts(),
-        "candidate_sets": [
-            candidate.private_manifest_entry() for candidate in analysis.candidates
-        ],
-    }
-
-
-def _ensure_private_directory(directory: Path) -> Path:
-    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-    directory = directory.resolve()
-    mode = stat.S_IMODE(directory.stat().st_mode)
-    if mode & 0o077:
-        raise RuntimeError(
-            f"Private manifest directory must not be group/world accessible (mode {mode:04o})."
-        )
-    return directory
-
-
-def _write_private_file(path: Path, content: bytes) -> None:
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-    except Exception:
-        path.unlink(missing_ok=True)
-        raise
-
-
-def write_private_manifest(
-    analysis: SyntheticDataAnalysis,
-    directory: Path,
-) -> tuple[Path, str]:
-    directory = _ensure_private_directory(directory)
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-    manifest_path = directory / f"synthetic-cleanup-manifest-{timestamp}.json"
-    payload = (
-        json.dumps(_private_manifest(analysis), indent=2, sort_keys=True) + "\n"
-    ).encode()
-    checksum = hashlib.sha256(payload).hexdigest()
-    checksum_path = manifest_path.with_suffix(".sha256")
-
-    previous_umask = os.umask(0o077)
-    try:
-        _write_private_file(manifest_path, payload)
-        try:
-            _write_private_file(
-                checksum_path,
-                f"{checksum}  {manifest_path.name}\n".encode(),
-            )
-        except Exception:
-            manifest_path.unlink(missing_ok=True)
-            raise
-    finally:
-        os.umask(previous_umask)
-    return manifest_path, checksum
 
 
 def _count_ids(session: Session, model: Any, identifiers: list[Any]) -> int:
@@ -154,12 +85,17 @@ def _count_ids(session: Session, model: Any, identifiers: list[Any]) -> int:
 
 
 def _require_isolated_validation_guard(session: Session) -> None:
-    if os.getenv("WGASUITE_CLEANUP_VALIDATION_MODE") != VALIDATION_MODE:
+    mode = os.getenv("WGASUITE_CLEANUP_VALIDATION_MODE")
+    expected_databases = {
+        VALIDATION_MODE: VALIDATION_DATABASE,
+        COMMITTED_TEST_VALIDATION_MODE: COMMITTED_TEST_DATABASE,
+    }
+    if mode not in expected_databases:
         raise RuntimeError("Rollback validation requires the isolated-restored-backup mode guard.")
     if session.bind is None or session.bind.dialect.name != "postgresql":
         raise RuntimeError("Rollback validation is supported only on isolated PostgreSQL.")
     database_name = session.scalar(text("SELECT current_database()"))
-    if database_name != VALIDATION_DATABASE:
+    if database_name != expected_databases[mode]:
         raise RuntimeError("Rollback validation refused: unexpected database name.")
 
     expected_nonce = os.getenv("WGASUITE_CLEANUP_VALIDATION_NONCE", "")
@@ -277,31 +213,37 @@ def main() -> None:
     cascade_validation: dict[str, Any] | None = None
     with SessionLocal() as session:
         if args.validate_cascade_rollback:
+            database_context = get_database_context(session)
             analysis = analyze_synthetic_records(session)
             if not analysis.eligible_for_manifest:
                 session.rollback()
                 print(json.dumps(_aggregate_summary(analysis), indent=2, sort_keys=True))
                 raise SystemExit(2)
+            manifest = build_review_manifest(analysis, database_context)
             session.expunge_all()
             cascade_validation = validate_cascade_with_rollback(session, analysis)
         else:
             if session.bind is not None and session.bind.dialect.name == "postgresql":
                 session.execute(text("SET TRANSACTION READ ONLY"))
+            database_context = get_database_context(session)
             analysis = analyze_synthetic_records(session)
             if not analysis.eligible_for_manifest:
                 print(json.dumps(_aggregate_summary(analysis), indent=2, sort_keys=True))
                 session.rollback()
                 raise SystemExit(2)
+            manifest = build_review_manifest(analysis, database_context)
             session.expunge_all()
             session.rollback()
 
-    manifest_path, checksum = write_private_manifest(analysis, args.manifest_dir)
-    summary = _aggregate_summary(
+    manifest_path, checksum = write_review_manifest(manifest, args.manifest_dir)
+    summary = safe_plan_summary(
         analysis,
-        checksum=checksum,
+        manifest,
         manifest_name=manifest_path.name,
-        cascade_validation=cascade_validation,
+        manifest_sha256=checksum,
     )
+    if cascade_validation is not None:
+        summary["cascade_validation"] = cascade_validation
     print(json.dumps(summary, indent=2, sort_keys=True))
 
 

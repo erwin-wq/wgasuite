@@ -29,6 +29,9 @@
 - Preserve compatibility identifiers such as `dread`, `dread_scores` and `dread_score` unless an
   explicit migration plan requires otherwise.
 - DREAD remains the product's risk-assessment methodology and data model terminology.
+- Synthetic-record cleanup is an offline, two-phase maintenance workflow. A read-only plan is not
+  authorization; committed execution requires separate human approval and verified recoverable
+  backups and may be tested destructively only in disposable PostgreSQL infrastructure.
 
 ## Configuration and local development
 
@@ -58,6 +61,7 @@ make check-env
 make docker-up
 make db-upgrade
 make smoke-api
+make synthetic-cleanup-test-isolated
 make docker-down
 ```
 

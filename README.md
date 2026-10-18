@@ -335,8 +335,9 @@ docker compose exec -T backend python -m app.maintenance.synthetic_record_invent
 
 This command sets its PostgreSQL transaction to read-only and emits aggregate counts plus
 association and deletion-impact guidance. It never deletes records. See
-[Synthetic data cleanup](docs/SYNTHETIC_DATA_CLEANUP.md) for the separately approved future cleanup
-procedure, private manifest workflow and rollback-only restored-database validation.
+[Synthetic data cleanup](docs/SYNTHETIC_DATA_CLEANUP.md) for the private review-plan workflow,
+backup/approval requirements, guarded one-time executor, read-only reconciliation and disposable
+committed-path validation. A plan alone is never deletion authorization.
 
 ## Security
 
