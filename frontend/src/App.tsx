@@ -334,7 +334,7 @@ function App() {
   );
 
   const loadOrganizationConnectorConfigs = useCallback(
-    async (organizationId: string) => {
+    async (organizationId: string, preserveExisting = false) => {
       const sequence = connectorConfigRequestSequence.current + 1;
       connectorConfigRequestSequence.current = sequence;
       if (!organizationId) {
@@ -342,7 +342,9 @@ function App() {
         return;
       }
 
-      setConnectorConfigs([]);
+      if (!preserveExisting) {
+        setConnectorConfigs([]);
+      }
       try {
         const loadedConnectorConfigs = await listOrganizationConnectorConfigs(organizationId);
         if (connectorConfigRequestSequence.current === sequence) {
@@ -797,7 +799,7 @@ function App() {
         type: testResult.status === "connected" && testResult.persisted ? "success" : "error",
         message: testResult.message
       });
-      await loadOrganizationConnectorConfigs(selectedOrganizationId);
+      await loadOrganizationConnectorConfigs(selectedOrganizationId, true);
     } catch (connectorError) {
       if (connectorError instanceof ApiError && connectorError.status === 401) {
         handleRequestError(connectorError);
@@ -1544,7 +1546,7 @@ function App() {
                   onNotesChange={setConnectorNotes}
                   onSave={handleSaveConnectorConfig}
                   onTest={handleTestConnectorConfig}
-                  onReload={() => loadOrganizationConnectorConfigs(selectedOrganizationId)}
+                  onReload={() => loadOrganizationConnectorConfigs(selectedOrganizationId, true)}
                   onCredentialFeedback={setConnectorFeedback}
                 />
               }
