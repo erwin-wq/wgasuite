@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-import hashlib
 import logging
-import secrets
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
 from googleapiclient.errors import HttpError
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -33,6 +31,19 @@ from app.models import (
     GoogleWorkspaceDelegateConfirmation,
     User,
 )
+from app.services.google_workspace_mutation_safety import (
+    RECONCILIATION_BACKOFF_SECONDS,
+    RECONCILIATION_MAX_WAIT_SECONDS,
+    BoundedReconciliationWindow,
+    confirmation_blocks_new_preview,
+    confirmation_is_expired,
+    confirmation_token_digest,
+    consume_confirmation,
+    is_ambiguous_mutation_error,
+    issue_confirmation,
+    mark_confirmation_reconciled,
+    set_confirmation_status,
+)
 from app.services.google_workspace_user_lookup import (
     GoogleWorkspaceUserLookup,
     GoogleWorkspaceUserLookupResult,
@@ -40,17 +51,6 @@ from app.services.google_workspace_user_lookup import (
 
 logger = logging.getLogger(__name__)
 DelegateOperation = Literal["create", "remove"]
-CONFIRMATION_LIFETIME = timedelta(minutes=5)
-AMBIGUOUS_MUTATION_CODES = frozenset(
-    {
-        GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT,
-        GoogleWorkspaceErrorCode.GOOGLE_NETWORK_ERROR,
-        GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE,
-    }
-)
-RECONCILIATION_MAX_WAIT_SECONDS = 20.0
-RECONCILIATION_REQUEST_TIMEOUT_SECONDS = 5.0
-RECONCILIATION_BACKOFF_SECONDS = (0.0, 0.5, 1.0, 2.0)
 
 
 @dataclass(frozen=True)
@@ -177,9 +177,7 @@ class GoogleWorkspaceGmailDelegationService:
         if operation == "remove" and existing is None:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GMAIL_DELEGATE_NOT_FOUND)
 
-        token = secrets.token_urlsafe(32)
-        token_digest = self._token_digest(token)
-        expires_at = datetime.now(UTC) + CONFIRMATION_LIFETIME
+        grant = issue_confirmation()
         statement = select(GoogleWorkspaceDelegateConfirmation).where(
             GoogleWorkspaceDelegateConfirmation.organization_id == organization_id,
             GoogleWorkspaceDelegateConfirmation.operation == operation,
@@ -198,17 +196,17 @@ class GoogleWorkspaceGmailDelegationService:
                 owner_primary_email=owner.primary_email,
                 delegate_google_id=delegate.id,
                 delegate_primary_email=delegate.primary_email,
-                token_digest=token_digest,
-                expires_at=expires_at,
+                token_digest=grant.token_digest,
+                expires_at=grant.expires_at,
             )
             self.db.add(confirmation)
         else:
             confirmation.actor_user_id = actor.id
             confirmation.owner_primary_email = owner.primary_email
             confirmation.delegate_primary_email = delegate.primary_email
-            confirmation.token_digest = token_digest
+            confirmation.token_digest = grant.token_digest
             confirmation.status = "pending"
-            confirmation.expires_at = expires_at
+            confirmation.expires_at = grant.expires_at
             confirmation.consumed_at = None
         try:
             self.db.commit()
@@ -226,9 +224,9 @@ class GoogleWorkspaceGmailDelegationService:
             confirmation.actor_user_id = actor.id
             confirmation.owner_primary_email = owner.primary_email
             confirmation.delegate_primary_email = delegate.primary_email
-            confirmation.token_digest = token_digest
+            confirmation.token_digest = grant.token_digest
             confirmation.status = "pending"
-            confirmation.expires_at = expires_at
+            confirmation.expires_at = grant.expires_at
             confirmation.consumed_at = None
             self.db.commit()
 
@@ -242,8 +240,8 @@ class GoogleWorkspaceGmailDelegationService:
             operation=operation,
             owner_primary_email=owner.primary_email,
             delegate_primary_email=delegate.primary_email,
-            confirmation_token=token,
-            expires_at=expires_at,
+            confirmation_token=grant.token,
+            expires_at=grant.expires_at,
             effect=effect,
         )
 
@@ -255,7 +253,7 @@ class GoogleWorkspaceGmailDelegationService:
         operation: DelegateOperation,
         confirmation_token: str,
     ) -> GmailDelegateMutationResult:
-        token_digest = self._token_digest(confirmation_token)
+        token_digest = confirmation_token_digest(confirmation_token)
         confirmation = self.db.scalar(
             select(GoogleWorkspaceDelegateConfirmation).where(
                 GoogleWorkspaceDelegateConfirmation.token_digest == token_digest,
@@ -270,10 +268,7 @@ class GoogleWorkspaceGmailDelegationService:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_USED)
 
         now = datetime.now(UTC)
-        expires_at = confirmation.expires_at
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=UTC)
-        if expires_at <= now:
+        if confirmation_is_expired(confirmation.expires_at, now=now):
             confirmation.status = "expired"
             self.db.commit()
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_EXPIRED)
@@ -306,18 +301,13 @@ class GoogleWorkspaceGmailDelegationService:
             self.db.commit()
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GMAIL_DELEGATE_NOT_FOUND)
 
-        consumed_id = self.db.execute(
-            update(GoogleWorkspaceDelegateConfirmation)
-            .where(
-                GoogleWorkspaceDelegateConfirmation.id == confirmation.id,
-                GoogleWorkspaceDelegateConfirmation.status == "pending",
-                GoogleWorkspaceDelegateConfirmation.token_digest == token_digest,
-            )
-            .values(status="executing", consumed_at=now)
-            .returning(GoogleWorkspaceDelegateConfirmation.id)
-        ).scalar_one_or_none()
-        self.db.commit()
-        if consumed_id is None:
+        if not consume_confirmation(
+            self.db,
+            GoogleWorkspaceDelegateConfirmation,
+            confirmation_id=confirmation.id,
+            token_digest=token_digest,
+            consumed_at=now,
+        ):
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GMAIL_CONFIRMATION_USED)
 
         try:
@@ -329,14 +319,14 @@ class GoogleWorkspaceGmailDelegationService:
                 delegate_email=delegate.primary_email,
             )
         except GoogleWorkspaceError as error:
-            if error.code in AMBIGUOUS_MUTATION_CODES:
+            if is_ambiguous_mutation_error(error):
                 self._set_confirmation_status(confirmation.id, "unknown")
                 raise GmailDelegateMutationAmbiguousError(error.code, confirmation.id) from None
             self._set_confirmation_status(confirmation.id, "failed")
             raise
         except Exception as error:
             mapped = self._map_gmail_error(error, operation=operation)
-            if mapped.code in AMBIGUOUS_MUTATION_CODES:
+            if is_ambiguous_mutation_error(mapped):
                 self._set_confirmation_status(confirmation.id, "unknown")
                 raise GmailDelegateMutationAmbiguousError(mapped.code, confirmation.id) from None
             self._set_confirmation_status(confirmation.id, "failed")
@@ -546,28 +536,21 @@ class GoogleWorkspaceGmailDelegationService:
             customer_id=owner.customer_id,
         )
 
-    @staticmethod
-    def _token_digest(token: str) -> str:
-        return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
     def _set_confirmation_status(self, confirmation_id: UUID, status: str) -> None:
-        self.db.execute(
-            update(GoogleWorkspaceDelegateConfirmation)
-            .where(GoogleWorkspaceDelegateConfirmation.id == confirmation_id)
-            .values(status=status)
+        set_confirmation_status(
+            self.db,
+            GoogleWorkspaceDelegateConfirmation,
+            confirmation_id,
+            status,  # type: ignore[arg-type]
         )
-        self.db.commit()
 
     @staticmethod
     def _confirmation_blocks_new_preview(
         confirmation: GoogleWorkspaceDelegateConfirmation,
     ) -> bool:
-        if confirmation.status not in {"executing", "succeeded", "unknown", "reconciled"}:
-            return False
-        expires_at = confirmation.expires_at
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=UTC)
-        return expires_at > datetime.now(UTC)
+        return confirmation_blocks_new_preview(
+            confirmation.status, confirmation.expires_at
+        )
 
     @staticmethod
     def _map_gmail_error(
@@ -648,7 +631,7 @@ class GoogleWorkspaceGmailDelegationReconciliationService:
         confirmation = self.db.scalar(
             select(GoogleWorkspaceDelegateConfirmation).where(
                 GoogleWorkspaceDelegateConfirmation.token_digest
-                == self.delegation_service._token_digest(confirmation_token),
+                == confirmation_token_digest(confirmation_token),
                 GoogleWorkspaceDelegateConfirmation.organization_id == organization_id,
                 GoogleWorkspaceDelegateConfirmation.operation == operation,
                 GoogleWorkspaceDelegateConfirmation.actor_user_id == actor.id,
@@ -656,11 +639,7 @@ class GoogleWorkspaceGmailDelegationReconciliationService:
         )
         if confirmation is None:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GMAIL_RECONCILIATION_NOT_AVAILABLE)
-        now = datetime.now(UTC)
-        expires_at = confirmation.expires_at
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=UTC)
-        if expires_at <= now:
+        if confirmation_is_expired(confirmation.expires_at):
             raise GmailDelegateReconciliationError(
                 GoogleWorkspaceErrorCode.GMAIL_RECONCILIATION_EXPIRED,
                 confirmation.id,
@@ -694,32 +673,24 @@ class GoogleWorkspaceGmailDelegationReconciliationService:
                 0,
             )
 
-        started_at = self.monotonic()
         attempts = 0
         observed_state: Literal[
             "accepted", "absent", "not_observed", "pending", "rejected", "unknown", "present"
         ] = "not_observed" if operation == "create" else "present"
-        for delay in self.poll_delays:
-            remaining = self.max_wait_seconds - (self.monotonic() - started_at)
-            if remaining <= 0:
-                break
-            if delay:
-                if delay >= remaining:
-                    break
-                self.sleeper(delay)
-                remaining = self.max_wait_seconds - (self.monotonic() - started_at)
-                if remaining <= 0:
-                    break
-            attempts += 1
+        window = BoundedReconciliationWindow(
+            poll_delays=self.poll_delays,
+            max_wait_seconds=self.max_wait_seconds,
+            sleeper=self.sleeper,
+            monotonic=self.monotonic,
+        )
+        for attempt in window.attempts():
+            attempts = attempt.number
             try:
                 current = self.delegation_service._list_for_owner(
                     actor,
                     organization_id,
                     owner,
-                    request_timeout_seconds=min(
-                        RECONCILIATION_REQUEST_TIMEOUT_SECONDS,
-                        remaining,
-                    ),
+                    request_timeout_seconds=attempt.request_timeout_seconds,
                 ).delegates
             except GoogleWorkspaceError as error:
                 has_next_attempt = attempts < len(self.poll_delays)
@@ -744,17 +715,11 @@ class GoogleWorkspaceGmailDelegationReconciliationService:
                 observed_state = "absent" if existing is None else "present"
                 verified = existing is None
             if verified:
-                consumed_id = self.db.execute(
-                    update(GoogleWorkspaceDelegateConfirmation)
-                    .where(
-                        GoogleWorkspaceDelegateConfirmation.id == confirmation.id,
-                        GoogleWorkspaceDelegateConfirmation.status == "unknown",
-                    )
-                    .values(status="reconciled")
-                    .returning(GoogleWorkspaceDelegateConfirmation.id)
-                ).scalar_one_or_none()
-                self.db.commit()
-                if consumed_id is None:
+                if not mark_confirmation_reconciled(
+                    self.db,
+                    GoogleWorkspaceDelegateConfirmation,
+                    confirmation.id,
+                ):
                     self.db.refresh(confirmation)
                     if confirmation.status != "reconciled":
                         raise GmailDelegateReconciliationError(

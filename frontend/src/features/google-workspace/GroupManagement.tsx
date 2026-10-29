@@ -111,6 +111,7 @@ export function GroupManagement({
   const requestSequence = useRef(0);
   const controller = useRef<AbortController | null>(null);
   const reconciliationInFlight = useRef(false);
+  const mutationInFlight = useRef(false);
 
   const loadGroups = useCallback(
     async (searchQuery: string, pageToken: string | null, pageIndex: number) => {
@@ -250,6 +251,7 @@ export function GroupManagement({
     setMemberError(null);
     setFeedback(null);
     reconciliationInFlight.current = false;
+    mutationInFlight.current = false;
     if (canSearch && organizationId) void loadGroups("", null, 0);
     return () => controller.current?.abort();
   }, [canSearch, loadGroups, organizationId]);
@@ -358,7 +360,14 @@ export function GroupManagement({
   }
 
   async function confirmChange() {
-    if (!pendingPreview || !selectedGroup || isMutating || isReconciling) return;
+    if (
+      !pendingPreview ||
+      !selectedGroup ||
+      mutationInFlight.current ||
+      isMutating ||
+      isReconciling
+    ) return;
+    mutationInFlight.current = true;
     const preview = pendingPreview;
     const sequence = requestSequence.current;
     setIsMutating(true);
@@ -390,6 +399,7 @@ export function GroupManagement({
         setFeedback({ type: "error", message: groupErrorMessage(error) });
       }
     } finally {
+      mutationInFlight.current = false;
       if (requestSequence.current === sequence) setIsMutating(false);
     }
   }

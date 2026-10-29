@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-import hashlib
 import logging
-import secrets
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
 from googleapiclient.errors import HttpError
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -32,6 +30,20 @@ from app.models import (
     Organization,
     User,
 )
+from app.services.google_workspace_mutation_safety import (
+    RECONCILIATION_BACKOFF_SECONDS,
+    RECONCILIATION_MAX_WAIT_SECONDS,
+    BoundedReconciliationWindow,
+    aware_utc,
+    confirmation_blocks_new_preview,
+    confirmation_is_expired,
+    confirmation_token_digest,
+    consume_confirmation,
+    is_ambiguous_mutation_error,
+    issue_confirmation,
+    mark_confirmation_reconciled,
+    set_confirmation_status,
+)
 from app.services.google_workspace_user_lookup import (
     GoogleWorkspaceUserLookup,
     GoogleWorkspaceUserLookupResult,
@@ -39,17 +51,6 @@ from app.services.google_workspace_user_lookup import (
 
 logger = logging.getLogger(__name__)
 UserStatusOperation = Literal["suspend", "reactivate"]
-CONFIRMATION_LIFETIME = timedelta(minutes=5)
-AMBIGUOUS_MUTATION_CODES = frozenset(
-    {
-        GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT,
-        GoogleWorkspaceErrorCode.GOOGLE_NETWORK_ERROR,
-        GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE,
-    }
-)
-RECONCILIATION_MAX_WAIT_SECONDS = 20.0
-RECONCILIATION_REQUEST_TIMEOUT_SECONDS = 5.0
-RECONCILIATION_BACKOFF_SECONDS = (0.0, 0.5, 1.0, 2.0)
 USER_STATUS_FIELDS = (
     "id,primaryEmail,customerId,suspended,suspensionReason,archived,isAdmin,"
     "isDelegatedAdmin,deletionTime"
@@ -161,8 +162,7 @@ class GoogleWorkspaceUserStatusService:
         organization, connector, target = self._resolve_target(
             actor, organization_id, user_email, operation
         )
-        token = secrets.token_urlsafe(32)
-        expires_at = datetime.now(UTC) + CONFIRMATION_LIFETIME
+        grant = issue_confirmation()
         statement = select(GoogleWorkspaceUserStatusConfirmation).where(
             GoogleWorkspaceUserStatusConfirmation.organization_id == organization_id,
             GoogleWorkspaceUserStatusConfirmation.operation == operation,
@@ -182,9 +182,9 @@ class GoogleWorkspaceUserStatusService:
             "expected_suspended": target.suspended,
             "requested_suspended": operation == "suspend",
             "expected_suspension_reason": target.suspension_reason,
-            "token_digest": self._token_digest(token),
+            "token_digest": grant.token_digest,
             "status": "pending",
-            "expires_at": expires_at,
+            "expires_at": grant.expires_at,
             "consumed_at": None,
         }
         if confirmation is None:
@@ -218,8 +218,8 @@ class GoogleWorkspaceUserStatusService:
             target_primary_email=target.primary_email,
             previous_suspended=target.suspended,
             requested_suspended=operation == "suspend",
-            confirmation_token=token,
-            expires_at=expires_at,
+            confirmation_token=grant.token,
+            expires_at=grant.expires_at,
             effect=(
                 "The user will be suspended and lose access to Google Workspace services. "
                 "Their data is not deleted, and license charges may continue."
@@ -237,7 +237,7 @@ class GoogleWorkspaceUserStatusService:
         operation: UserStatusOperation,
         confirmation_token: str,
     ) -> UserStatusMutationResult:
-        digest = self._token_digest(confirmation_token)
+        digest = confirmation_token_digest(confirmation_token)
         confirmation = self.db.scalar(
             select(GoogleWorkspaceUserStatusConfirmation).where(
                 GoogleWorkspaceUserStatusConfirmation.token_digest == digest,
@@ -255,7 +255,7 @@ class GoogleWorkspaceUserStatusService:
                 GoogleWorkspaceErrorCode.GOOGLE_USER_CONFIRMATION_USED,
                 confirmation.target_google_id,
             )
-        if self._aware(confirmation.expires_at) <= datetime.now(UTC):
+        if confirmation_is_expired(confirmation.expires_at):
             confirmation.status = "expired"
             self.db.commit()
             raise UserStatusTargetError(
@@ -294,18 +294,12 @@ class GoogleWorkspaceUserStatusService:
                 GoogleWorkspaceErrorCode.GOOGLE_USER_STATE_CHANGED,
                 confirmation.target_google_id,
             )
-        consumed_id = self.db.execute(
-            update(GoogleWorkspaceUserStatusConfirmation)
-            .where(
-                GoogleWorkspaceUserStatusConfirmation.id == confirmation.id,
-                GoogleWorkspaceUserStatusConfirmation.status == "pending",
-                GoogleWorkspaceUserStatusConfirmation.token_digest == digest,
-            )
-            .values(status="executing", consumed_at=datetime.now(UTC))
-            .returning(GoogleWorkspaceUserStatusConfirmation.id)
-        ).scalar_one_or_none()
-        self.db.commit()
-        if consumed_id is None:
+        if not consume_confirmation(
+            self.db,
+            GoogleWorkspaceUserStatusConfirmation,
+            confirmation_id=confirmation.id,
+            token_digest=digest,
+        ):
             raise UserStatusTargetError(
                 GoogleWorkspaceErrorCode.GOOGLE_USER_CONFIRMATION_USED,
                 confirmation.target_google_id,
@@ -315,7 +309,7 @@ class GoogleWorkspaceUserStatusService:
                 actor, organization_id, target, operation == "suspend"
             )
         except GoogleWorkspaceError as error:
-            if error.code in AMBIGUOUS_MUTATION_CODES or isinstance(
+            if is_ambiguous_mutation_error(error) or isinstance(
                 error, AmbiguousGoogleWriteResponseError
             ):
                 self._set_confirmation_status(confirmation.id, "unknown")
@@ -491,30 +485,24 @@ class GoogleWorkspaceUserStatusService:
             self._close_client(client, organization_id)
 
     @staticmethod
-    def _token_digest(token: str) -> str:
-        return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-    @staticmethod
     def _aware(value: datetime) -> datetime:
-        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+        return aware_utc(value)
 
     @staticmethod
     def _confirmation_blocks_new_preview(
         confirmation: GoogleWorkspaceUserStatusConfirmation,
     ) -> bool:
-        if confirmation.status not in {"executing", "succeeded", "unknown", "reconciled"}:
-            return False
-        return GoogleWorkspaceUserStatusService._aware(
-            confirmation.expires_at
-        ) > datetime.now(UTC)
+        return confirmation_blocks_new_preview(
+            confirmation.status, confirmation.expires_at
+        )
 
     def _set_confirmation_status(self, confirmation_id: UUID, status: str) -> None:
-        self.db.execute(
-            update(GoogleWorkspaceUserStatusConfirmation)
-            .where(GoogleWorkspaceUserStatusConfirmation.id == confirmation_id)
-            .values(status=status)
+        set_confirmation_status(
+            self.db,
+            GoogleWorkspaceUserStatusConfirmation,
+            confirmation_id,
+            status,  # type: ignore[arg-type]
         )
-        self.db.commit()
 
     @staticmethod
     def _close_client(client: Any | None, organization_id: UUID) -> None:
@@ -568,7 +556,7 @@ class GoogleWorkspaceUserStatusReconciliationService:
         confirmation = self.db.scalar(
             select(GoogleWorkspaceUserStatusConfirmation).where(
                 GoogleWorkspaceUserStatusConfirmation.token_digest
-                == self.status_service._token_digest(confirmation_token),
+                == confirmation_token_digest(confirmation_token),
                 GoogleWorkspaceUserStatusConfirmation.organization_id == organization_id,
                 GoogleWorkspaceUserStatusConfirmation.operation == operation,
                 GoogleWorkspaceUserStatusConfirmation.actor_user_id == actor.id,
@@ -578,7 +566,7 @@ class GoogleWorkspaceUserStatusReconciliationService:
             raise GoogleWorkspaceError(
                 GoogleWorkspaceErrorCode.GOOGLE_USER_RECONCILIATION_NOT_AVAILABLE
             )
-        if self.status_service._aware(confirmation.expires_at) <= datetime.now(UTC):
+        if confirmation_is_expired(confirmation.expires_at):
             raise UserStatusReconciliationError(
                 GoogleWorkspaceErrorCode.GOOGLE_USER_RECONCILIATION_EXPIRED,
                 confirmation.id,
@@ -614,27 +602,22 @@ class GoogleWorkspaceUserStatusReconciliationService:
                 0,
                 confirmation.target_google_id,
             )
-        started = self.monotonic()
         attempts = 0
         observed = confirmation.expected_suspended
-        for delay in self.poll_delays:
-            remaining = self.max_wait_seconds - (self.monotonic() - started)
-            if remaining <= 0:
-                break
-            if delay:
-                if delay >= remaining:
-                    break
-                self.sleeper(delay)
-                remaining = self.max_wait_seconds - (self.monotonic() - started)
-                if remaining <= 0:
-                    break
-            attempts += 1
+        window = BoundedReconciliationWindow(
+            poll_delays=self.poll_delays,
+            max_wait_seconds=self.max_wait_seconds,
+            sleeper=self.sleeper,
+            monotonic=self.monotonic,
+        )
+        for attempt in window.attempts():
+            attempts = attempt.number
             try:
                 current = self._read_target(
                     actor,
                     organization_id,
                     confirmation.target_google_id,
-                    min(RECONCILIATION_REQUEST_TIMEOUT_SECONDS, remaining),
+                    attempt.request_timeout_seconds,
                 )
             except GoogleWorkspaceError as error:
                 if error.retryable and attempts < len(self.poll_delays):
@@ -658,17 +641,11 @@ class GoogleWorkspaceUserStatusReconciliationService:
                 )
             observed = current.suspended
             if observed == confirmation.requested_suspended:
-                updated = self.db.execute(
-                    update(GoogleWorkspaceUserStatusConfirmation)
-                    .where(
-                        GoogleWorkspaceUserStatusConfirmation.id == confirmation.id,
-                        GoogleWorkspaceUserStatusConfirmation.status == "unknown",
-                    )
-                    .values(status="reconciled")
-                    .returning(GoogleWorkspaceUserStatusConfirmation.id)
-                ).scalar_one_or_none()
-                self.db.commit()
-                if updated is None:
+                if not mark_confirmation_reconciled(
+                    self.db,
+                    GoogleWorkspaceUserStatusConfirmation,
+                    confirmation.id,
+                ):
                     self.db.refresh(confirmation)
                     if confirmation.status != "reconciled":
                         raise UserStatusReconciliationError(

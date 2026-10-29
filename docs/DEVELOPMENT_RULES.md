@@ -86,3 +86,7 @@ expectations, and `AGENTS.md` for coding-agent guidance.
 - Keep environment-specific configuration separated.
 - Use synthetic data in tests, examples, logs and screenshots.
 - Treat changes to authentication, authorization and customer scoping as security-sensitive.
+- Existing Google Workspace writes must preserve the shared mutation contract documented in
+  `docs/MUTATION_SAFETY.md`: short-lived digest-only confirmation, atomic unexpired single use,
+  exactly one non-retried write, explicit success/failed/unknown outcomes, bounded read-only
+  reconciliation and privacy-safe audit metadata. Keep operation-specific scopes and protections.

@@ -124,6 +124,7 @@ export function MailboxDelegates({
   const requestSequence = useRef(0);
   const readController = useRef<AbortController | null>(null);
   const reconciliationInFlight = useRef(false);
+  const mutationInFlight = useRef(false);
 
   const loadDelegates = useCallback(async (preserveActionFeedback = false) => {
     readController.current?.abort();
@@ -166,6 +167,7 @@ export function MailboxDelegates({
     setIsMutating(false);
     setIsReconciling(false);
     reconciliationInFlight.current = false;
+    mutationInFlight.current = false;
     void loadDelegates();
     return () => readController.current?.abort();
   }, [loadDelegates]);
@@ -254,7 +256,14 @@ export function MailboxDelegates({
   }
 
   async function confirmChange() {
-    if (!pendingPreview || isMutating || isReconciling || ambiguousChange) return;
+    if (
+      !pendingPreview ||
+      mutationInFlight.current ||
+      isMutating ||
+      isReconciling ||
+      ambiguousChange
+    ) return;
+    mutationInFlight.current = true;
     const preview = pendingPreview;
     const sequence = requestSequence.current;
     setIsMutating(true);
@@ -283,6 +292,7 @@ export function MailboxDelegates({
         setActionFeedback({ type: "error", message: delegationErrorMessage(error) });
       }
     } finally {
+      mutationInFlight.current = false;
       if (requestSequence.current === sequence) setIsMutating(false);
     }
   }
