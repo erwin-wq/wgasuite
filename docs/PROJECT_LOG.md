@@ -5,6 +5,17 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-29 — ARCH-002 standardized mutation safety controls
+
+- Consolidated confirmation issuance/digests/expiry, expiry-aware atomic consumption, outcome
+  classification, bounded read-only reconciliation timing and mutation-audit metadata validation
+  into a shared safety kernel used by Gmail delegates, Groups membership and user status.
+- Preserved each operation's tenant validation, canonical identity checks, eligibility rules and
+  least-privilege Google scopes; endpoint contracts and database schema remain unchanged.
+- Added same-tick frontend mutation locks and regression coverage for concurrency, expiry races,
+  stale group state, rate limits, upstream ambiguity and audit secret rejection. All Google writes
+  remain mocked; ARCH-002 performed no live tenant mutation.
+
 ## 2026-10-18 — QA-CLEANUP-001 guarded synthetic cleanup
 
 - Added a short-lived Phase A review plan bound to the exact PostgreSQL cluster/database, Alembic

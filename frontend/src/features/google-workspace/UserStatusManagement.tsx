@@ -126,6 +126,7 @@ export function UserStatusManagement({
   const [busy, setBusy] = useState<"preview" | "mutation" | "reconcile" | null>(null);
   const sequence = useRef(0);
   const controller = useRef<AbortController | null>(null);
+  const mutationInFlight = useRef(false);
   const protectedReason = protectionReason(user, connectorConfig);
   const operation = user.suspended ? "reactivate" : "suspend";
 
@@ -138,6 +139,7 @@ export function UserStatusManagement({
     setConfirmed(false);
     setFeedback(null);
     setBusy(null);
+    mutationInFlight.current = false;
     return () => controller.current?.abort();
   }, [organizationId, user.id, user.suspended]);
 
@@ -212,7 +214,8 @@ export function UserStatusManagement({
   }
 
   async function confirmChange() {
-    if (!preview || !confirmed || busy || ambiguousPreview) return;
+    if (!preview || !confirmed || mutationInFlight.current || busy || ambiguousPreview) return;
+    mutationInFlight.current = true;
     const change = preview;
     const current = sequence.current;
     setBusy("mutation");
@@ -241,6 +244,8 @@ export function UserStatusManagement({
       }
       setFeedback({ type: "error", message: actionError(error) });
       setBusy(null);
+    } finally {
+      mutationInFlight.current = false;
     }
   }
 

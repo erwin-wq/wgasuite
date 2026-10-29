@@ -152,8 +152,10 @@ not verify write permission. Suspension restricts service access without deletin
 charges may continue. Reactivation is not deleted-user recovery.
 
 See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup, scope,
-security and live-verification instructions. Gmail delegation cannot read or modify messages, and
-Groups management cannot create/delete groups, change roles or perform bulk operations.
+security and live-verification instructions, and [mutation safety](docs/MUTATION_SAFETY.md) for the
+shared confirmation, single-execution, outcome and audit contract. Gmail delegation cannot read or
+modify messages, and Groups management cannot create/delete groups, change roles or perform bulk
+operations.
 
 After a successful connection, the Google Workspace page shows a compact persisted connection
 status and provides **Users & aliases** and **Groups** administration tabs. The users area opens on

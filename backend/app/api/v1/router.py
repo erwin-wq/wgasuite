@@ -140,6 +140,7 @@ from app.services.google_workspace_groups import (
     GroupMembershipOperation,
     GroupMembershipReconciliationError,
 )
+from app.services.google_workspace_mutation_safety import mutation_audit_metadata
 from app.services.google_workspace_user_directory import GoogleWorkspaceUserDirectory
 from app.services.google_workspace_user_group_memberships import (
     GoogleWorkspaceUserGroupMemberships,
@@ -1721,11 +1722,13 @@ def preview_user_status_change(
         object_type="google_workspace_user",
         object_id=result.target_google_id,
         customer_id=organization.customer_id,
-        metadata={
-            "operation": operation,
-            "previous_suspended": result.previous_suspended,
-            "requested_suspended": result.requested_suspended,
-        },
+        metadata=mutation_audit_metadata(
+            {
+                "operation": operation,
+                "previous_suspended": result.previous_suspended,
+                "requested_suspended": result.requested_suspended,
+            }
+        ),
     )
     return UserStatusPreviewRead(**result.__dict__)
 
@@ -1812,7 +1815,7 @@ def execute_user_status_change(
             customer_id=organization.customer_id,
             outcome="rejected" if error.code in USER_STATUS_REJECTION_CODES else "failure",
             reason=error.code.value,
-            metadata=metadata,
+            metadata=mutation_audit_metadata(metadata),
         )
         raise user_status_http_error(error, extra_detail=detail) from None
     record_audit_event(
@@ -1822,11 +1825,13 @@ def execute_user_status_change(
         object_type="google_workspace_user",
         object_id=result.target_google_id,
         customer_id=organization.customer_id,
-        metadata={
-            "operation": operation,
-            "previous_suspended": result.previous_suspended,
-            "suspended": result.suspended,
-        },
+        metadata=mutation_audit_metadata(
+            {
+                "operation": operation,
+                "previous_suspended": result.previous_suspended,
+                "suspended": result.suspended,
+            }
+        ),
     )
     return UserStatusMutationRead(**result.__dict__)
 
@@ -1911,7 +1916,7 @@ def reconcile_user_status_change(
             customer_id=organization.customer_id,
             outcome="rejected" if error.code in USER_STATUS_REJECTION_CODES else "failure",
             reason=error.code.value,
-            metadata=metadata,
+            metadata=mutation_audit_metadata(metadata),
         )
         raise user_status_http_error(error) from None
     record_audit_event(
@@ -1923,12 +1928,14 @@ def reconcile_user_status_change(
         customer_id=organization.customer_id,
         outcome="success" if result.status == "verified" else "unknown",
         reason=None if result.status == "verified" else "state_not_observed",
-        metadata={
-            "correlation_id": result.correlation_id,
-            "reconciliation_attempts": result.attempts,
-            "final_state": result.status,
-            "observed_suspended": result.observed_suspended,
-        },
+        metadata=mutation_audit_metadata(
+            {
+                "correlation_id": result.correlation_id,
+                "reconciliation_attempts": result.attempts,
+                "final_state": result.status,
+                "observed_suspended": result.observed_suspended,
+            }
+        ),
     )
     return UserStatusReconciliationRead(**result.__dict__)
 
@@ -2101,10 +2108,12 @@ def preview_gmail_delegate_change(
             customer_id=organization.customer_id,
             outcome="rejected",
             reason=error.code.value,
-            metadata={
-                "owner_primary_email": payload.owner_email,
-                "delegate_primary_email": payload.delegate_email,
-            },
+            metadata=mutation_audit_metadata(
+                {
+                    "owner_primary_email": payload.owner_email,
+                    "delegate_primary_email": payload.delegate_email,
+                }
+            ),
         )
         raise gmail_delegate_http_error(error) from None
 
@@ -2115,10 +2124,12 @@ def preview_gmail_delegate_change(
         object_type="google_workspace_mailbox",
         object_id=organization.id,
         customer_id=organization.customer_id,
-        metadata={
-            "owner_primary_email": result.owner_primary_email,
-            "delegate_primary_email": result.delegate_primary_email,
-        },
+        metadata=mutation_audit_metadata(
+            {
+                "owner_primary_email": result.owner_primary_email,
+                "delegate_primary_email": result.delegate_primary_email,
+            }
+        ),
     )
     return GmailDelegateChangePreviewRead(**result.__dict__)
 
@@ -2208,7 +2219,7 @@ def execute_gmail_delegate_change(
             customer_id=organization.customer_id,
             outcome=("rejected" if error.code in GMAIL_DELEGATE_REJECTION_CODES else "failure"),
             reason=error.code.value,
-            metadata=audit_metadata,
+            metadata=mutation_audit_metadata(audit_metadata),
         )
         raise gmail_delegate_http_error(error, extra_detail=error_detail) from None
 
@@ -2219,10 +2230,12 @@ def execute_gmail_delegate_change(
         object_type="google_workspace_mailbox",
         object_id=organization.id,
         customer_id=organization.customer_id,
-        metadata={
-            "owner_primary_email": result.owner_primary_email,
-            "delegate_primary_email": result.delegate_primary_email,
-        },
+        metadata=mutation_audit_metadata(
+            {
+                "owner_primary_email": result.owner_primary_email,
+                "delegate_primary_email": result.delegate_primary_email,
+            }
+        ),
     )
     return GmailDelegateMutationRead(**result.__dict__)
 
@@ -2311,7 +2324,7 @@ def reconcile_gmail_delegate_change(
             customer_id=organization.customer_id,
             outcome=("rejected" if error.code in GMAIL_DELEGATE_REJECTION_CODES else "failure"),
             reason=error.code.value,
-            metadata=metadata,
+            metadata=mutation_audit_metadata(metadata),
         )
         raise gmail_delegate_http_error(error) from None
 
@@ -2324,14 +2337,16 @@ def reconcile_gmail_delegate_change(
         customer_id=organization.customer_id,
         outcome="success" if result.status == "verified" else "unknown",
         reason=None if result.status == "verified" else "state_not_observed",
-        metadata={
-            "correlation_id": result.correlation_id,
-            "reconciliation_attempts": result.attempts,
-            "final_state": result.status,
-            "observed_state": result.observed_state,
-            "owner_primary_email": result.owner_primary_email,
-            "delegate_primary_email": result.delegate_primary_email,
-        },
+        metadata=mutation_audit_metadata(
+            {
+                "correlation_id": result.correlation_id,
+                "reconciliation_attempts": result.attempts,
+                "final_state": result.status,
+                "observed_state": result.observed_state,
+                "owner_primary_email": result.owner_primary_email,
+                "delegate_primary_email": result.delegate_primary_email,
+            }
+        ),
     )
     return GmailDelegateReconciliationRead(**result.__dict__)
 
@@ -2734,7 +2749,9 @@ def preview_group_membership_change(
         object_type="google_workspace_group",
         object_id=result.group_primary_email,
         customer_id=organization.customer_id,
-        metadata={"operation": operation, "member_role": result.member_role},
+        metadata=mutation_audit_metadata(
+            {"operation": operation, "member_role": result.member_role}
+        ),
     )
     return GroupMembershipPreviewRead(**result.__dict__)
 
@@ -2819,7 +2836,7 @@ def execute_group_membership_change(
             customer_id=organization.customer_id,
             outcome="rejected" if error.code in GROUP_REJECTION_CODES else "failure",
             reason=error.code.value,
-            metadata=metadata,
+            metadata=mutation_audit_metadata(metadata),
         )
         raise group_http_error(error, extra_detail=detail) from None
     record_audit_event(
@@ -2829,11 +2846,13 @@ def execute_group_membership_change(
         object_type="google_workspace_group",
         object_id=result.group_primary_email,
         customer_id=organization.customer_id,
-        metadata={
-            "group_primary_email": result.group_primary_email,
-            "member_primary_email": result.member_primary_email,
-            "member_role": "MEMBER" if operation == "add" else None,
-        },
+        metadata=mutation_audit_metadata(
+            {
+                "group_primary_email": result.group_primary_email,
+                "member_primary_email": result.member_primary_email,
+                "member_role": "MEMBER" if operation == "add" else None,
+            }
+        ),
     )
     return GroupMembershipMutationRead(**result.__dict__)
 
@@ -2915,7 +2934,7 @@ def reconcile_group_membership_change(
             customer_id=organization.customer_id,
             outcome="rejected" if error.code in GROUP_REJECTION_CODES else "failure",
             reason=error.code.value,
-            metadata=metadata,
+            metadata=mutation_audit_metadata(metadata),
         )
         raise group_http_error(error) from None
     record_audit_event(
@@ -2927,12 +2946,14 @@ def reconcile_group_membership_change(
         customer_id=organization.customer_id,
         outcome="success" if result.status == "verified" else "unknown",
         reason=None if result.status == "verified" else "state_not_observed",
-        metadata={
-            "correlation_id": result.correlation_id,
-            "reconciliation_attempts": result.attempts,
-            "final_state": result.status,
-            "observed_state": result.observed_state,
-        },
+        metadata=mutation_audit_metadata(
+            {
+                "correlation_id": result.correlation_id,
+                "reconciliation_attempts": result.attempts,
+                "final_state": result.status,
+                "observed_state": result.observed_state,
+            }
+        ),
     )
     return GroupMembershipReconciliationRead(**result.__dict__)
 

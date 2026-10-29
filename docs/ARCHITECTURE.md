@@ -94,6 +94,12 @@ geautoriseerde actor + organization
   -> ongecachete Google discovery client
 ```
 
+Alle bestaande Google-writes gebruiken daarnaast de gedeelde, kleine mutation-safety kernel voor
+vijf-minuten-confirmations, alleen-digest opslag, atomische single-use consumption,
+ambiguous-outcome classificatie, begrensde read-only reconciliation en auditmetadata-validatie.
+Operationele scopes, identity/tenant checks en eligibility blijven bewust per familie gescheiden.
+Zie [MUTATION_SAFETY.md](MUTATION_SAFETY.md) voor het contract en de vergelijkingsmatrix.
+
 Gmail-delegatie voegt na Directory tenant- en identityvalidatie een afzonderlijk, beperkt pad toe:
 canonical mailbox owner als DWD-subject, vaste `gmail/v1` client en exact één read- of write-scope.
 Een onduidelijke mutation-response wordt als `unknown` opgeslagen. De aparte reconciliation-service

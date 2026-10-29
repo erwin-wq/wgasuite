@@ -88,6 +88,14 @@ const preview: GroupMembershipPreview = {
   effect: "The existing internal user will be added as a direct MEMBER. No role is changed."
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   api.searchGoogleWorkspaceGroups.mockResolvedValue(searchResult);
@@ -213,6 +221,27 @@ describe("GroupManagement", () => {
       "add",
       preview.confirmation_token
     );
+  });
+
+  it("prevents duplicate membership writes while confirmation is pending", async () => {
+    const pending = deferred<never>();
+    api.executeGroupMembershipChange.mockReturnValue(pending.promise);
+    const user = userEvent.setup();
+    render(<GroupManagement organizationId="organization-1" canSearch canMutate />);
+    await user.click(await screen.findByRole("button", { name: "View members" }));
+    await screen.findByText("person@primary.example");
+    await user.type(
+      screen.getByLabelText("Add an existing internal user by primary email or alias"),
+      "alias@secondary.example"
+    );
+    await user.click(screen.getByRole("button", { name: "Review add" }));
+
+    const confirm = await screen.findByRole("button", { name: "Confirm add" });
+    await user.click(confirm);
+    expect(confirm).toBeDisabled();
+    await user.click(confirm);
+
+    expect(api.executeGroupMembershipChange).toHaveBeenCalledTimes(1);
   });
 
   it("renders read-only controls for viewers", async () => {

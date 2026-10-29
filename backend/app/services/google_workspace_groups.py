@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-import hashlib
 import logging
-import secrets
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
 from googleapiclient.errors import HttpError
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -30,6 +28,20 @@ from app.models import (
     GoogleWorkspaceGroupMembershipConfirmation,
     User,
 )
+from app.services.google_workspace_mutation_safety import (
+    RECONCILIATION_BACKOFF_SECONDS,
+    RECONCILIATION_MAX_WAIT_SECONDS,
+    BoundedReconciliationWindow,
+    aware_utc,
+    confirmation_blocks_new_preview,
+    confirmation_is_expired,
+    confirmation_token_digest,
+    consume_confirmation,
+    is_ambiguous_mutation_error,
+    issue_confirmation,
+    mark_confirmation_reconciled,
+    set_confirmation_status,
+)
 from app.services.google_workspace_user_lookup import (
     GoogleWorkspaceUserLookup,
     GoogleWorkspaceUserLookupResult,
@@ -37,17 +49,6 @@ from app.services.google_workspace_user_lookup import (
 
 logger = logging.getLogger(__name__)
 GroupMembershipOperation = Literal["add", "remove"]
-CONFIRMATION_LIFETIME = timedelta(minutes=5)
-AMBIGUOUS_MUTATION_CODES = frozenset(
-    {
-        GoogleWorkspaceErrorCode.GOOGLE_TIMEOUT,
-        GoogleWorkspaceErrorCode.GOOGLE_NETWORK_ERROR,
-        GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE,
-    }
-)
-RECONCILIATION_MAX_WAIT_SECONDS = 20.0
-RECONCILIATION_REQUEST_TIMEOUT_SECONDS = 5.0
-RECONCILIATION_BACKOFF_SECONDS = (0.0, 0.5, 1.0, 2.0)
 GROUP_FIELDS = (
     "id,email,name,description,adminCreated,directMembersCount,aliases,nonEditableAliases"
 )
@@ -245,9 +246,7 @@ class GoogleWorkspaceGroupsService:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GROUP_MEMBER_ALREADY_EXISTS)
         if operation == "remove":
             self._validate_removal(existing)
-        token = secrets.token_urlsafe(32)
-        token_digest = self._token_digest(token)
-        expires_at = datetime.now(UTC) + CONFIRMATION_LIFETIME
+        grant = issue_confirmation()
         statement = select(GoogleWorkspaceGroupMembershipConfirmation).where(
             GoogleWorkspaceGroupMembershipConfirmation.organization_id == organization_id,
             GoogleWorkspaceGroupMembershipConfirmation.operation == operation,
@@ -266,17 +265,17 @@ class GoogleWorkspaceGroupsService:
                 group_primary_email=group.primary_email,
                 member_google_id=member.id,
                 member_primary_email=member.primary_email,
-                token_digest=token_digest,
-                expires_at=expires_at,
+                token_digest=grant.token_digest,
+                expires_at=grant.expires_at,
             )
             self.db.add(confirmation)
         else:
             confirmation.actor_user_id = actor.id
             confirmation.group_primary_email = group.primary_email
             confirmation.member_primary_email = member.primary_email
-            confirmation.token_digest = token_digest
+            confirmation.token_digest = grant.token_digest
             confirmation.status = "pending"
-            confirmation.expires_at = expires_at
+            confirmation.expires_at = grant.expires_at
             confirmation.consumed_at = None
         try:
             self.db.commit()
@@ -290,9 +289,9 @@ class GoogleWorkspaceGroupsService:
             confirmation.actor_user_id = actor.id
             confirmation.group_primary_email = group.primary_email
             confirmation.member_primary_email = member.primary_email
-            confirmation.token_digest = token_digest
+            confirmation.token_digest = grant.token_digest
             confirmation.status = "pending"
-            confirmation.expires_at = expires_at
+            confirmation.expires_at = grant.expires_at
             confirmation.consumed_at = None
             self.db.commit()
         existing_role: Literal["MEMBER", "MANAGER", "OWNER"] = "MEMBER"
@@ -308,8 +307,8 @@ class GoogleWorkspaceGroupsService:
             group_primary_email=group.primary_email,
             member_primary_email=member.primary_email,
             member_role=existing_role,
-            confirmation_token=token,
-            expires_at=expires_at,
+            confirmation_token=grant.token,
+            expires_at=grant.expires_at,
             effect=effect,
         )
 
@@ -321,7 +320,7 @@ class GoogleWorkspaceGroupsService:
         operation: GroupMembershipOperation,
         confirmation_token: str,
     ) -> GroupMembershipMutationResult:
-        digest = self._token_digest(confirmation_token)
+        digest = confirmation_token_digest(confirmation_token)
         confirmation = self.db.scalar(
             select(GoogleWorkspaceGroupMembershipConfirmation).where(
                 GoogleWorkspaceGroupMembershipConfirmation.token_digest == digest,
@@ -334,8 +333,7 @@ class GoogleWorkspaceGroupsService:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_INVALID)
         if confirmation.status != "pending":
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_USED)
-        expires_at = self._aware(confirmation.expires_at)
-        if expires_at <= datetime.now(UTC):
+        if confirmation_is_expired(confirmation.expires_at):
             confirmation.status = "expired"
             self.db.commit()
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_EXPIRED)
@@ -368,30 +366,24 @@ class GoogleWorkspaceGroupsService:
                 confirmation.status = "rejected"
                 self.db.commit()
                 raise
-        consumed_id = self.db.execute(
-            update(GoogleWorkspaceGroupMembershipConfirmation)
-            .where(
-                GoogleWorkspaceGroupMembershipConfirmation.id == confirmation.id,
-                GoogleWorkspaceGroupMembershipConfirmation.status == "pending",
-                GoogleWorkspaceGroupMembershipConfirmation.token_digest == digest,
-            )
-            .values(status="executing", consumed_at=datetime.now(UTC))
-            .returning(GoogleWorkspaceGroupMembershipConfirmation.id)
-        ).scalar_one_or_none()
-        self.db.commit()
-        if consumed_id is None:
+        if not consume_confirmation(
+            self.db,
+            GoogleWorkspaceGroupMembershipConfirmation,
+            confirmation_id=confirmation.id,
+            token_digest=digest,
+        ):
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_USED)
         try:
             self._execute_google_change(actor, organization_id, operation, group, member)
         except GoogleWorkspaceError as error:
-            if error.code in AMBIGUOUS_MUTATION_CODES:
+            if is_ambiguous_mutation_error(error):
                 self._set_confirmation_status(confirmation.id, "unknown")
                 raise GroupMembershipMutationAmbiguousError(error.code, confirmation.id) from None
             self._set_confirmation_status(confirmation.id, "failed")
             raise
         except Exception as error:
             mapped = self._map_group_error(error, operation=operation)
-            if mapped.code in AMBIGUOUS_MUTATION_CODES:
+            if is_ambiguous_mutation_error(mapped):
                 self._set_confirmation_status(confirmation.id, "unknown")
                 raise GroupMembershipMutationAmbiguousError(mapped.code, confirmation.id) from None
             self._set_confirmation_status(confirmation.id, "failed")
@@ -767,28 +759,24 @@ class GoogleWorkspaceGroupsService:
         return [item for item in value if isinstance(item, str)]
 
     @staticmethod
-    def _token_digest(token: str) -> str:
-        return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-    @staticmethod
     def _aware(value: datetime) -> datetime:
-        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+        return aware_utc(value)
 
     @staticmethod
     def _confirmation_blocks_new_preview(
         confirmation: GoogleWorkspaceGroupMembershipConfirmation,
     ) -> bool:
-        if confirmation.status not in {"executing", "succeeded", "unknown", "reconciled"}:
-            return False
-        return GoogleWorkspaceGroupsService._aware(confirmation.expires_at) > datetime.now(UTC)
+        return confirmation_blocks_new_preview(
+            confirmation.status, confirmation.expires_at
+        )
 
     def _set_confirmation_status(self, confirmation_id: UUID, status: str) -> None:
-        self.db.execute(
-            update(GoogleWorkspaceGroupMembershipConfirmation)
-            .where(GoogleWorkspaceGroupMembershipConfirmation.id == confirmation_id)
-            .values(status=status)
+        set_confirmation_status(
+            self.db,
+            GoogleWorkspaceGroupMembershipConfirmation,
+            confirmation_id,
+            status,  # type: ignore[arg-type]
         )
-        self.db.commit()
 
     @staticmethod
     def _map_group_error(
@@ -861,7 +849,7 @@ class GoogleWorkspaceGroupReconciliationService:
         confirmation = self.db.scalar(
             select(GoogleWorkspaceGroupMembershipConfirmation).where(
                 GoogleWorkspaceGroupMembershipConfirmation.token_digest
-                == self.groups_service._token_digest(confirmation_token),
+                == confirmation_token_digest(confirmation_token),
                 GoogleWorkspaceGroupMembershipConfirmation.organization_id == organization_id,
                 GoogleWorkspaceGroupMembershipConfirmation.operation == operation,
                 GoogleWorkspaceGroupMembershipConfirmation.actor_user_id == actor.id,
@@ -869,7 +857,7 @@ class GoogleWorkspaceGroupReconciliationService:
         )
         if confirmation is None:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GROUP_RECONCILIATION_NOT_AVAILABLE)
-        if self.groups_service._aware(confirmation.expires_at) <= datetime.now(UTC):
+        if confirmation_is_expired(confirmation.expires_at):
             raise GroupMembershipReconciliationError(
                 GoogleWorkspaceErrorCode.GROUP_RECONCILIATION_EXPIRED,
                 confirmation.id,
@@ -896,27 +884,22 @@ class GoogleWorkspaceGroupReconciliationService:
                 confirmation.id,
                 0,
             )
-        started = self.monotonic()
         attempts = 0
         observed: Literal["present", "absent"] = "absent" if operation == "add" else "present"
-        for delay in self.poll_delays:
-            remaining = self.max_wait_seconds - (self.monotonic() - started)
-            if remaining <= 0:
-                break
-            if delay:
-                if delay >= remaining:
-                    break
-                self.sleeper(delay)
-                remaining = self.max_wait_seconds - (self.monotonic() - started)
-                if remaining <= 0:
-                    break
-            attempts += 1
+        window = BoundedReconciliationWindow(
+            poll_delays=self.poll_delays,
+            max_wait_seconds=self.max_wait_seconds,
+            sleeper=self.sleeper,
+            monotonic=self.monotonic,
+        )
+        for attempt in window.attempts():
+            attempts = attempt.number
             try:
                 members = self.groups_service._all_direct_members(
                     actor,
                     organization_id,
                     group,
-                    request_timeout_seconds=min(RECONCILIATION_REQUEST_TIMEOUT_SECONDS, remaining),
+                    request_timeout_seconds=attempt.request_timeout_seconds,
                 )
             except GoogleWorkspaceError as error:
                 if error.retryable and attempts < len(self.poll_delays):
@@ -935,17 +918,11 @@ class GoogleWorkspaceGroupReconciliationService:
                 operation == "remove" and existing is None
             )
             if verified:
-                updated = self.db.execute(
-                    update(GoogleWorkspaceGroupMembershipConfirmation)
-                    .where(
-                        GoogleWorkspaceGroupMembershipConfirmation.id == confirmation.id,
-                        GoogleWorkspaceGroupMembershipConfirmation.status == "unknown",
-                    )
-                    .values(status="reconciled")
-                    .returning(GoogleWorkspaceGroupMembershipConfirmation.id)
-                ).scalar_one_or_none()
-                self.db.commit()
-                if updated is None:
+                if not mark_confirmation_reconciled(
+                    self.db,
+                    GoogleWorkspaceGroupMembershipConfirmation,
+                    confirmation.id,
+                ):
                     self.db.refresh(confirmation)
                     if confirmation.status != "reconciled":
                         raise GroupMembershipReconciliationError(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import MagicMock, patch
 from uuid import UUID
@@ -353,6 +354,121 @@ def test_add_rejects_cross_tenant_user_before_member_listing(db_session: Session
 
     assert exc_info.value.code == GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH
     assert len(factory.calls) == 1
+
+
+def test_expired_group_confirmation_never_reaches_google_write(db_session: Session) -> None:
+    service, factory, organization_id, actor = groups_service(
+        db_session,
+        [group_resolution_client(), FakeDirectoryClient({"members": []})],
+    )
+    preview = service.preview_change(
+        actor=actor,
+        organization_id=organization_id,
+        operation="add",
+        group_email="team@primary.example",
+        member_email="person@primary.example",
+    )
+    confirmation = db_session.scalar(select(GoogleWorkspaceGroupMembershipConfirmation))
+    assert confirmation is not None
+    confirmation.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    db_session.commit()
+
+    with pytest.raises(GoogleWorkspaceError) as exc_info:
+        service.execute_change(
+            actor=actor,
+            organization_id=organization_id,
+            operation="add",
+            confirmation_token=preview.confirmation_token,
+        )
+
+    assert exc_info.value.code == GoogleWorkspaceErrorCode.GROUP_CONFIRMATION_EXPIRED
+    db_session.refresh(confirmation)
+    assert confirmation.status == "expired"
+    assert all(call["scopes"] != (DIRECTORY_GROUP_MEMBER_SCOPE,) for call in factory.calls)
+
+
+def test_stale_group_preview_is_rejected_before_google_write(db_session: Session) -> None:
+    clients = [
+        group_resolution_client(),
+        FakeDirectoryClient({"members": []}),
+        group_resolution_client(),
+        FakeDirectoryClient({"members": [member_response()]}),
+    ]
+    service, factory, organization_id, actor = groups_service(db_session, clients)
+    preview = service.preview_change(
+        actor=actor,
+        organization_id=organization_id,
+        operation="add",
+        group_email="team@primary.example",
+        member_email="person@primary.example",
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as exc_info:
+        service.execute_change(
+            actor=actor,
+            organization_id=organization_id,
+            operation="add",
+            confirmation_token=preview.confirmation_token,
+        )
+
+    assert exc_info.value.code == GoogleWorkspaceErrorCode.GROUP_MEMBER_ALREADY_EXISTS
+    confirmation = db_session.scalar(select(GoogleWorkspaceGroupMembershipConfirmation))
+    assert confirmation is not None
+    assert confirmation.status == "rejected"
+    assert all(call["scopes"] != (DIRECTORY_GROUP_MEMBER_SCOPE,) for call in factory.calls)
+
+
+@pytest.mark.parametrize(
+    ("status_code", "expected_code", "expected_status", "ambiguous"),
+    [
+        (429, GoogleWorkspaceErrorCode.GOOGLE_RATE_LIMITED, "failed", False),
+        (503, GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE, "unknown", True),
+    ],
+)
+def test_group_write_error_outcomes_are_single_attempt_and_safely_classified(
+    db_session: Session,
+    status_code: int,
+    expected_code: GoogleWorkspaceErrorCode,
+    expected_status: str,
+    ambiguous: bool,
+) -> None:
+    upstream = HttpError(
+        Response({"status": str(status_code)}),
+        b'{"error":{"message":"private group detail"}}',
+    )
+    write_client = FakeDirectoryClient(upstream)
+    clients = [
+        group_resolution_client(),
+        FakeDirectoryClient({"members": []}),
+        group_resolution_client(),
+        FakeDirectoryClient({"members": []}),
+        write_client,
+    ]
+    service, _, organization_id, actor = groups_service(db_session, clients)
+    preview = service.preview_change(
+        actor=actor,
+        organization_id=organization_id,
+        operation="add",
+        group_email="team@primary.example",
+        member_email="person@primary.example",
+    )
+
+    expected_error = GroupMembershipMutationAmbiguousError if ambiguous else GoogleWorkspaceError
+    with pytest.raises(expected_error) as exc_info:
+        service.execute_change(
+            actor=actor,
+            organization_id=organization_id,
+            operation="add",
+            confirmation_token=preview.confirmation_token,
+        )
+
+    assert exc_info.value.code == expected_code
+    assert "private group detail" not in str(exc_info.value)
+    assert len(write_client.calls) == 1
+    assert write_client.calls[0]["execute_kwargs"] == {"num_retries": 0}
+    confirmation = db_session.scalar(select(GoogleWorkspaceGroupMembershipConfirmation))
+    assert confirmation is not None
+    assert confirmation.status == expected_status
 
 
 @pytest.mark.parametrize(
