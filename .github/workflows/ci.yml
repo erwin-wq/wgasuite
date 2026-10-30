@@ -38,6 +38,9 @@ jobs:
         run: ruff check .
       - name: Run backend tests
         run: pytest
+      - name: Validate parity catalog
+        working-directory: .
+        run: python scripts/parity/validate_parity.py
 
   frontend:
     name: Frontend checks
