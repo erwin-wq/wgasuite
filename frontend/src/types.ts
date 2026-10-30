@@ -320,6 +320,26 @@ export interface GoogleWorkspaceUserDirectoryRequest {
   page_token: string | null;
 }
 
+export interface GoogleWorkspaceOrganizationalUnit {
+  id: string;
+  name: string;
+  description: string | null;
+  path: string;
+  parent_id: string | null;
+  parent_path: string | null;
+  read_only: true;
+}
+
+export interface GoogleWorkspaceOrganizationalUnitTreeNode
+  extends GoogleWorkspaceOrganizationalUnit {
+  children: GoogleWorkspaceOrganizationalUnitTreeNode[];
+}
+
+export interface GoogleWorkspaceOrganizationalUnitHierarchy {
+  roots: GoogleWorkspaceOrganizationalUnitTreeNode[];
+  total: number;
+}
+
 export type GmailDelegateVerificationStatus =
   | "accepted"
   | "pending"

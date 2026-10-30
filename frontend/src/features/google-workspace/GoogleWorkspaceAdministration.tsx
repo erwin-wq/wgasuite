@@ -3,6 +3,7 @@ import {
   Building2,
   CheckCircle2,
   Clock3,
+  FolderTree,
   KeyRound,
   Settings2,
   UserRoundSearch,
@@ -21,6 +22,7 @@ interface GoogleWorkspaceAdministrationProps {
   gmailAuthorization?: ReactNode;
   userLookup: ReactNode;
   groupManagement: ReactNode;
+  organizationalUnits: ReactNode;
   groupNavigationRequestId?: number;
 }
 
@@ -41,6 +43,7 @@ export function GoogleWorkspaceAdministration({
   gmailAuthorization,
   userLookup,
   groupManagement,
+  organizationalUnits,
   groupNavigationRequestId
 }: GoogleWorkspaceAdministrationProps) {
   const needsSetup =
@@ -51,7 +54,7 @@ export function GoogleWorkspaceAdministration({
   const isConnected = connectorConfig?.status === "connected";
   const isFailed = connectorConfig?.status === "connection_failed";
   const [showWizard, setShowWizard] = useState(needsSetup);
-  const [activeTool, setActiveTool] = useState<"users" | "groups">("users");
+  const [activeTool, setActiveTool] = useState<"users" | "groups" | "orgunits">("users");
 
   useEffect(() => {
     setShowWizard(needsSetup);
@@ -107,7 +110,7 @@ export function GoogleWorkspaceAdministration({
           <div className="connection-status-item">
             <KeyRound aria-hidden="true" />
             <span>API capability</span>
-            <strong>Directory users & groups</strong>
+            <strong>Directory users, groups & OUs</strong>
           </div>
           {canManageConnection && (
             <button
@@ -159,10 +162,22 @@ export function GoogleWorkspaceAdministration({
         >
           <UsersRound aria-hidden="true" /> Groups
         </button>
+        <button
+          type="button"
+          className={activeTool === "orgunits" ? "active" : ""}
+          aria-current={activeTool === "orgunits" ? "page" : undefined}
+          onClick={() => setActiveTool("orgunits")}
+        >
+          <FolderTree aria-hidden="true" /> Organizational Units
+        </button>
       </nav>
 
       <section className="workspace-user-lookup-panel">
-        {activeTool === "users" ? userLookup : groupManagement}
+        {activeTool === "users"
+          ? userLookup
+          : activeTool === "groups"
+            ? groupManagement
+            : organizationalUnits}
       </section>
     </div>
   );

@@ -5,6 +5,17 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-30 — DIR-003.1 read-only Organizational Units
+
+- Added customer-verified `orgunits.list(type=allIncludingParent)` and identifier-only
+  `orgunits.get` endpoints using the dedicated `admin.directory.orgunit.readonly` DWD scope.
+- Normalized unordered Google results into a stable hierarchy and failed closed on duplicate,
+  orphaned, inconsistent or cyclic structures without persisting or caching OU data.
+- Added an accessible responsive tree/detail interface, explicit read-only limitations, DWD setup
+  guidance, stale-response protection and mocked backend/frontend edge-case coverage.
+- Updated the parity catalog to `implemented/partial`; live Google acceptance remains separate and
+  no Workspace mutation, database schema change or credential modification was performed.
+
 ## 2026-10-29 — ARCH-002 standardized mutation safety controls
 
 - Consolidated confirmation issuance/digests/expiry, expiry-aware atomic consumption, outcome

@@ -10,7 +10,8 @@ an admin console or custom script.
 > **Project status:** early development / pre-release. The current repository provides a working
 > local foundation, service-account authentication/client infrastructure, a real read-only
 > Google Workspace connection test, paginated user directory, exact user and alias lookup,
-> verified user-to-group context, and guarded Gmail mailbox delegation and Google Groups
+> read-only Organizational Units hierarchy, verified user-to-group context, and guarded Gmail
+> mailbox delegation and Google Groups
 > direct-membership management. This remains
 > pre-production software.
 
@@ -50,6 +51,8 @@ Implemented today:
   authorization and safe account details;
 - read-only, customer-scoped Directory user listing with server-side search and filters, supported
   sorting, opaque-token pagination, and selection into the exact user detail workflow;
+- read-only, customer-scoped Organizational Units hierarchy and identifier-based details, with
+  fail-closed parent/cycle validation and no persisted Directory data;
 - bounded, read-only reverse group membership pages for a canonical user, with current-customer
   ownership and direct MEMBER/MANAGER/OWNER role verification;
 - Gmail mailbox delegate listing plus explicit-preview, one-time-confirmation create/remove
@@ -83,7 +86,8 @@ Not implemented today:
   creation/deletion/role changes, Gmail message access or broader Gmail settings administration;
 - OAuth admin-consent authentication or external cloud secret-manager integrations;
 - production identity management, SSO, account recovery or hardened session management;
-- user, group, ChromeOS/device, organizational-unit or license administration;
+- unrestricted user/group administration, ChromeOS/device administration, Organizational Unit
+  create/update/delete and user/device movement, or license administration;
 - a complete production deployment and operations model.
 
 ## Google Workspace status
@@ -118,6 +122,13 @@ in the customer and are not persisted. Google does not provide a total result co
 tokens may expire. Selecting a result opens the existing exact lookup rather than expanding the
 list response or granting any write capability. The unified detail also lists bounded pages of
 verified direct group memberships and can open a selected group in the existing Groups tool.
+
+The **Organizational Units** tool verifies the immutable Google customer ID through the configured
+delegated administrator, then calls `orgunits.list` with `type=allIncludingParent` and the
+least-privilege `admin.directory.orgunit.readonly` scope. It normalizes unordered results into a
+stable expandable hierarchy, rejects duplicate, orphaned or cyclic structures, and exposes a
+separate identifier-only `orgunits.get` endpoint. OU data is never persisted or cached between
+customers. Create, rename, move, delete and user/device movement remain unavailable.
 
 Reverse membership discovery calls `groups.list(userKey=<immutable user ID>)`. Because Google does
 not permit `userKey` and `customer` together, every candidate is separately matched by ID and
@@ -158,7 +169,8 @@ modify messages, and Groups management cannot create/delete groups, change roles
 operations.
 
 After a successful connection, the Google Workspace page shows a compact persisted connection
-status and provides **Users & aliases** and **Groups** administration tabs. The users area opens on
+status and provides **Users & aliases**, **Groups**, and **Organizational Units** administration
+tabs. The users area opens on
 the paginated Directory and retains a separate exact lookup view. Select **Manage
 connection** to reopen the existing five-step wizard. Unconfigured organizations show the wizard
 prominently, while failed connectors show their persisted sanitized failure and an inspection

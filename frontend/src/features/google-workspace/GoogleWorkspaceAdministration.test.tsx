@@ -38,6 +38,7 @@ function renderAdministration(connectorConfig: ConnectorConfig | null = connecte
       }
       userLookup={<div data-testid="user-lookup">User lookup tool</div>}
       groupManagement={<div data-testid="group-management">Group management tool</div>}
+      organizationalUnits={<div data-testid="orgunit-management">Organizational Units tool</div>}
     />
   );
 }
@@ -48,7 +49,7 @@ describe("GoogleWorkspaceAdministration", () => {
     renderAdministration();
 
     expect(screen.getByText("Connected")).toBeVisible();
-    expect(screen.getByText("Directory users & groups")).toBeVisible();
+    expect(screen.getByText("Directory users, groups & OUs")).toBeVisible();
     expect(screen.getByTestId("user-lookup")).toBeVisible();
     expect(screen.queryByTestId("connection-wizard")).not.toBeInTheDocument();
 
@@ -70,6 +71,16 @@ describe("GoogleWorkspaceAdministration", () => {
     expect(screen.queryByTestId("user-lookup")).not.toBeInTheDocument();
   });
 
+  it("provides Organizational Units navigation in the real administration area", async () => {
+    const user = userEvent.setup();
+    renderAdministration();
+
+    await user.click(screen.getByRole("button", { name: "Organizational Units" }));
+
+    expect(screen.getByTestId("orgunit-management")).toBeVisible();
+    expect(screen.queryByTestId("user-lookup")).not.toBeInTheDocument();
+  });
+
   it("switches to Groups when user detail requests a group", () => {
     const view = renderAdministration();
 
@@ -82,6 +93,7 @@ describe("GoogleWorkspaceAdministration", () => {
         connectionWizard={<div />}
         userLookup={<div data-testid="user-lookup">User lookup tool</div>}
         groupManagement={<div data-testid="group-management">Group management tool</div>}
+        organizationalUnits={<div data-testid="orgunit-management">Organizational Units tool</div>}
         groupNavigationRequestId={1}
       />
     );

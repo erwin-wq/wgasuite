@@ -65,6 +65,7 @@ import { ConnectionWizard } from "./features/google-workspace/ConnectionWizard";
 import { GmailDelegationAuthorization } from "./features/google-workspace/GmailDelegationAuthorization";
 import { GroupManagement } from "./features/google-workspace/GroupManagement";
 import { GoogleWorkspaceAdministration } from "./features/google-workspace/GoogleWorkspaceAdministration";
+import { OrganizationalUnits } from "./features/google-workspace/OrganizationalUnits";
 import { UserDirectoryAdministration } from "./features/google-workspace/UserDirectoryAdministration";
 import { DashboardOverview } from "./features/dashboard/DashboardOverview";
 import { AppNavigation, type ActiveSection } from "./features/navigation/AppNavigation";
@@ -1576,6 +1577,14 @@ function App() {
                   canMutate={canManageConnectorCredentials}
                   initialGroupEmail={activeGroupNavigation?.groupEmail}
                   navigationRequestId={activeGroupNavigation?.requestId}
+                />
+              }
+              organizationalUnits={
+                <OrganizationalUnits
+                  organizationId={selectedOrganizationId}
+                  organizationName={selectedOrganization?.name ?? null}
+                  connectorConfig={googleWorkspaceConnectorConfig}
+                  canRead={canOperateConnector}
                 />
               }
             />
