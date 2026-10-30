@@ -20,6 +20,11 @@
 - Directory listing gebruikt uitsluitend de bestaande `admin.directory.user.readonly` scope,
   verifieert Google's `customerId` op ieder resultaat en bewaart geen profielen, zoekwaarden of
   opaque page tokens. Auditmetadata bevat alleen veilige filtercategorieën en aantallen.
+- Organizational Units reads gebruiken uitsluitend `admin.directory.orgunit.readonly` nadat de
+  customer-id via de canonical delegated administrator is vastgesteld. De list-call gebruikt
+  expliciet `allIncludingParent`; caller-supplied customer-id en OU-paden worden niet aanvaard.
+  Duplicate, orphaned en cyclic hierarchieën falen gesloten en OU-data wordt niet opgeslagen of
+  tussen tenants gecachet.
 - Reverse user-group listing gebruikt alleen de bestaande user- en group-readonly scopes. Omdat
   `groups.list(userKey)` geen `customer` accepteert, wordt iedere kandidaat eerst met immutable ID
   en primary email in de geverifieerde customer-scope bevestigd en daarna met `members.get` als

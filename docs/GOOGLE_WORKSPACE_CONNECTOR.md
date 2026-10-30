@@ -3,7 +3,8 @@
 WGASuite provides a five-step wizard, a real read-only connection test, a paginated read-only
 Directory, exact user lookup by primary email or user alias, and guarded Gmail mailbox delegate
 management using a service account with Domain-Wide Delegation (DWD). It also provides customer-scoped Google Groups
-discovery and guarded direct-user membership changes. Customer administrators can also perform
+discovery, a read-only Organizational Units tree, and guarded direct-user membership changes.
+Customer administrators can also perform
 guarded suspension and safe reactivation from the central user detail. The security-check catalog
 remains mock-only as documented in the README.
 
@@ -16,8 +17,8 @@ automatically:
 1. Follow the official links to select a Google Cloud project, enable Admin SDK, create a service
    account, enable DWD, and download a JSON key. WGASuite does not automate Google Cloud.
 2. Upload that JSON key (recommended) or select an operator-provisioned server-file reference.
-3. In Google Admin, authorize the numeric client ID shown by the wizard with the exact scope shown
-   below. Both values have copy buttons.
+3. In Google Admin, authorize the numeric client ID shown by the wizard with the exact read-only
+   scopes shown below. Each value has a copy button.
 4. Save an active delegated administrator email. It may use any domain in the Workspace tenant;
    WGASuite deliberately does not enforce the optional primary-domain suffix.
 5. Explicitly click **Test connection**. Tests never run on load or while saving credentials.
@@ -31,10 +32,11 @@ and any sanitized error. It never restores or reveals credential content.
 2. Enable the Admin SDK API for that project.
 3. Enable Domain-Wide Delegation on the service account and record its numeric OAuth client ID.
 4. In Google Admin, open **Security > Access and data control > API controls > Manage Domain Wide
-   Delegation**, add that client ID, and authorize exactly:
+   Delegation**, add or edit that client ID, and authorize exactly these read-only scopes:
 
    ```text
    https://www.googleapis.com/auth/admin.directory.user.readonly
+   https://www.googleapis.com/auth/admin.directory.orgunit.readonly
    ```
 
 5. Choose an active delegated administrator with permission to read the requested Directory user.
@@ -79,7 +81,10 @@ user write.
 See Google's official [service-account credential guide](https://developers.google.com/workspace/guides/create-credentials#service-account),
 [API enablement guide](https://developers.google.com/workspace/guides/enable-apis), and
 [DWD guide](https://support.google.com/a/answer/162106). The Directory connection test itself still
-uses only its read-only Directory scope. Google Admin changes can take time to propagate.
+uses only the user read-only scope and does not prove OU access. The OU scope is requested only by
+the operation-scoped Organizational Units client. Google Admin changes can take time to propagate.
+WGASuite never changes DWD authorization automatically and does not request the full
+`admin.directory.orgunit` scope for this read-only feature.
 
 ## What the connection test does
 
@@ -174,6 +179,41 @@ Directory responses and filter values are not persisted, and audit metadata reco
 filter categories, request shape and result count—not queries, emails, profile data or page tokens.
 Selecting a row passes its canonical primary email to the existing exact lookup, which remains the
 only user-details path. This feature performs no Google Workspace mutations.
+
+## Read-only Organizational Units
+
+The **Organizational Units** tab resolves the immutable Google customer ID through the configured
+delegated administrator, then creates a fresh client with only the OU read-only scope:
+
+```text
+POST:       /api/v1/organizations/{organization_id}/google-workspace/orgunits/list
+Method:     orgunits.list
+customerId: verified customerId
+type:       allIncludingParent
+Scope:      https://www.googleapis.com/auth/admin.directory.orgunit.readonly
+Retries:    0
+```
+
+`allIncludingParent` is explicit because Google's default `children` type returns only immediate
+children and cannot establish the complete hierarchy. WGASuite requests the root and every
+descendant in one bounded call, accepts an empty response, and normalizes unordered results by
+immutable `orgUnitId`, `parentOrgUnitId`/path and full `orgUnitPath`. Duplicate IDs or paths,
+orphaned parents, inconsistent paths and cycles fail closed instead of being displayed as a
+trusted tree. Results are not persisted or cached.
+
+An identifier-only detail endpoint is also available:
+
+```text
+POST:       /api/v1/organizations/{organization_id}/google-workspace/orgunits/get
+Body:       {"org_unit_id":"<immutable Google OU ID>"}
+Method:     orgunits.get
+```
+
+Paths and customer IDs supplied by callers are not accepted. Both endpoints authorize the actor
+against the selected organization's customer before credential access, use the same verified
+Google customer ID, disable client retries and emit privacy-safe audit metadata. The UI is
+explicitly read-only; OU creation, update, deletion, user/device movement and bulk/CSV workflows
+remain future DIR-003 work.
 
 ## User detail and reverse group memberships
 

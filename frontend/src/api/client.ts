@@ -19,6 +19,8 @@ import type {
   GoogleWorkspaceGroup,
   GoogleWorkspaceGroupMemberList,
   GoogleWorkspaceGroupSearchResult,
+  GoogleWorkspaceOrganizationalUnit,
+  GoogleWorkspaceOrganizationalUnitHierarchy,
   GoogleWorkspaceCheck,
   GoogleWorkspaceUser,
   GoogleWorkspaceUserStatusMutationResult,
@@ -340,6 +342,31 @@ export function listGoogleWorkspaceUsers(
     {
       method: "POST",
       body: JSON.stringify(payload),
+      signal
+    }
+  );
+}
+
+export function listGoogleWorkspaceOrganizationalUnits(
+  organizationId: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceOrganizationalUnitHierarchy> {
+  return request<GoogleWorkspaceOrganizationalUnitHierarchy>(
+    `/api/v1/organizations/${organizationId}/google-workspace/orgunits/list`,
+    { method: "POST", signal }
+  );
+}
+
+export function getGoogleWorkspaceOrganizationalUnit(
+  organizationId: string,
+  orgUnitId: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceOrganizationalUnit> {
+  return request<GoogleWorkspaceOrganizationalUnit>(
+    `/api/v1/organizations/${organizationId}/google-workspace/orgunits/get`,
+    {
+      method: "POST",
+      body: JSON.stringify({ org_unit_id: orgUnitId }),
       signal
     }
   );

@@ -123,6 +123,14 @@ naar een begrensde Directory-query vertaald. Alleen Google's ondersteunde sorter
 pagination-token worden doorgegeven. Elk resultaat moet dezelfde customer-id dragen; profielen,
 zoektermen en tokens worden niet opgeslagen.
 
+De Organizational Units-service hergebruikt dezelfde canonical delegated-administrator lookup om
+de immutable Google `customerId` vast te stellen, maar bouwt daarna een afzonderlijke client met
+alleen `admin.directory.orgunit.readonly`. Eén `orgunits.list(type=allIncludingParent)` request
+levert root en descendants; de service normaliseert ongesorteerde resultaten naar een stabiele
+boom en weigert duplicate IDs/paden, ontbrekende of conflicterende parents, inconsistente paden en
+cycles. Detailopvraging accepteert alleen een begrensde immutable OU-ID. Er is geen OU-cache,
+database-opslag of write-scope in dit pad.
+
 De centrale user-detail gebruikt dezelfde canonical `users.get` identity voor reverse
 group-membership context. `groups.list(userKey=<immutable user-id>)` kan volgens Google niet met
 `customer` worden gecombineerd en levert daarom alleen kandidaten. Per kandidaat bewijst een

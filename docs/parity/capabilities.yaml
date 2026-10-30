@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "catalog_version": "2026.10.30",
+  "catalog_version": "2026.10.30.1",
   "retrieved_on": "2026-10-30",
   "baselines": {
     "psgsuite": {
@@ -75,6 +75,18 @@
     "google.directory.reference": {
       "title": "Admin SDK Directory API reference",
       "url": "https://developers.google.com/workspace/admin/directory/reference/rest"
+    },
+    "google.directory.orgunits.list": {
+      "title": "Admin SDK Directory API orgunits.list reference",
+      "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/orgunits/list"
+    },
+    "google.directory.orgunits.get": {
+      "title": "Admin SDK Directory API orgunits.get reference",
+      "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/orgunits/get"
+    },
+    "wgasuite.dir0031.task": {
+      "title": "DIR-003.1 read-only Organizational Units implementation task",
+      "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220045481580599"
     },
     "google.gmail.reference": {
       "title": "Gmail API reference",
@@ -35232,12 +35244,12 @@
       "google": {
         "api": "Admin SDK Directory API",
         "methods": [
-          "Orgunits.Get"
+          "orgunits.get"
         ],
         "scopes": [
-          "https://www.googleapis.com/auth/admin.directory.orgunit"
+          "https://www.googleapis.com/auth/admin.directory.orgunit.readonly"
         ],
-        "auth_context": "PSGSuite service-account DWD or user OAuth as documented by the pinned upstream function",
+        "auth_context": "WGASuite service-account DWD impersonating the configured delegated administrator",
         "feasibility": "direct"
       },
       "execution": {
@@ -35256,11 +35268,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "implemented",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_orgunits.py",
+          "backend/app/api/v1/router.py",
+          "frontend/src/features/google-workspace/OrganizationalUnits.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.dir0031.task",
+          "google.directory.orgunits.get"
+        ],
+        "limitations": "WGASuite supports one tenant-scoped identifier lookup, but not GAM selector expansion, bulk or CSV execution. Live Google acceptance remains pending."
       },
       "roadmap": {
         "epic": "DIR-003",
@@ -35268,15 +35287,19 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820346308737"
       },
       "verification": {
-        "automated_tests": false,
+        "automated_tests": true,
         "live_google": false,
-        "evidence_refs": []
+        "evidence_refs": [
+          "wgasuite.dir0031.task"
+        ]
       },
       "evidence_refs": [
         "upstream.psgsuite.source",
         "upstream.gam7.grammar",
         "upstream.gamadv.grammar",
-        "google.directory.reference"
+        "google.directory.reference",
+        "google.directory.orgunits.get",
+        "wgasuite.dir0031.task"
       ],
       "notes": "Stable administrative result; syntax aliases, print/show forms, and selector variants are linked in source_inventory."
     },
@@ -35294,11 +35317,14 @@
       },
       "google": {
         "api": "Admin SDK Directory API",
-        "methods": [],
-        "scopes": [],
-        "auth_context": "Requires capability-specific administrator or delegated-user authorization",
-        "feasibility": "unknown",
-        "limitation": "The pinned upstream evidence proves the administrative result but does not uniquely establish one current REST method/scope combination. Confirm it in PAR-003 before implementation."
+        "methods": [
+          "orgunits.list"
+        ],
+        "scopes": [
+          "https://www.googleapis.com/auth/admin.directory.orgunit.readonly"
+        ],
+        "auth_context": "WGASuite service-account DWD impersonating the configured delegated administrator",
+        "feasibility": "direct"
       },
       "execution": {
         "single": true,
@@ -35312,11 +35338,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "implemented",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_orgunits.py",
+          "backend/app/api/v1/router.py",
+          "frontend/src/features/google-workspace/OrganizationalUnits.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.dir0031.task",
+          "google.directory.orgunits.list"
+        ],
+        "limitations": "WGASuite loads one complete customer hierarchy with allIncludingParent, but does not provide GAM CSV/batch execution. Live Google acceptance remains pending."
       },
       "roadmap": {
         "epic": "DIR-003",
@@ -35324,13 +35357,17 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820346308737"
       },
       "verification": {
-        "automated_tests": false,
+        "automated_tests": true,
         "live_google": false,
-        "evidence_refs": []
+        "evidence_refs": [
+          "wgasuite.dir0031.task"
+        ]
       },
       "evidence_refs": [
         "upstream.gam7.grammar",
-        "google.directory.reference"
+        "google.directory.reference",
+        "google.directory.orgunits.list",
+        "wgasuite.dir0031.task"
       ],
       "notes": "Stable administrative result; syntax aliases, print/show forms, and selector variants are linked in source_inventory."
     },

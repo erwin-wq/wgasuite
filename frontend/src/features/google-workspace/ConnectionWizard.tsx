@@ -17,9 +17,12 @@ import {
   selectExternalGoogleWorkspaceCredential
 } from "../../api/client";
 import type { ConnectorConfig } from "../../types";
+import {
+  DIRECTORY_ORGUNIT_READONLY_SCOPE,
+  DIRECTORY_USER_READONLY_SCOPE
+} from "./scopes";
 
-export const DIRECTORY_USER_READONLY_SCOPE =
-  "https://www.googleapis.com/auth/admin.directory.user.readonly";
+export { DIRECTORY_USER_READONLY_SCOPE } from "./scopes";
 
 type Feedback = { type: "success" | "error"; message: string } | null;
 
@@ -92,7 +95,7 @@ export function ConnectionWizard({
   const [credentialFile, setCredentialFile] = useState<File | null>(null);
   const [externalReference, setExternalReference] = useState("");
   const [isCredentialSaving, setIsCredentialSaving] = useState(false);
-  const [copied, setCopied] = useState<"client" | "scope" | null>(null);
+  const [copied, setCopied] = useState<"client" | "user-scope" | "orgunit-scope" | null>(null);
   const initializedConfigId = useRef<string | null>(connectorConfig?.id ?? null);
 
   useEffect(() => {
@@ -151,7 +154,10 @@ export function ConnectionWizard({
     }
   }
 
-  async function copy(value: string, target: "client" | "scope") {
+  async function copy(
+    value: string,
+    target: "client" | "user-scope" | "orgunit-scope"
+  ) {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(target);
@@ -290,20 +296,27 @@ export function ConnectionWizard({
               <li>Sign in to the Google Admin console as a super administrator.</li>
               <li>Open Security → Access and data control → API controls.</li>
               <li>Open Manage Domain Wide Delegation and choose Add new.</li>
-              <li>Paste the numeric client ID and exact OAuth scope below, then authorize.</li>
+              <li>Paste the numeric client ID and exact comma-separated OAuth scopes below, then authorize.</li>
             </ol>
             <div className="copy-field">
               <span>Numeric client ID</span>
               <code>{connectorConfig?.service_account_client_id ?? "Upload or validate a credential first"}</code>
-              <button type="button" className="secondary-button" onClick={() => copy(connectorConfig?.service_account_client_id ?? "", "client")} disabled={!connectorConfig?.service_account_client_id}>
+              <button type="button" className="secondary-button" aria-label="Copy numeric client ID" onClick={() => copy(connectorConfig?.service_account_client_id ?? "", "client")} disabled={!connectorConfig?.service_account_client_id}>
                 <Clipboard aria-hidden="true" />{copied === "client" ? "Copied" : "Copy"}
               </button>
             </div>
             <div className="copy-field">
-              <span>OAuth scope (exact value)</span>
+              <span>User Directory scope (exact value)</span>
               <code>{DIRECTORY_USER_READONLY_SCOPE}</code>
-              <button type="button" className="secondary-button" onClick={() => copy(DIRECTORY_USER_READONLY_SCOPE, "scope")}>
-                <Clipboard aria-hidden="true" />{copied === "scope" ? "Copied" : "Copy"}
+              <button type="button" className="secondary-button" aria-label="Copy User Directory scope" onClick={() => copy(DIRECTORY_USER_READONLY_SCOPE, "user-scope")}>
+                <Clipboard aria-hidden="true" />{copied === "user-scope" ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <div className="copy-field">
+              <span>Organizational Units scope (exact value)</span>
+              <code>{DIRECTORY_ORGUNIT_READONLY_SCOPE}</code>
+              <button type="button" className="secondary-button" aria-label="Copy Organizational Units scope" onClick={() => copy(DIRECTORY_ORGUNIT_READONLY_SCOPE, "orgunit-scope")}>
+                <Clipboard aria-hidden="true" />{copied === "orgunit-scope" ? "Copied" : "Copy"}
               </button>
             </div>
             <a className="inline-doc-link" href="https://support.google.com/a/answer/162106" target="_blank" rel="noreferrer">

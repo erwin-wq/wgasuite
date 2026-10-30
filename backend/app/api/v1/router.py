@@ -82,6 +82,12 @@ from app.schemas.google_workspace_group import (
     GroupSearchRead,
     GroupSearchRequest,
 )
+from app.schemas.google_workspace_orgunit import (
+    OrganizationalUnitHierarchyRead,
+    OrganizationalUnitRead,
+    OrganizationalUnitReferenceRequest,
+    OrganizationalUnitTreeNodeRead,
+)
 from app.schemas.google_workspace_user import (
     GoogleWorkspaceUserLookupRequest,
     GoogleWorkspaceUserRead,
@@ -141,6 +147,11 @@ from app.services.google_workspace_groups import (
     GroupMembershipReconciliationError,
 )
 from app.services.google_workspace_mutation_safety import mutation_audit_metadata
+from app.services.google_workspace_orgunits import (
+    GoogleWorkspaceOrganizationalUnits,
+    OrganizationalUnit,
+    OrganizationalUnitTreeNode,
+)
 from app.services.google_workspace_user_directory import GoogleWorkspaceUserDirectory
 from app.services.google_workspace_user_group_memberships import (
     GoogleWorkspaceUserGroupMemberships,
@@ -1540,6 +1551,169 @@ def list_google_workspace_users(
         users=[GoogleWorkspaceDirectoryUserRead(**user.__dict__) for user in result.users],
         next_page_token=result.next_page_token,
     )
+
+
+ORGANIZATIONAL_UNIT_HTTP_STATUS = {
+    **GOOGLE_USER_LOOKUP_HTTP_STATUS,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_LOOKUP_MISMATCH: status.HTTP_502_BAD_GATEWAY,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_HIERARCHY_INVALID: status.HTTP_502_BAD_GATEWAY,
+}
+
+
+def require_orgunit_read(
+    *, db: Session, current_user: User, organization: Organization, action: str
+) -> None:
+    try:
+        require_customer_connector_operation_access(current_user, organization.customer_id)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_organizational_unit",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected",
+            reason="organization_access_denied",
+        )
+        raise
+
+
+def organizational_unit_http_error(error: GoogleWorkspaceError) -> HTTPException:
+    return HTTPException(
+        status_code=ORGANIZATIONAL_UNIT_HTTP_STATUS.get(
+            error.code, status.HTTP_502_BAD_GATEWAY
+        ),
+        detail={"code": error.code.value, "message": str(error)},
+    )
+
+
+def organizational_unit_read(value: OrganizationalUnit) -> OrganizationalUnitRead:
+    return OrganizationalUnitRead(**value.__dict__)
+
+
+def organizational_unit_tree_read(
+    value: OrganizationalUnitTreeNode,
+) -> OrganizationalUnitTreeNodeRead:
+    return OrganizationalUnitTreeNodeRead(
+        id=value.id,
+        name=value.name,
+        description=value.description,
+        path=value.path,
+        parent_id=value.parent_id,
+        parent_path=value.parent_path,
+        children=[organizational_unit_tree_read(child) for child in value.children],
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/orgunits/list",
+    response_model=OrganizationalUnitHierarchyRead,
+    tags=["google-workspace"],
+)
+def list_google_workspace_organizational_units(
+    organization_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> OrganizationalUnitHierarchyRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.orgunit.listed"
+    require_orgunit_read(
+        db=db,
+        current_user=current_user,
+        organization=organization,
+        action=action,
+    )
+    try:
+        result = GoogleWorkspaceOrganizationalUnits.from_settings(db).list_hierarchy(
+            actor=current_user,
+            organization_id=organization.id,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_organizational_unit",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+            metadata={"query_type": "allIncludingParent"},
+        )
+        raise organizational_unit_http_error(error) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_organizational_unit",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "result_count": result.total,
+            "root_count": len(result.roots),
+            "query_type": "allIncludingParent",
+            "read_only": True,
+        },
+    )
+    return OrganizationalUnitHierarchyRead(
+        roots=[organizational_unit_tree_read(root) for root in result.roots],
+        total=result.total,
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/orgunits/get",
+    response_model=OrganizationalUnitRead,
+    tags=["google-workspace"],
+)
+def get_google_workspace_organizational_unit(
+    organization_id: UUID,
+    payload: OrganizationalUnitReferenceRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> OrganizationalUnitRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.orgunit.viewed"
+    require_orgunit_read(
+        db=db,
+        current_user=current_user,
+        organization=organization,
+        action=action,
+    )
+    try:
+        result = GoogleWorkspaceOrganizationalUnits.from_settings(
+            db
+        ).get_organizational_unit(
+            actor=current_user,
+            organization_id=organization.id,
+            org_unit_id=payload.org_unit_id,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_organizational_unit",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+        )
+        raise organizational_unit_http_error(error) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_organizational_unit",
+        object_id=result.id,
+        customer_id=organization.customer_id,
+        metadata={"read_only": True},
+    )
+    return organizational_unit_read(result)
 
 
 @api_router.post(

@@ -66,18 +66,18 @@ The catalog contains 709 canonical capabilities:
 |---|---:|
 | verified | 12 |
 | partial | 2 |
-| implemented | 0 |
+| implemented | 2 |
 | mocked | 0 |
-| missing | 695 |
+| missing | 693 |
 
-All 14 non-missing capabilities have partial, rather than equivalent, parity
+All 16 non-missing capabilities have partial, rather than equivalent, parity
 because WGASuite intentionally lacks upstream bulk selectors/CSV behavior or
 supports a narrower guarded operation. There are 317 read, 281 write and 111
 destructive capabilities. The roadmap maps 139 capabilities to v0.3 Directory
 & Identity and 570 to later existing epics.
 
-The API mapping is deliberately conservative: 201 capabilities have direct
-method/scope evidence and 508 are explicitly `unknown`. The latter are not
+The API mapping is deliberately conservative: 202 capabilities have direct
+method/scope evidence and 507 are explicitly `unknown`. The latter are not
 silently treated as feasible; PAR-003 must confirm their current Google API,
 least-privilege scope and authentication context before implementation.
 
@@ -107,16 +107,16 @@ The first five next capabilities should stay inside the existing Directory &
 Identity epics and build outward from the verified read and mutation-safety
 foundation:
 
-1. `directory.orgunits.list` — establish the OU selector/boundary model using a
-   read-only workflow.
-2. `directory.users.move_orgunit` — add a guarded single-user move after OU
+1. `directory.users.move_orgunit` — add a guarded single-user move after OU
    ownership and target validation.
-3. `directory.users.create` — guarded creation with explicit initial-password
+2. `directory.users.create` — guarded creation with explicit initial-password
    and recovery-data handling.
-4. `directory.users.update` — complete profile/identity updates beyond the
+3. `directory.users.update` — complete profile/identity updates beyond the
    already verified suspend/reactivate subset.
-5. `directory.users.aliases.add` — introduce safe alias lifecycle management;
+4. `directory.users.aliases.add` — introduce safe alias lifecycle management;
    removal remains a separately guarded capability.
+5. `directory.orgunits.create` — add guarded OU creation only after shared
+   mutation previews and exact parent/customer protections are designed.
 
 These recommendations do not authorize implementation or live Workspace
 mutations as part of PAR-001.

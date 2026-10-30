@@ -3336,6 +3336,209 @@ h4 {
   white-space: nowrap;
 }
 
+.organizational-units {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.ou-heading,
+.ou-state,
+.ou-panel-heading,
+.readonly-badge {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.ou-heading,
+.ou-panel-heading {
+  justify-content: space-between;
+}
+
+.ou-layout {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: minmax(18rem, 0.9fr) minmax(20rem, 1.1fr);
+  min-width: 0;
+}
+
+.ou-tree-panel,
+.ou-detail-panel {
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+  padding: var(--space-5);
+}
+
+.ou-panel-heading p {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-1);
+}
+
+.readonly-badge {
+  background: var(--color-primary-soft);
+  border-radius: 999px;
+  color: var(--color-primary-strong);
+  flex: 0 0 auto;
+  font-size: var(--font-size-xs);
+  font-weight: 850;
+  padding: 0.45rem 0.7rem;
+}
+
+.readonly-badge svg {
+  height: 0.95rem;
+  width: 0.95rem;
+}
+
+.ou-tree {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  display: grid;
+  margin-top: var(--space-4);
+  max-height: 34rem;
+  min-width: 0;
+  overflow: auto;
+  padding: var(--space-2);
+}
+
+.ou-tree-row {
+  align-items: center;
+  display: flex;
+  min-width: 0;
+  padding-left: calc((var(--ou-depth) - 1) * 1.25rem);
+}
+
+.ou-expand-button,
+.ou-tree-item {
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-ink);
+  min-height: 2.75rem;
+  transform: none;
+}
+
+.ou-expand-button {
+  flex: 0 0 2.25rem;
+  padding: 0.55rem;
+}
+
+.ou-expand-button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.ou-expand-button svg,
+.ou-tree-item > svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+.ou-tree-item {
+  align-items: center;
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--space-3);
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 0.55rem var(--space-3);
+  text-align: left;
+}
+
+.ou-tree-item:hover,
+.ou-tree-item:focus-visible,
+.ou-tree-item.selected {
+  background: var(--color-primary-soft);
+  box-shadow: none;
+  color: var(--color-primary-strong);
+  transform: none;
+}
+
+.ou-tree-item > span {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.ou-tree-item strong,
+.ou-tree-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ou-tree-item small {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-xs);
+}
+
+.ou-details {
+  display: grid;
+  gap: 0;
+  margin-top: var(--space-4);
+}
+
+.ou-details > div {
+  border-top: 1px solid var(--color-line);
+  display: grid;
+  gap: var(--space-1);
+  grid-template-columns: minmax(7rem, 0.42fr) minmax(0, 1fr);
+  padding: var(--space-3) 0;
+}
+
+.ou-details dt {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-xs);
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.ou-details dd,
+.ou-details code {
+  overflow-wrap: anywhere;
+}
+
+.ou-readonly-note,
+.ou-state {
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-muted);
+  padding: var(--space-4);
+}
+
+.ou-readonly-note {
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  margin-top: var(--space-4);
+}
+
+.ou-state.warning {
+  background: var(--color-amber-soft);
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.ou-state.error {
+  background: var(--color-red-soft);
+  border-color: #fecaca;
+  color: var(--color-red-strong);
+}
+
+.ou-state svg {
+  flex: 0 0 auto;
+  height: 1.15rem;
+  width: 1.15rem;
+}
+
+.ou-state span {
+  flex: 1 1 auto;
+}
+
 .group-management,
 .group-detail {
   display: grid;
@@ -4026,6 +4229,9 @@ h4 {
   .group-heading,
   .group-reconciliation,
   .member-toolbar,
+  .ou-heading,
+  .ou-state,
+  .ou-panel-heading,
   .delegate-reconciliation,
   .delegate-row,
   .confirmation-actions {
@@ -4041,10 +4247,30 @@ h4 {
   .group-heading button,
   .group-reconciliation button,
   .member-toolbar button,
+  .ou-heading button,
+  .ou-state button,
   .delegate-reconciliation button,
   .delegate-row button,
   .confirmation-actions button {
     width: 100%;
+  }
+
+  .ou-layout,
+  .ou-details > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ou-tree-panel,
+  .ou-detail-panel {
+    padding: var(--space-4);
+  }
+
+  .ou-tree {
+    max-height: 24rem;
+  }
+
+  .ou-tree-row {
+    padding-left: calc((var(--ou-depth) - 1) * 0.75rem);
   }
 
   .workspace-tool-navigation,

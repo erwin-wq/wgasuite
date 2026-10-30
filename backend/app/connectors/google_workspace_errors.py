@@ -65,6 +65,9 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GMAIL_RECONCILIATION_EXPIRED = "gmail_reconciliation_expired"
     GOOGLE_GROUP_NOT_FOUND = "google_group_not_found"
     GOOGLE_GROUP_LOOKUP_MISMATCH = "google_group_lookup_mismatch"
+    GOOGLE_ORGUNIT_NOT_FOUND = "google_orgunit_not_found"
+    GOOGLE_ORGUNIT_LOOKUP_MISMATCH = "google_orgunit_lookup_mismatch"
+    GOOGLE_ORGUNIT_HIERARCHY_INVALID = "google_orgunit_hierarchy_invalid"
     GROUP_MEMBER_ALREADY_EXISTS = "group_member_already_exists"
     GROUP_MEMBER_NOT_FOUND = "group_member_not_found"
     GROUP_MEMBER_UNSUPPORTED = "group_member_unsupported"
@@ -236,6 +239,15 @@ SAFE_ERROR_MESSAGES = {
     ),
     GoogleWorkspaceErrorCode.GOOGLE_GROUP_LOOKUP_MISMATCH: (
         "Google returned a group that did not match the requested primary email or alias."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_NOT_FOUND: (
+        "Google could not find that organizational unit in the configured customer."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_LOOKUP_MISMATCH: (
+        "Google returned an organizational unit that did not match the requested identifier."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_HIERARCHY_INVALID: (
+        "Google returned an organizational-unit hierarchy that could not be represented safely."
     ),
     GoogleWorkspaceErrorCode.GROUP_MEMBER_ALREADY_EXISTS: (
         "That user is already a direct member of this group."
