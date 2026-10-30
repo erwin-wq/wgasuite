@@ -374,7 +374,8 @@ Potential future work includes:
 Roadmap items are directional and have no committed delivery dates. See
 [docs/ROADMAP.md](docs/ROADMAP.md) for the working project roadmap and
 [docs/PRODUCT_STRATEGY.md](docs/PRODUCT_STRATEGY.md) for the direct-API architecture decision and
-product direction.
+product direction. The versioned PSGSuite/GAM comparison and reproducible capability inventory are
+in [docs/parity/README.md](docs/parity/README.md).
 
 ## Contributing
 

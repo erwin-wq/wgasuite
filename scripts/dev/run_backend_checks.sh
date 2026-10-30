@@ -25,6 +25,9 @@ backend/.venv/bin/pytest backend/tests
 printf "\nRunning Python compile check...\n"
 python3 -m compileall backend/app backend/tests
 
+printf "\nValidating parity catalog...\n"
+python3 scripts/parity/validate_parity.py
+
 printf "\nRunning git whitespace check...\n"
 git diff --check
 
