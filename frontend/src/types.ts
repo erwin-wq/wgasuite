@@ -252,6 +252,38 @@ export interface GoogleWorkspaceUserStatusReconciliationResult {
   message: string;
 }
 
+export interface GoogleWorkspaceUserOrgUnitMovePreview {
+  organization_id: string;
+  customer_id: string;
+  target_google_id: string;
+  target_primary_email: string;
+  source_org_unit_path: string;
+  destination_org_unit_id: string;
+  destination_org_unit_path: string;
+  confirmation_token: string;
+  expires_at: string;
+  effect: string;
+}
+
+export interface GoogleWorkspaceUserOrgUnitMoveResult {
+  target_google_id: string;
+  target_primary_email: string;
+  previous_org_unit_path: string;
+  org_unit_path: string;
+  outcome: "moved";
+  message: string;
+}
+
+export interface GoogleWorkspaceUserOrgUnitMoveReconciliationResult {
+  target_google_id: string;
+  target_primary_email: string;
+  status: "verified" | "unknown";
+  observed_org_unit_path: string;
+  attempts: number;
+  correlation_id: string;
+  message: string;
+}
+
 export type GoogleWorkspaceUserGroupRole = "MEMBER" | "MANAGER" | "OWNER";
 
 export interface GoogleWorkspaceUserGroupMembership {

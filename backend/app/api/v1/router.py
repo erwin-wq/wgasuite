@@ -102,6 +102,13 @@ from app.schemas.google_workspace_user_group_membership import (
     UserGroupMembershipListRead,
     UserGroupMembershipListRequest,
 )
+from app.schemas.google_workspace_user_orgunit import (
+    UserOrgUnitMovePreviewRead,
+    UserOrgUnitMovePreviewRequest,
+    UserOrgUnitMoveRead,
+    UserOrgUnitMoveReconciliationRead,
+    UserOrgUnitMoveRequest,
+)
 from app.schemas.google_workspace_user_status import (
     UserStatusMutationRead,
     UserStatusMutationRequest,
@@ -157,6 +164,12 @@ from app.services.google_workspace_user_group_memberships import (
     GoogleWorkspaceUserGroupMemberships,
 )
 from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookup
+from app.services.google_workspace_user_orgunit import (
+    GoogleWorkspaceUserOrgUnitReconciliationService,
+    GoogleWorkspaceUserOrgUnitService,
+    UserOrgUnitMutationAmbiguousError,
+    UserOrgUnitReconciliationError,
+)
 from app.services.google_workspace_user_status import (
     GoogleWorkspaceUserStatusReconciliationService,
     GoogleWorkspaceUserStatusService,
@@ -1800,6 +1813,13 @@ USER_STATUS_HTTP_STATUS = {
     GoogleWorkspaceErrorCode.GOOGLE_USER_RECONCILIATION_EXPIRED: (
         status.HTTP_409_CONFLICT
     ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_UNCHANGED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_STATE_CHANGED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_INVALID: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_EXPIRED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_USED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_RECONCILIATION_NOT_AVAILABLE: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_RECONCILIATION_EXPIRED: status.HTTP_409_CONFLICT,
 }
 USER_STATUS_REJECTION_CODES = frozenset(
     {
@@ -1820,6 +1840,15 @@ USER_STATUS_REJECTION_CODES = frozenset(
         GoogleWorkspaceErrorCode.GOOGLE_USER_CONFIRMATION_USED,
         GoogleWorkspaceErrorCode.GOOGLE_USER_RECONCILIATION_NOT_AVAILABLE,
         GoogleWorkspaceErrorCode.GOOGLE_USER_RECONCILIATION_EXPIRED,
+        GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_NOT_FOUND,
+        GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_LOOKUP_MISMATCH,
+        GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_UNCHANGED,
+        GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_STATE_CHANGED,
+        GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_INVALID,
+        GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_EXPIRED,
+        GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_USED,
+        GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_RECONCILIATION_NOT_AVAILABLE,
+        GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_RECONCILIATION_EXPIRED,
     }
 )
 
@@ -2152,6 +2181,187 @@ def reconcile_google_workspace_user_reactivate(
         db=db,
         current_user=current_user,
     )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/orgunit/preview",
+    response_model=UserOrgUnitMovePreviewRead,
+    tags=["google-workspace"],
+)
+def preview_google_workspace_user_orgunit_move(
+    organization_id: UUID,
+    payload: UserOrgUnitMovePreviewRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> UserOrgUnitMovePreviewRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.user.orgunit_move_previewed"
+    require_user_status_admin(
+        db=db, current_user=current_user, organization=organization, action=action
+    )
+    try:
+        result = GoogleWorkspaceUserOrgUnitService.from_settings(db).preview_move(
+            actor=current_user,
+            organization_id=organization.id,
+            user_id=payload.user_id,
+            destination_org_unit_id=payload.destination_org_unit_id,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_user",
+            object_id=getattr(error, "target_google_id", None) or organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected" if error.code in USER_STATUS_REJECTION_CODES else "failure",
+            reason=error.code.value,
+        )
+        raise user_status_http_error(error) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_user",
+        object_id=result.target_google_id,
+        customer_id=organization.customer_id,
+        metadata=mutation_audit_metadata(
+            {
+                "source_org_unit_path": result.source_org_unit_path,
+                "destination_org_unit_path": result.destination_org_unit_path,
+            }
+        ),
+    )
+    return UserOrgUnitMovePreviewRead(**result.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/orgunit",
+    response_model=UserOrgUnitMoveRead,
+    tags=["google-workspace"],
+)
+def move_google_workspace_user_orgunit(
+    organization_id: UUID,
+    payload: UserOrgUnitMoveRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> UserOrgUnitMoveRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.user.orgunit_moved"
+    require_user_status_admin(
+        db=db, current_user=current_user, organization=organization, action=action
+    )
+    try:
+        result = GoogleWorkspaceUserOrgUnitService.from_settings(db).execute_move(
+            actor=current_user,
+            organization_id=organization.id,
+            confirmation_token=payload.confirmation_token,
+        )
+    except GoogleWorkspaceError as error:
+        metadata: dict[str, object] | None = None
+        detail: dict[str, object] | None = None
+        if isinstance(error, UserOrgUnitMutationAmbiguousError):
+            metadata = {
+                "correlation_id": error.correlation_id,
+                "reconciliation_available": True,
+            }
+            detail = {
+                "correlation_id": error.correlation_id,
+                "reconciliation_available": True,
+            }
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_user",
+            object_id=getattr(error, "target_google_id", None) or organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected" if error.code in USER_STATUS_REJECTION_CODES else "failure",
+            reason=error.code.value,
+            metadata=mutation_audit_metadata(metadata),
+        )
+        raise user_status_http_error(error, extra_detail=detail) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_user",
+        object_id=result.target_google_id,
+        customer_id=organization.customer_id,
+        metadata=mutation_audit_metadata(
+            {
+                "previous_org_unit_path": result.previous_org_unit_path,
+                "org_unit_path": result.org_unit_path,
+            }
+        ),
+    )
+    return UserOrgUnitMoveRead(**result.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/orgunit/reconcile",
+    response_model=UserOrgUnitMoveReconciliationRead,
+    tags=["google-workspace"],
+)
+def reconcile_google_workspace_user_orgunit_move(
+    organization_id: UUID,
+    payload: UserOrgUnitMoveRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> UserOrgUnitMoveReconciliationRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.user.orgunit_move_reconciled"
+    require_user_status_admin(
+        db=db, current_user=current_user, organization=organization, action=action
+    )
+    try:
+        result = GoogleWorkspaceUserOrgUnitReconciliationService.from_settings(
+            db
+        ).reconcile_move(
+            actor=current_user,
+            organization_id=organization.id,
+            confirmation_token=payload.confirmation_token,
+        )
+    except GoogleWorkspaceError as error:
+        metadata: dict[str, object] = {"final_state": "unknown"}
+        if isinstance(error, UserOrgUnitReconciliationError):
+            metadata.update(
+                {
+                    "correlation_id": error.correlation_id,
+                    "reconciliation_attempts": error.attempts,
+                }
+            )
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_user",
+            object_id=getattr(error, "target_google_id", None) or organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected" if error.code in USER_STATUS_REJECTION_CODES else "failure",
+            reason=error.code.value,
+            metadata=mutation_audit_metadata(metadata),
+        )
+        raise user_status_http_error(error) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_user",
+        object_id=result.target_google_id,
+        customer_id=organization.customer_id,
+        outcome="success" if result.status == "verified" else "unknown",
+        reason=None if result.status == "verified" else "state_not_observed",
+        metadata=mutation_audit_metadata(
+            {
+                "correlation_id": result.correlation_id,
+                "reconciliation_attempts": result.attempts,
+                "final_state": result.status,
+                "observed_org_unit_path": result.observed_org_unit_path,
+            }
+        ),
+    )
+    return UserOrgUnitMoveReconciliationRead(**result.__dict__)
 
 
 def require_gmail_delegate_admin(
