@@ -73,7 +73,8 @@ expectations, and `AGENTS.md` for coding-agent guidance.
 - The reviewed real Google API surface includes the read-only connection test, paginated Directory
   user listing, exact user/alias lookup, guarded Gmail delegation, and guarded direct Google Groups
   membership changes, guarded eligible-user suspension/reactivation, and verified read-only
-  Organizational Units list/detail.
+  Organizational Units list/detail, plus implemented guarded single-user OU moves awaiting live
+  mutation acceptance.
   Security scans and all other administration remain mock-only or unimplemented.
 - Keep new connector behavior mock-only unless an explicitly reviewed integration is in scope.
 - Prefer read-only, least-privilege access.

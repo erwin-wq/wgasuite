@@ -66,11 +66,11 @@ The catalog contains 709 canonical capabilities:
 |---|---:|
 | verified | 14 |
 | partial | 2 |
-| implemented | 0 |
+| implemented | 1 |
 | mocked | 0 |
-| missing | 693 |
+| missing | 692 |
 
-All 16 non-missing capabilities have partial, rather than equivalent, parity
+All 17 non-missing capabilities have partial, rather than equivalent, parity
 because WGASuite intentionally lacks upstream bulk selectors/CSV behavior or
 supports a narrower guarded operation. There are 317 read, 281 write and 111
 destructive capabilities. The roadmap maps 139 capabilities to v0.3 Directory
@@ -107,16 +107,16 @@ The first five next capabilities should stay inside the existing Directory &
 Identity epics and build outward from the verified read and mutation-safety
 foundation:
 
-1. `directory.users.move_orgunit` — add a guarded single-user move after OU
-   ownership and target validation.
-2. `directory.users.create` — guarded creation with explicit initial-password
+1. `directory.users.create` — guarded creation with explicit initial-password
    and recovery-data handling.
-3. `directory.users.update` — complete profile/identity updates beyond the
+2. `directory.users.update` — complete profile/identity updates beyond the
    already verified suspend/reactivate subset.
-4. `directory.users.aliases.add` — introduce safe alias lifecycle management;
+3. `directory.users.aliases.add` — introduce safe alias lifecycle management;
    removal remains a separately guarded capability.
-5. `directory.orgunits.create` — add guarded OU creation only after shared
+4. `directory.orgunits.create` — add guarded OU creation only after shared
    mutation previews and exact parent/customer protections are designed.
+5. `directory.orgunits.update` — add guarded rename and parent changes with
+   stale-hierarchy protection and explicit policy-impact warnings.
 
 These recommendations do not authorize implementation or live Workspace
 mutations as part of PAR-001.

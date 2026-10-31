@@ -32,6 +32,7 @@ DELETE_COUNT_KEYS = (
     "delegate_confirmations",
     "group_membership_confirmations",
     "user_status_confirmations",
+    "user_orgunit_confirmations",
 )
 
 

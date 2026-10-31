@@ -43,6 +43,7 @@ from app.models import (
     Finding,
     GoogleWorkspaceDelegateConfirmation,
     GoogleWorkspaceGroupMembershipConfirmation,
+    GoogleWorkspaceUserOrgUnitConfirmation,
     GoogleWorkspaceUserStatusConfirmation,
     Organization,
     ScanRun,
@@ -70,6 +71,7 @@ MODEL_BY_RECORD_KEY: dict[str, Any] = {
     "delegate_confirmations": GoogleWorkspaceDelegateConfirmation,
     "group_membership_confirmations": GoogleWorkspaceGroupMembershipConfirmation,
     "user_status_confirmations": GoogleWorkspaceUserStatusConfirmation,
+    "user_orgunit_confirmations": GoogleWorkspaceUserOrgUnitConfirmation,
 }
 
 
@@ -335,6 +337,7 @@ def _lock_exact_rows(
         "delegate_confirmations",
         "group_membership_confirmations",
         "user_status_confirmations",
+        "user_orgunit_confirmations",
     )
     for key in lock_order:
         expected = identifiers[key]
