@@ -55,8 +55,8 @@ Google API feasibility means:
   must be resolved before implementation.
 
 Live acceptance is never inferred from unit-test coverage. The `verified`
-rows reference the completed connector, Gmail delegation, Groups membership
-or user-status acceptance tasks.
+rows reference the completed connector, Gmail delegation, Groups membership,
+user-status or Organizational Units acceptance tasks.
 
 ## Current coverage
 
@@ -64,9 +64,9 @@ The catalog contains 709 canonical capabilities:
 
 | WGASuite status | Count |
 |---|---:|
-| verified | 12 |
+| verified | 14 |
 | partial | 2 |
-| implemented | 2 |
+| implemented | 0 |
 | mocked | 0 |
 | missing | 693 |
 

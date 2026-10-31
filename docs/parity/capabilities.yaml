@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "catalog_version": "2026.10.30.1",
+  "catalog_version": "2026.10.30.2",
   "retrieved_on": "2026-10-30",
   "baselines": {
     "psgsuite": {
@@ -35268,7 +35268,7 @@
         ]
       },
       "wgasuite": {
-        "status": "implemented",
+        "status": "verified",
         "parity": "partial",
         "backend_or_frontend_paths": [
           "backend/app/services/google_workspace_orgunits.py",
@@ -35279,7 +35279,7 @@
           "wgasuite.dir0031.task",
           "google.directory.orgunits.get"
         ],
-        "limitations": "WGASuite supports one tenant-scoped identifier lookup, but not GAM selector expansion, bulk or CSV execution. Live Google acceptance remains pending."
+        "limitations": "Live tenant acceptance confirmed identifier-only lookup for the existing immediate child. WGASuite does not provide GAM selector expansion, bulk or CSV execution."
       },
       "roadmap": {
         "epic": "DIR-003",
@@ -35288,7 +35288,7 @@
       },
       "verification": {
         "automated_tests": true,
-        "live_google": false,
+        "live_google": true,
         "evidence_refs": [
           "wgasuite.dir0031.task"
         ]
@@ -35338,7 +35338,7 @@
         ]
       },
       "wgasuite": {
-        "status": "implemented",
+        "status": "verified",
         "parity": "partial",
         "backend_or_frontend_paths": [
           "backend/app/services/google_workspace_orgunits.py",
@@ -35349,7 +35349,7 @@
           "wgasuite.dir0031.task",
           "google.directory.orgunits.list"
         ],
-        "limitations": "WGASuite loads one complete customer hierarchy with allIncludingParent, but does not provide GAM CSV/batch execution. Live Google acceptance remains pending."
+        "limitations": "Live tenant acceptance confirmed the current hierarchy of one root and one immediate child with allIncludingParent; no deeper nesting was present to verify. The raw Google response matched WGASuite normalization, but no Google Admin Console visual comparison was performed. WGASuite does not provide GAM CSV/batch execution."
       },
       "roadmap": {
         "epic": "DIR-003",
@@ -35358,7 +35358,7 @@
       },
       "verification": {
         "automated_tests": true,
-        "live_google": false,
+        "live_google": true,
         "evidence_refs": [
           "wgasuite.dir0031.task"
         ]
