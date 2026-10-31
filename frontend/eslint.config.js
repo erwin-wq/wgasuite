@@ -22,6 +22,9 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // Preserve the existing lint policy while adopting ESLint 10-compatible tooling.
+      // Address synchronous effect state updates in a dedicated frontend refactor.
+      "react-hooks/set-state-in-effect": "off",
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }]
     }
   }
