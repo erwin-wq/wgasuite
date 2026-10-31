@@ -13,8 +13,11 @@ data model; WGASuite is the current product name.
   orphaned, inconsistent or cyclic structures without persisting or caching OU data.
 - Added an accessible responsive tree/detail interface, explicit read-only limitations, DWD setup
   guidance, stale-response protection and mocked backend/frontend edge-case coverage.
-- Updated the parity catalog to `implemented/partial`; live Google acceptance remains separate and
-  no Workspace mutation, database schema change or credential modification was performed.
+- Live tenant acceptance confirmed delegated token acquisition, the current hierarchy of one root
+  and one immediate child, identifier-only detail lookup and responsive UI; no deeper nesting was
+  present to verify. The raw Google response matched WGASuite normalization, but no Google Admin
+  Console visual comparison was performed. Parity is now `verified/partial`. No Workspace mutation,
+  database schema change or credential modification was performed.
 
 ## 2026-10-29 — ARCH-002 standardized mutation safety controls
 
