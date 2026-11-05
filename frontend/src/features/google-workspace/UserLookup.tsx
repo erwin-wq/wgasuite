@@ -16,6 +16,7 @@ import type { ConnectorConfig, GoogleWorkspaceUser } from "../../types";
 import { MailboxDelegates } from "./MailboxDelegates";
 import { UserGroupMemberships } from "./UserGroupMemberships";
 import { UserStatusManagement } from "./UserStatusManagement";
+import { UserOrgUnitMove } from "./UserOrgUnitMove";
 
 interface UserLookupProps {
   organizationId: string;
@@ -341,6 +342,14 @@ export function UserLookup({
               </div>
 
               <UserStatusManagement
+                organizationId={organizationId}
+                connectorConfig={connectorConfig}
+                user={result}
+                canMutate={canManageDelegates}
+                onRefresh={() => runLookup(result.primary_email)}
+              />
+
+              <UserOrgUnitMove
                 organizationId={organizationId}
                 connectorConfig={connectorConfig}
                 user={result}

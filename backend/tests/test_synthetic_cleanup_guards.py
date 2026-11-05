@@ -66,6 +66,7 @@ def _minimal_manifest(now: datetime) -> dict:
                     "delegate_confirmations": [],
                     "group_membership_confirmations": [],
                     "user_status_confirmations": [],
+                    "user_orgunit_confirmations": [],
                 },
                 "records_expected_to_be_preserved": {
                     "audit_events_detached_from_customer": [audit_id]

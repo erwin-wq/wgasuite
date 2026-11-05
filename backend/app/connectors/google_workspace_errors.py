@@ -68,6 +68,15 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_ORGUNIT_NOT_FOUND = "google_orgunit_not_found"
     GOOGLE_ORGUNIT_LOOKUP_MISMATCH = "google_orgunit_lookup_mismatch"
     GOOGLE_ORGUNIT_HIERARCHY_INVALID = "google_orgunit_hierarchy_invalid"
+    GOOGLE_ORGUNIT_UNCHANGED = "google_orgunit_unchanged"
+    GOOGLE_ORGUNIT_STATE_CHANGED = "google_orgunit_state_changed"
+    GOOGLE_ORGUNIT_CONFIRMATION_INVALID = "google_orgunit_confirmation_invalid"
+    GOOGLE_ORGUNIT_CONFIRMATION_EXPIRED = "google_orgunit_confirmation_expired"
+    GOOGLE_ORGUNIT_CONFIRMATION_USED = "google_orgunit_confirmation_used"
+    GOOGLE_ORGUNIT_RECONCILIATION_NOT_AVAILABLE = (
+        "google_orgunit_reconciliation_not_available"
+    )
+    GOOGLE_ORGUNIT_RECONCILIATION_EXPIRED = "google_orgunit_reconciliation_expired"
     GROUP_MEMBER_ALREADY_EXISTS = "group_member_already_exists"
     GROUP_MEMBER_NOT_FOUND = "group_member_not_found"
     GROUP_MEMBER_UNSUPPORTED = "group_member_unsupported"
@@ -248,6 +257,28 @@ SAFE_ERROR_MESSAGES = {
     ),
     GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_HIERARCHY_INVALID: (
         "Google returned an organizational-unit hierarchy that could not be represented safely."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_UNCHANGED: (
+        "The selected user is already in that organizational unit."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_STATE_CHANGED: (
+        "The user or destination organizational unit changed after preview. Refresh and "
+        "review again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_INVALID: (
+        "The organizational-unit move confirmation is invalid. Preview the move again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_EXPIRED: (
+        "The organizational-unit move confirmation expired. Preview the move again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_USED: (
+        "This organizational-unit move was already submitted. Refresh the user before continuing."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_RECONCILIATION_NOT_AVAILABLE: (
+        "This organizational-unit move is not eligible for read-only reconciliation."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_RECONCILIATION_EXPIRED: (
+        "The read-only reconciliation window expired. Refresh the user."
     ),
     GoogleWorkspaceErrorCode.GROUP_MEMBER_ALREADY_EXISTS: (
         "That user is already a direct member of this group."

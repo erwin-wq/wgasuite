@@ -33,6 +33,7 @@ from app.models import (
     Finding,
     GoogleWorkspaceDelegateConfirmation,
     GoogleWorkspaceGroupMembershipConfirmation,
+    GoogleWorkspaceUserOrgUnitConfirmation,
     GoogleWorkspaceUserStatusConfirmation,
     Organization,
     ScanRun,
@@ -314,7 +315,9 @@ def test_analysis_rejects_cross_tenant_finding_relationship(db_session: Session)
     assert analysis.blocker_counts["cross_tenant_finding_asset_relationship"] == 1
 
 
-@pytest.mark.parametrize("confirmation_kind", ["delegate", "group", "user_status"])
+@pytest.mark.parametrize(
+    "confirmation_kind", ["delegate", "group", "user_status", "user_orgunit"]
+)
 def test_analysis_rejects_google_mutation_confirmation_records(
     db_session: Session,
     confirmation_kind: str,
@@ -347,7 +350,7 @@ def test_analysis_rejects_google_mutation_confirmation_records(
             member_google_id="member-id",
             member_primary_email="member@example.invalid",
         )
-    else:
+    elif confirmation_kind == "user_status":
         confirmation = GoogleWorkspaceUserStatusConfirmation(
             **common,
             customer_id=customer.id,
@@ -357,6 +360,19 @@ def test_analysis_rejects_google_mutation_confirmation_records(
             target_primary_email="target@example.invalid",
             expected_suspended=False,
             requested_suspended=True,
+        )
+    else:
+        common.pop("operation")
+        confirmation = GoogleWorkspaceUserOrgUnitConfirmation(
+            **common,
+            customer_id=customer.id,
+            connector_config_id=connector.id,
+            google_customer_id="google-customer-id",
+            target_google_id="target-id",
+            target_primary_email="target@example.invalid",
+            expected_source_path="/",
+            destination_org_unit_id="id:target",
+            destination_path="/Target",
         )
     db_session.add(confirmation)
     db_session.commit()

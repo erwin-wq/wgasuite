@@ -10,7 +10,8 @@ an admin console or custom script.
 > **Project status:** early development / pre-release. The current repository provides a working
 > local foundation, service-account authentication/client infrastructure, a real read-only
 > Google Workspace connection test, paginated user directory, exact user and alias lookup,
-> read-only Organizational Units hierarchy, verified user-to-group context, and guarded Gmail
+> read-only Organizational Units hierarchy, guarded single-user OU moves, verified user-to-group
+> context, and guarded Gmail
 > mailbox delegation and Google Groups
 > direct-membership management. This remains
 > pre-production software.
@@ -53,6 +54,8 @@ Implemented today:
   sorting, opaque-token pagination, and selection into the exact user detail workflow;
 - read-only, customer-scoped Organizational Units hierarchy and identifier-based details, with
   fail-closed parent/cycle validation and no persisted Directory data;
+- guarded, single-user Organizational Unit moves between verified existing units, with immutable
+  user IDs, one-time confirmation, no-retry writes and read-only ambiguous-outcome reconciliation;
 - bounded, read-only reverse group membership pages for a canonical user, with current-customer
   ownership and direct MEMBER/MANAGER/OWNER role verification;
 - Gmail mailbox delegate listing plus explicit-preview, one-time-confirmation create/remove

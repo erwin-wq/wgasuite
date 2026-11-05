@@ -5,6 +5,16 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-10-31 — DIR-003.2 guarded user Organizational Unit moves
+
+- Added a tenant-scoped single-user OU relocation flow using immutable Google user and OU IDs,
+  target revalidation, one-time confirmations, exact one-write execution and bounded read-only
+  reconciliation for ambiguous results.
+- Extended the user detail interface with a responsive, keyboard-operable destination picker,
+  explicit source/destination preview, policy-impact warning and post-success refresh.
+- Added additive confirmation persistence in migration `0016`; automated tests use fakes and no
+  real Workspace relocation was executed. Parity is `implemented/partial` pending live acceptance.
+
 ## 2026-10-30 — DIR-003.1 read-only Organizational Units
 
 - Added customer-verified `orgunits.list(type=allIncludingParent)` and identifier-only

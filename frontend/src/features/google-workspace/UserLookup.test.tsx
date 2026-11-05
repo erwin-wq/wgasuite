@@ -163,7 +163,7 @@ describe("UserLookup", () => {
     expect(screen.getByText("person@secondary.example")).toBeVisible();
     expect(screen.getByText("person@legacy.example")).toBeVisible();
     expect(screen.getByText("Active")).toBeVisible();
-    expect(screen.getByText("/Engineering")).toBeVisible();
+    expect(screen.getAllByText("/Engineering")[0]).toBeVisible();
     expect(screen.getByText("Gmail mailbox set up")).toBeVisible();
   });
 

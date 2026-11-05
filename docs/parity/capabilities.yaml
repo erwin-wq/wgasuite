@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "catalog_version": "2026.10.30.2",
+  "catalog_version": "2026.10.31.1",
   "retrieved_on": "2026-10-30",
   "baselines": {
     "psgsuite": {
@@ -87,6 +87,10 @@
     "wgasuite.dir0031.task": {
       "title": "DIR-003.1 read-only Organizational Units implementation task",
       "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220045481580599"
+    },
+    "wgasuite.dir0032.task": {
+      "title": "DIR-003.2 guarded single-user Organizational Unit move task",
+      "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220083367651765"
     },
     "google.gmail.reference": {
       "title": "Gmail API reference",
@@ -37887,7 +37891,8 @@
           "users.update"
         ],
         "scopes": [
-          "https://www.googleapis.com/auth/admin.directory.user"
+          "https://www.googleapis.com/auth/admin.directory.user",
+          "https://www.googleapis.com/auth/admin.directory.orgunit.readonly"
         ],
         "auth_context": "PSGSuite service-account DWD or user OAuth as documented by the upstream function",
         "feasibility": "direct"
@@ -37908,26 +37913,36 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "implemented",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_user_orgunit.py",
+          "frontend/src/features/google-workspace/UserOrgUnitMove.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.dir0032.task"
+        ],
+        "limitations": "WGASuite supports one guarded immutable-ID user move between verified existing OUs. Upstream selectors, bulk and CSV execution are not implemented. Live Google mutation acceptance remains pending."
       },
       "roadmap": {
-        "epic": "DIR-001",
+        "epic": "DIR-003",
         "release": "v0.3 Directory & Identity",
-        "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820231919456"
+        "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220083367651765"
       },
       "verification": {
-        "automated_tests": false,
+        "automated_tests": true,
         "live_google": false,
-        "evidence_refs": []
+        "evidence_refs": [
+          "wgasuite.dir0032.task"
+        ]
       },
       "evidence_refs": [
         "upstream.psgsuite.source",
         "upstream.gam7.grammar",
-        "google.directory.reference"
+        "google.directory.reference",
+        "wgasuite.source",
+        "wgasuite.tests",
+        "wgasuite.dir0032.task"
       ],
       "notes": "Stable administrative result; syntax aliases, print/show forms, and selector variants are linked in source_inventory."
     },

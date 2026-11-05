@@ -27,6 +27,9 @@ import type {
   GoogleWorkspaceUserStatusOperation,
   GoogleWorkspaceUserStatusPreview,
   GoogleWorkspaceUserStatusReconciliationResult,
+  GoogleWorkspaceUserOrgUnitMovePreview,
+  GoogleWorkspaceUserOrgUnitMoveResult,
+  GoogleWorkspaceUserOrgUnitMoveReconciliationResult,
   GoogleWorkspaceUserGroupMembershipResult,
   GoogleWorkspaceUserDirectoryRequest,
   GoogleWorkspaceUserDirectoryResult,
@@ -324,6 +327,55 @@ export function reconcileGoogleWorkspaceUserStatusChange(
 ): Promise<GoogleWorkspaceUserStatusReconciliationResult> {
   return request<GoogleWorkspaceUserStatusReconciliationResult>(
     `/api/v1/organizations/${organizationId}/google-workspace/users/${operation}/reconcile`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
+      signal
+    }
+  );
+}
+
+export function previewGoogleWorkspaceUserOrgUnitMove(
+  organizationId: string,
+  userId: string,
+  destinationOrgUnitId: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceUserOrgUnitMovePreview> {
+  return request<GoogleWorkspaceUserOrgUnitMovePreview>(
+    `/api/v1/organizations/${organizationId}/google-workspace/users/orgunit/preview`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: userId,
+        destination_org_unit_id: destinationOrgUnitId
+      }),
+      signal
+    }
+  );
+}
+
+export function executeGoogleWorkspaceUserOrgUnitMove(
+  organizationId: string,
+  confirmationToken: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceUserOrgUnitMoveResult> {
+  return request<GoogleWorkspaceUserOrgUnitMoveResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/users/orgunit`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
+      signal
+    }
+  );
+}
+
+export function reconcileGoogleWorkspaceUserOrgUnitMove(
+  organizationId: string,
+  confirmationToken: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceUserOrgUnitMoveReconciliationResult> {
+  return request<GoogleWorkspaceUserOrgUnitMoveReconciliationResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/users/orgunit/reconcile`,
     {
       method: "POST",
       body: JSON.stringify({ confirmation_token: confirmationToken }),
