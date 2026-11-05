@@ -46,6 +46,7 @@ const hierarchy: GoogleWorkspaceOrganizationalUnitHierarchy = {
       parent_id: null,
       parent_path: null,
       read_only: true,
+      user_move_protected: false,
       children: [
         {
           id: "id:engineering",
@@ -55,6 +56,7 @@ const hierarchy: GoogleWorkspaceOrganizationalUnitHierarchy = {
           parent_id: "id:root",
           parent_path: "/",
           read_only: true,
+          user_move_protected: false,
           children: [
             {
               id: "id:platform",
@@ -64,6 +66,7 @@ const hierarchy: GoogleWorkspaceOrganizationalUnitHierarchy = {
               parent_id: "id:engineering",
               parent_path: "/Engineering",
               read_only: true,
+              user_move_protected: false,
               children: []
             }
           ]

@@ -1603,7 +1603,9 @@ def organizational_unit_http_error(error: GoogleWorkspaceError) -> HTTPException
 
 
 def organizational_unit_read(value: OrganizationalUnit) -> OrganizationalUnitRead:
-    return OrganizationalUnitRead(**value.__dict__)
+    return OrganizationalUnitRead(
+        **value.__dict__, user_move_protected=value.user_move_protected
+    )
 
 
 def organizational_unit_tree_read(
@@ -1616,6 +1618,7 @@ def organizational_unit_tree_read(
         path=value.path,
         parent_id=value.parent_id,
         parent_path=value.parent_path,
+        user_move_protected=value.user_move_protected,
         children=[organizational_unit_tree_read(child) for child in value.children],
     )
 
@@ -1653,7 +1656,14 @@ def list_google_workspace_organizational_units(
             customer_id=organization.customer_id,
             outcome="failure",
             reason=error.code.value,
-            metadata={"query_type": "allIncludingParent"},
+            metadata={
+                "query_type": "allIncludingParent",
+                **(
+                    {"google_reason": error.google_reason}
+                    if error.google_reason
+                    else {}
+                ),
+            },
         )
         raise organizational_unit_http_error(error) from None
 
@@ -1798,6 +1808,8 @@ USER_STATUS_HTTP_STATUS = {
     GoogleWorkspaceErrorCode.GOOGLE_USER_SERVICE_ACCOUNT_PROTECTED: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.GOOGLE_USER_ARCHIVED: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.GOOGLE_USER_DELETED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_GUEST_PROTECTED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_USER_GUEST_STATUS_UNKNOWN: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.GOOGLE_USER_ALREADY_SUSPENDED: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.GOOGLE_USER_ALREADY_ACTIVE: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.GOOGLE_USER_SUSPENSION_REASON_UNSUPPORTED: (
@@ -1814,6 +1826,7 @@ USER_STATUS_HTTP_STATUS = {
         status.HTTP_409_CONFLICT
     ),
     GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_UNCHANGED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_GUEST_PROTECTED: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_STATE_CHANGED: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_INVALID: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_EXPIRED: status.HTTP_409_CONFLICT,
@@ -1831,6 +1844,8 @@ USER_STATUS_REJECTION_CODES = frozenset(
         GoogleWorkspaceErrorCode.GOOGLE_USER_SERVICE_ACCOUNT_PROTECTED,
         GoogleWorkspaceErrorCode.GOOGLE_USER_ARCHIVED,
         GoogleWorkspaceErrorCode.GOOGLE_USER_DELETED,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_GUEST_PROTECTED,
+        GoogleWorkspaceErrorCode.GOOGLE_USER_GUEST_STATUS_UNKNOWN,
         GoogleWorkspaceErrorCode.GOOGLE_USER_ALREADY_SUSPENDED,
         GoogleWorkspaceErrorCode.GOOGLE_USER_ALREADY_ACTIVE,
         GoogleWorkspaceErrorCode.GOOGLE_USER_SUSPENSION_REASON_UNSUPPORTED,
@@ -1843,6 +1858,7 @@ USER_STATUS_REJECTION_CODES = frozenset(
         GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_NOT_FOUND,
         GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_LOOKUP_MISMATCH,
         GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_UNCHANGED,
+        GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_GUEST_PROTECTED,
         GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_STATE_CHANGED,
         GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_INVALID,
         GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CONFIRMATION_EXPIRED,
@@ -2207,6 +2223,9 @@ def preview_google_workspace_user_orgunit_move(
             destination_org_unit_id=payload.destination_org_unit_id,
         )
     except GoogleWorkspaceError as error:
+        metadata = (
+            {"google_reason": error.google_reason} if error.google_reason else None
+        )
         record_audit_event(
             db=db,
             actor=current_user,
@@ -2216,6 +2235,7 @@ def preview_google_workspace_user_orgunit_move(
             customer_id=organization.customer_id,
             outcome="rejected" if error.code in USER_STATUS_REJECTION_CODES else "failure",
             reason=error.code.value,
+            metadata=mutation_audit_metadata(metadata),
         )
         raise user_status_http_error(error) from None
     record_audit_event(
@@ -2258,10 +2278,13 @@ def move_google_workspace_user_orgunit(
             confirmation_token=payload.confirmation_token,
         )
     except GoogleWorkspaceError as error:
-        metadata: dict[str, object] | None = None
+        metadata: dict[str, object] | None = (
+            {"google_reason": error.google_reason} if error.google_reason else None
+        )
         detail: dict[str, object] | None = None
         if isinstance(error, UserOrgUnitMutationAmbiguousError):
             metadata = {
+                **(metadata or {}),
                 "correlation_id": error.correlation_id,
                 "reconciliation_available": True,
             }

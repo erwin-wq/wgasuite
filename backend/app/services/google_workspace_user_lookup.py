@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 USER_LOOKUP_FIELDS = (
     "id,primaryEmail,customerId,name(fullName),aliases,nonEditableAliases,suspended,archived,"
-    "orgUnitPath,isMailboxSetup,isAdmin,isDelegatedAdmin,creationTime,lastLoginTime,"
+    "orgUnitPath,isMailboxSetup,isAdmin,isDelegatedAdmin,isGuestUser,creationTime,lastLoginTime,"
     "suspensionReason,deletionTime"
 )
 MatchType = Literal["primary_email", "alias", "non_editable_alias"]
@@ -47,6 +47,7 @@ class GoogleWorkspaceUserLookupResult:
     last_login_time: datetime | None = None
     suspension_reason: str | None = None
     deletion_time: datetime | None = None
+    is_guest_user: bool | None = None
 
 
 class GoogleWorkspaceUserLookup:
@@ -148,6 +149,7 @@ class GoogleWorkspaceUserLookup:
         mailbox_setup = response.get("isMailboxSetup")
         is_admin = response.get("isAdmin")
         is_delegated_admin = response.get("isDelegatedAdmin")
+        is_guest_user = response.get("isGuestUser", False)
         return GoogleWorkspaceUserLookupResult(
             id=google_user_id,
             customer_id=customer_id,
@@ -164,6 +166,11 @@ class GoogleWorkspaceUserLookup:
             is_delegated_admin=(
                 is_delegated_admin if isinstance(is_delegated_admin, bool) else None
             ),
+            # Google omits false-valued scalar booleans from some partial responses. Because
+            # isGuestUser is explicitly requested above, an absent value is the documented
+            # default false; an explicit malformed/null value remains unknown and fails closed
+            # in mutation eligibility checks.
+            is_guest_user=(is_guest_user if isinstance(is_guest_user, bool) else None),
             creation_time=GoogleWorkspaceUserLookup._optional_datetime(
                 response.get("creationTime")
             ),

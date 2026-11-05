@@ -114,6 +114,7 @@ def user_response(
     is_admin: bool = False,
     is_delegated_admin: bool = False,
     archived: bool = False,
+    is_guest: bool | None = False,
 ) -> dict[str, object]:
     return {
         "id": google_id,
@@ -126,6 +127,7 @@ def user_response(
         "orgUnitPath": path,
         "isAdmin": is_admin,
         "isDelegatedAdmin": is_delegated_admin,
+        "isGuestUser": is_guest,
     }
 
 
@@ -146,6 +148,7 @@ def lookup_result(
         matched_by="primary_email",
         is_super_admin=admin,
         is_delegated_admin=False,
+        is_guest_user=False,
     )
 
 
@@ -272,6 +275,77 @@ def test_privileged_or_restricted_user_is_rejected(db_session: Session, field: s
     assert rejected.value.code == expected
 
 
+@pytest.mark.parametrize(
+    ("is_guest", "expected"),
+    [
+        (True, GoogleWorkspaceErrorCode.GOOGLE_USER_GUEST_PROTECTED),
+        (None, GoogleWorkspaceErrorCode.GOOGLE_USER_GUEST_STATUS_UNKNOWN),
+    ],
+)
+def test_guest_or_unknown_guest_status_is_rejected_without_write(
+    db_session: Session,
+    is_guest: bool | None,
+    expected: GoogleWorkspaceErrorCode,
+) -> None:
+    move, factory, connector, actor, _ = service(
+        db_session, user_response("/", is_guest=is_guest)
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as rejected:
+        move.preview_move(
+            actor=actor,
+            organization_id=connector.organization_id,
+            user_id="user-1",
+            destination_org_unit_id="id:engineering",
+        )
+
+    assert rejected.value.code == expected
+    assert all(call["scopes"] != (DIRECTORY_USER_WRITE_SCOPE,) for call in factory.calls)
+
+
+def test_workspace_guests_destination_is_rejected_exactly_without_write(
+    db_session: Session,
+) -> None:
+    protected = OrganizationalUnit(
+        id="id:workspace-guests",
+        name="Workspace Guests",
+        description="Google-managed guest accounts",
+        path="/Workspace Guests",
+        parent_id="id:root",
+        parent_path="/",
+    )
+    move, factory, connector, actor, _ = service(
+        db_session, user_response("/"), target_destination=protected
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as rejected:
+        move.preview_move(
+            actor=actor,
+            organization_id=connector.organization_id,
+            user_id="user-1",
+            destination_org_unit_id=protected.id,
+        )
+
+    assert rejected.value.code == GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_GUEST_PROTECTED
+    assert all(call["scopes"] != (DIRECTORY_USER_WRITE_SCOPE,) for call in factory.calls)
+
+
+def test_similarly_named_ordinary_destination_remains_eligible(db_session: Session) -> None:
+    ordinary = destination("id:guest-training", "/Workspace Guests Training")
+    move, _, connector, actor, _ = service(
+        db_session, user_response("/"), target_destination=ordinary
+    )
+
+    preview = move.preview_move(
+        actor=actor,
+        organization_id=connector.organization_id,
+        user_id="user-1",
+        destination_org_unit_id=ordinary.id,
+    )
+
+    assert preview.destination_org_unit_path == ordinary.path
+
+
 @pytest.mark.parametrize("changed", ["source", "destination"])
 def test_stale_source_or_destination_rejects_without_write(
     db_session: Session, changed: str
@@ -296,6 +370,38 @@ def test_stale_source_or_destination_rejects_without_write(
             confirmation_token=preview.confirmation_token,
         )
     assert stale.value.code == GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_STATE_CHANGED
+    assert all(call["scopes"] != (DIRECTORY_USER_WRITE_SCOPE,) for call in factory.calls)
+
+
+def test_destination_becoming_workspace_guests_is_rejected_during_execution(
+    db_session: Session,
+) -> None:
+    move, factory, connector, actor, orgunits = service(
+        db_session, user_response("/"), user_response("/")
+    )
+    preview = move.preview_move(
+        actor=actor,
+        organization_id=connector.organization_id,
+        user_id="user-1",
+        destination_org_unit_id="id:engineering",
+    )
+    orgunits.destination = OrganizationalUnit(
+        id="id:engineering",
+        name="Workspace Guests",
+        description="Google-managed guest accounts",
+        path="/Workspace Guests",
+        parent_id="id:root",
+        parent_path="/",
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as rejected:
+        move.execute_move(
+            actor=actor,
+            organization_id=connector.organization_id,
+            confirmation_token=preview.confirmation_token,
+        )
+
+    assert rejected.value.code == GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_GUEST_PROTECTED
     assert all(call["scopes"] != (DIRECTORY_USER_WRITE_SCOPE,) for call in factory.calls)
 
 

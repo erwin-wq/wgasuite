@@ -51,6 +51,7 @@ const user: GoogleWorkspaceUser = {
   is_mailbox_setup: true,
   is_super_admin: false,
   is_delegated_admin: false,
+  is_guest_user: false,
   creation_time: null,
   last_login_time: null,
   matched_by: "primary_email"
@@ -67,6 +68,7 @@ const hierarchy: GoogleWorkspaceOrganizationalUnitHierarchy = {
       parent_id: null,
       parent_path: null,
       read_only: true,
+      user_move_protected: false,
       children: [
         {
           id: "id:engineering",
@@ -76,6 +78,7 @@ const hierarchy: GoogleWorkspaceOrganizationalUnitHierarchy = {
           parent_id: "id:root",
           parent_path: "/",
           read_only: true,
+          user_move_protected: false,
           children: []
         }
       ]
@@ -167,6 +170,69 @@ describe("UserOrgUnitMove", () => {
     expect(screen.getByText(/administrator accounts are protected/i)).toBeInTheDocument();
   });
 
+  it("disables Workspace Guests and explains the protected destination", async () => {
+    vi.mocked(listGoogleWorkspaceOrganizationalUnits).mockResolvedValue({
+      total: 2,
+      roots: [
+        {
+          ...hierarchy.roots[0],
+          children: [
+            {
+              id: "id:workspace-guests",
+              name: "Workspace Guests",
+              description: "Google-managed guest accounts",
+              path: "/Workspace Guests",
+              parent_id: "id:root",
+              parent_path: "/",
+              read_only: true,
+              user_move_protected: true,
+              children: []
+            }
+          ]
+        }
+      ]
+    });
+    render(
+      <UserOrgUnitMove
+        organizationId="organization-1"
+        connectorConfig={connector}
+        user={user}
+        canMutate
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /move to organizational unit/i }));
+
+    const protectedUnit = await screen.findByRole("treeitem", {
+      name: /workspace guests.*guest accounts only/i
+    });
+    expect(protectedUnit).toBeDisabled();
+    expect(protectedUnit).toHaveAttribute(
+      "title",
+      "Reserved by Google for Workspace guest accounts"
+    );
+    expect(previewGoogleWorkspaceUserOrgUnitMove).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ ...user, is_guest_user: true }, /guest accounts cannot be moved/i],
+    [{ ...user, is_guest_user: null }, /guest-account status could not be verified/i]
+  ])("fails closed when guest eligibility is unsafe", (unsafeUser, message) => {
+    render(
+      <UserOrgUnitMove
+        organizationId="organization-1"
+        connectorConfig={connector}
+        user={unsafeUser}
+        canMutate
+        onRefresh={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: /move to organizational unit/i })).not.toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
   it("clears the picker when the organization changes", async () => {
     const view = render(
       <UserOrgUnitMove
@@ -208,6 +274,7 @@ describe("UserOrgUnitMove", () => {
               parent_id: "id:root",
               parent_path: "/",
               read_only: true,
+              user_move_protected: false,
               children: []
             }
           ]

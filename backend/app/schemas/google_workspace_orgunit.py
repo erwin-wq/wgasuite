@@ -22,6 +22,7 @@ class OrganizationalUnitRead(BaseModel):
     parent_id: str | None
     parent_path: str | None
     read_only: bool = True
+    user_move_protected: bool
 
 
 class OrganizationalUnitTreeNodeRead(OrganizationalUnitRead):

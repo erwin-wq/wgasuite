@@ -167,6 +167,7 @@ def test_list_uses_verified_customer_full_hierarchy_readonly_scope_and_no_retrie
     assert result.roots[0].children[0].id == "id:engineering"
     assert result.roots[0].children[0].children[0].id == "id:platform"
     assert result.roots[0].children[0].description == "Builders"
+    assert result.roots[0].children[0].user_move_protected is False
     assert lookup.calls[0]["email"] == "admin@example.com"
     assert factory.calls == [
         {
@@ -257,6 +258,24 @@ def test_detail_uses_identifier_verified_customer_and_exact_match(db_session: Se
         "id:engineering"
     )
     assert factory.client.orgunits_resource.requests[0].execute_kwargs == {"num_retries": 0}
+
+
+def test_workspace_guests_protection_uses_exact_documented_semantics() -> None:
+    protected = GoogleWorkspaceOrganizationalUnits._to_unit(
+        unit("id:guests", "Workspace Guests", "/Workspace Guests", "id:root", "/")
+    )
+    similarly_named = GoogleWorkspaceOrganizationalUnits._to_unit(
+        unit(
+            "id:guest-training",
+            "Workspace Guests Training",
+            "/Workspace Guests Training",
+            "id:root",
+            "/",
+        )
+    )
+
+    assert protected.user_move_protected is True
+    assert similarly_named.user_move_protected is False
 
 
 def test_detail_rejects_mismatched_identifier(db_session: Session) -> None:
@@ -364,6 +383,7 @@ def test_list_endpoint_returns_tree_and_records_safe_audit(
     assert response.status_code == 200
     assert response.json()["total"] == 2
     assert response.json()["roots"][0]["children"][0]["read_only"] is True
+    assert response.json()["roots"][0]["children"][0]["user_move_protected"] is False
     service.list_hierarchy.assert_called_once()
 
 

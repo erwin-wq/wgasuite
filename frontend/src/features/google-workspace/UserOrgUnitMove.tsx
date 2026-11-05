@@ -64,6 +64,12 @@ function protectedReason(
   if (user.is_super_admin === null || user.is_delegated_admin === null) {
     return "Administrator status could not be verified, so moves are disabled.";
   }
+  if (user.is_guest_user === true) {
+    return "Workspace guest accounts cannot be moved between Organizational Units.";
+  }
+  if (user.is_guest_user !== false) {
+    return "Guest-account status could not be verified, so moves are disabled.";
+  }
   if (user.archived || user.deletion_time) return "Archived or deleted users cannot be moved.";
   const identities = [user.primary_email, ...user.aliases, ...user.non_editable_aliases].map(
     (value) => value.toLowerCase()
@@ -96,6 +102,15 @@ function errorMessage(error: unknown): string {
   }
   if (error.code === "google_orgunit_unchanged") {
     return "Select a different Organizational Unit.";
+  }
+  if (error.code === "google_orgunit_guest_protected") {
+    return "Workspace Guests is reserved by Google for guest accounts. Select an ordinary Organizational Unit.";
+  }
+  if (
+    error.code === "google_user_guest_protected" ||
+    error.code === "google_user_guest_status_unknown"
+  ) {
+    return error.message;
   }
   if (error.code === "missing_scope_or_permission" || error.code === "google_forbidden") {
     return "Google denied the move. Verify the Directory user write scope, Organizational Units read scope, and delegated administrator privileges.";
@@ -326,6 +341,7 @@ export function UserOrgUnitMove({
               <div className="ou-move-tree" role="tree" aria-label="Choose destination Organizational Unit">
                 {flatUnits.map(({ unit, depth }) => {
                   const current = unit.path === user.org_unit_path;
+                  const protectedDestination = unit.user_move_protected;
                   return (
                     <button
                       type="button"
@@ -335,11 +351,16 @@ export function UserOrgUnitMove({
                       aria-selected={selectedId === unit.id}
                       className={selectedId === unit.id ? "selected" : ""}
                       style={{ paddingInlineStart: `${1 + depth * 1.25}rem` }}
-                      disabled={current || preview !== null}
+                      disabled={current || protectedDestination || preview !== null}
+                      title={
+                        protectedDestination
+                          ? "Reserved by Google for Workspace guest accounts"
+                          : undefined
+                      }
                       onClick={() => setSelectedId(unit.id)}
                       onKeyDown={moveTreeFocus}
                     >
-                      <FolderTree aria-hidden="true" /><span><strong>{unit.name}</strong><small>{unit.path}{current ? " (current)" : ""}</small></span>
+                      <FolderTree aria-hidden="true" /><span><strong>{unit.name}</strong><small>{unit.path}{current ? " (current)" : protectedDestination ? " (guest accounts only)" : ""}</small></span>
                     </button>
                   );
                 })}

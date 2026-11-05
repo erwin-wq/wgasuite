@@ -8,6 +8,21 @@ import httplib2
 from google.auth.exceptions import RefreshError, TransportError
 from googleapiclient.errors import HttpError
 
+SAFE_GOOGLE_ERROR_REASONS = frozenset(
+    {
+        "accessNotConfigured",
+        "backendError",
+        "forbidden",
+        "insufficientPermissions",
+        "quotaExceeded",
+        "rateLimitExceeded",
+        "userRateLimitExceeded",
+    }
+)
+RATE_LIMIT_REASONS = frozenset(
+    {"quotaExceeded", "rateLimitExceeded", "userRateLimitExceeded"}
+)
+
 
 class GoogleWorkspaceErrorCode(StrEnum):
     CONNECTOR_NOT_CONFIGURED = "connector_not_configured"
@@ -38,6 +53,8 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_USER_SERVICE_ACCOUNT_PROTECTED = "google_user_service_account_protected"
     GOOGLE_USER_ARCHIVED = "google_user_archived"
     GOOGLE_USER_DELETED = "google_user_deleted"
+    GOOGLE_USER_GUEST_PROTECTED = "google_user_guest_protected"
+    GOOGLE_USER_GUEST_STATUS_UNKNOWN = "google_user_guest_status_unknown"
     GOOGLE_USER_ALREADY_SUSPENDED = "google_user_already_suspended"
     GOOGLE_USER_ALREADY_ACTIVE = "google_user_already_active"
     GOOGLE_USER_SUSPENSION_REASON_UNSUPPORTED = (
@@ -69,6 +86,7 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_ORGUNIT_LOOKUP_MISMATCH = "google_orgunit_lookup_mismatch"
     GOOGLE_ORGUNIT_HIERARCHY_INVALID = "google_orgunit_hierarchy_invalid"
     GOOGLE_ORGUNIT_UNCHANGED = "google_orgunit_unchanged"
+    GOOGLE_ORGUNIT_GUEST_PROTECTED = "google_orgunit_guest_protected"
     GOOGLE_ORGUNIT_STATE_CHANGED = "google_orgunit_state_changed"
     GOOGLE_ORGUNIT_CONFIRMATION_INVALID = "google_orgunit_confirmation_invalid"
     GOOGLE_ORGUNIT_CONFIRMATION_EXPIRED = "google_orgunit_confirmation_expired"
@@ -179,6 +197,13 @@ SAFE_ERROR_MESSAGES = {
     GoogleWorkspaceErrorCode.GOOGLE_USER_DELETED: (
         "Deleted Google Workspace users cannot be changed here."
     ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_GUEST_PROTECTED: (
+        "Google Workspace guest accounts cannot be moved between organizational units."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_USER_GUEST_STATUS_UNKNOWN: (
+        "Google did not provide a trustworthy guest-account classification, so this move is "
+        "blocked."
+    ),
     GoogleWorkspaceErrorCode.GOOGLE_USER_ALREADY_SUSPENDED: (
         "This Google Workspace user is already suspended."
     ),
@@ -261,6 +286,10 @@ SAFE_ERROR_MESSAGES = {
     GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_UNCHANGED: (
         "The selected user is already in that organizational unit."
     ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_GUEST_PROTECTED: (
+        "Google's Workspace Guests organizational unit is reserved for guest accounts and "
+        "cannot be selected for an internal-user move."
+    ),
     GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_STATE_CHANGED: (
         "The user or destination organizational unit changed after preview. Refresh and "
         "review again."
@@ -331,9 +360,13 @@ class GoogleWorkspaceError(Exception):
         code: GoogleWorkspaceErrorCode,
         *,
         retryable: bool = False,
+        google_reason: str | None = None,
     ) -> None:
         self.code = code
         self.retryable = retryable
+        self.google_reason = (
+            google_reason if google_reason in SAFE_GOOGLE_ERROR_REASONS else None
+        )
         super().__init__(SAFE_ERROR_MESSAGES[code])
 
 
@@ -377,6 +410,9 @@ def map_google_api_error(error: Exception) -> GoogleWorkspaceError:
     except (AttributeError, json.JSONDecodeError, UnicodeError):
         pass
 
+    safe_reasons = reasons & SAFE_GOOGLE_ERROR_REASONS
+    google_reason = min(safe_reasons) if safe_reasons else None
+
     if status_code == 401:
         code = GoogleWorkspaceErrorCode.GOOGLE_UNAUTHORIZED
     elif status_code == 404:
@@ -385,6 +421,8 @@ def map_google_api_error(error: Exception) -> GoogleWorkspaceError:
         code = GoogleWorkspaceErrorCode.GOOGLE_API_UNAVAILABLE
     elif status_code == 403 and "insufficientPermissions" in reasons:
         code = GoogleWorkspaceErrorCode.MISSING_SCOPE_OR_PERMISSION
+    elif status_code == 403 and reasons & RATE_LIMIT_REASONS:
+        code = GoogleWorkspaceErrorCode.GOOGLE_RATE_LIMITED
     elif status_code == 403:
         code = GoogleWorkspaceErrorCode.GOOGLE_FORBIDDEN
     elif status_code == 429:
@@ -398,7 +436,12 @@ def map_google_api_error(error: Exception) -> GoogleWorkspaceError:
 
     return GoogleWorkspaceError(
         code,
-        retryable=status_code == 429 or status_code in {500, 502, 503, 504},
+        retryable=(
+            status_code == 429
+            or bool(reasons & RATE_LIMIT_REASONS)
+            or status_code in {500, 502, 503, 504}
+        ),
+        google_reason=google_reason,
     )
 
 

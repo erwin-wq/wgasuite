@@ -34,6 +34,7 @@ class GoogleWorkspaceUserRead(BaseModel):
     matched_by: Literal["primary_email", "alias", "non_editable_alias"]
     is_super_admin: bool | None
     is_delegated_admin: bool | None
+    is_guest_user: bool | None
     creation_time: datetime | None
     last_login_time: datetime | None
     suspension_reason: str | None

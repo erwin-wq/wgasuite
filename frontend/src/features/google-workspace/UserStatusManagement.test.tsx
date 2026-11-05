@@ -58,6 +58,7 @@ const activeUser: GoogleWorkspaceUser = {
   is_mailbox_setup: true,
   is_super_admin: false,
   is_delegated_admin: false,
+  is_guest_user: false,
   creation_time: null,
   last_login_time: null,
   suspension_reason: null,

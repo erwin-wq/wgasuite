@@ -209,6 +209,7 @@ export interface GoogleWorkspaceUser {
   is_mailbox_setup: boolean | null;
   is_super_admin: boolean | null;
   is_delegated_admin: boolean | null;
+  is_guest_user: boolean | null;
   creation_time: string | null;
   last_login_time: string | null;
   suspension_reason?: string | null;
@@ -360,6 +361,7 @@ export interface GoogleWorkspaceOrganizationalUnit {
   parent_id: string | null;
   parent_path: string | null;
   read_only: true;
+  user_move_protected: boolean;
 }
 
 export interface GoogleWorkspaceOrganizationalUnitTreeNode
