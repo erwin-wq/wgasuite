@@ -48,6 +48,7 @@ def lookup_response(**overrides: object) -> dict[str, object]:
         "isMailboxSetup": True,
         "isAdmin": True,
         "isDelegatedAdmin": False,
+        "isGuestUser": False,
         "creationTime": "2024-01-02T03:04:05Z",
         "lastLoginTime": "2026-09-10T11:12:13Z",
     }
@@ -79,6 +80,7 @@ def test_lookup_by_primary_email_uses_exact_read_only_directory_request(
     assert result.is_mailbox_setup is True
     assert result.is_super_admin is True
     assert result.is_delegated_admin is False
+    assert result.is_guest_user is False
     assert result.creation_time is not None
     assert result.last_login_time is not None
     assert factory.calls == [
@@ -135,6 +137,7 @@ def test_lookup_handles_no_aliases_and_optional_fields(db_session: Session) -> N
         isMailboxSetup=None,
         isAdmin=None,
         isDelegatedAdmin=None,
+        isGuestUser=None,
         creationTime=None,
         lastLoginTime=None,
         suspended=True,
@@ -155,6 +158,7 @@ def test_lookup_handles_no_aliases_and_optional_fields(db_session: Session) -> N
     assert result.is_mailbox_setup is None
     assert result.is_super_admin is None
     assert result.is_delegated_admin is None
+    assert result.is_guest_user is None
     assert result.creation_time is None
     assert result.last_login_time is None
 
@@ -278,6 +282,7 @@ def test_lookup_endpoint_returns_only_typed_safe_fields_and_safe_audit_metadata(
         "matched_by": "alias",
         "is_super_admin": True,
         "is_delegated_admin": False,
+            "is_guest_user": False,
         "creation_time": "2024-01-02T03:04:05Z",
         "last_login_time": "2026-09-10T11:12:13Z",
         "suspension_reason": None,

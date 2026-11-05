@@ -28,6 +28,8 @@ ORGUNIT_FIELDS = (
 ORGUNIT_LIST_FIELDS = f"organizationUnits({ORGUNIT_FIELDS})"
 MAX_ORGANIZATIONAL_UNITS = 10_000
 ORGUNIT_ID_PATTERN = re.compile(r"^[A-Za-z0-9:_-]+$")
+WORKSPACE_GUESTS_ORGUNIT_NAME = "Workspace Guests"
+WORKSPACE_GUESTS_ORGUNIT_PATH = "/Workspace Guests"
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,20 @@ class OrganizationalUnit:
     path: str
     parent_id: str | None
     parent_path: str | None
+
+    @property
+    def user_move_protected(self) -> bool:
+        return is_workspace_guests_organizational_unit(self)
+
+
+def is_workspace_guests_organizational_unit(unit: OrganizationalUnit) -> bool:
+    """Recognize Google's documented, root-level guest-only organizational unit exactly."""
+
+    return (
+        unit.name == WORKSPACE_GUESTS_ORGUNIT_NAME
+        and unit.path == WORKSPACE_GUESTS_ORGUNIT_PATH
+        and unit.parent_path == "/"
+    )
 
 
 @dataclass(frozen=True)

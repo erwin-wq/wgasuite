@@ -46,6 +46,7 @@ from app.services.google_workspace_mutation_safety import (
 from app.services.google_workspace_orgunits import (
     GoogleWorkspaceOrganizationalUnits,
     OrganizationalUnit,
+    is_workspace_guests_organizational_unit,
 )
 from app.services.google_workspace_user_lookup import (
     GoogleWorkspaceUserLookup,
@@ -55,7 +56,7 @@ from app.services.google_workspace_user_lookup import (
 logger = logging.getLogger(__name__)
 USER_ORGUNIT_FIELDS = (
     "id,primaryEmail,customerId,aliases,nonEditableAliases,suspended,archived,"
-    "orgUnitPath,isAdmin,isDelegatedAdmin,deletionTime"
+    "orgUnitPath,isAdmin,isDelegatedAdmin,isGuestUser,deletionTime"
 )
 
 
@@ -96,18 +97,28 @@ class UserOrgUnitMoveReconciliationResult:
 
 class UserOrgUnitTargetError(GoogleWorkspaceError):
     def __init__(
-        self, code: GoogleWorkspaceErrorCode, target_google_id: str, *, retryable: bool = False
+        self,
+        code: GoogleWorkspaceErrorCode,
+        target_google_id: str,
+        *,
+        retryable: bool = False,
+        google_reason: str | None = None,
     ) -> None:
         self.target_google_id = target_google_id
-        super().__init__(code, retryable=retryable)
+        super().__init__(code, retryable=retryable, google_reason=google_reason)
 
 
 class UserOrgUnitMutationAmbiguousError(UserOrgUnitTargetError):
     def __init__(
-        self, code: GoogleWorkspaceErrorCode, correlation_id: UUID, target_google_id: str
+        self,
+        code: GoogleWorkspaceErrorCode,
+        correlation_id: UUID,
+        target_google_id: str,
+        *,
+        google_reason: str | None = None,
     ) -> None:
         self.correlation_id = str(correlation_id)
-        super().__init__(code, target_google_id)
+        super().__init__(code, target_google_id, google_reason=google_reason)
 
 
 class UserOrgUnitReconciliationError(UserOrgUnitTargetError):
@@ -300,9 +311,17 @@ class GoogleWorkspaceUserOrgUnitService:
             )
             if status == "unknown":
                 raise UserOrgUnitMutationAmbiguousError(
-                    error.code, confirmation.id, target.id
+                    error.code,
+                    confirmation.id,
+                    target.id,
+                    google_reason=error.google_reason,
                 ) from None
-            raise UserOrgUnitTargetError(error.code, target.id, retryable=error.retryable) from None
+            raise UserOrgUnitTargetError(
+                error.code,
+                target.id,
+                retryable=error.retryable,
+                google_reason=error.google_reason,
+            ) from None
         if (
             updated.id != target.id
             or updated.customer_id != target.customer_id
@@ -358,6 +377,10 @@ class GoogleWorkspaceUserOrgUnitService:
         destination = self.orgunits.get_organizational_unit(
             actor=actor, organization_id=organization_id, org_unit_id=destination_id
         )
+        if is_workspace_guests_organizational_unit(destination):
+            raise UserOrgUnitTargetError(
+                GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_GUEST_PROTECTED, target.id
+            )
         return organization, connector, target, destination
 
     @staticmethod
@@ -388,6 +411,10 @@ class GoogleWorkspaceUserOrgUnitService:
             code = GoogleWorkspaceErrorCode.GOOGLE_USER_DELETED
         elif target.archived is True:
             code = GoogleWorkspaceErrorCode.GOOGLE_USER_ARCHIVED
+        elif target.is_guest_user is True:
+            code = GoogleWorkspaceErrorCode.GOOGLE_USER_GUEST_PROTECTED
+        elif target.is_guest_user is not False:
+            code = GoogleWorkspaceErrorCode.GOOGLE_USER_GUEST_STATUS_UNKNOWN
         if code is not None:
             raise UserOrgUnitTargetError(code, target.id)
 

@@ -425,6 +425,43 @@ def test_google_api_errors_are_mapped_without_upstream_content(
 
 
 @pytest.mark.parametrize(
+    ("reason", "expected_code", "expected_retryable"),
+    [
+        ("insufficientPermissions", "missing_scope_or_permission", False),
+        ("accessNotConfigured", "google_api_unavailable", False),
+        ("userRateLimitExceeded", "google_rate_limited", True),
+        ("quotaExceeded", "google_rate_limited", True),
+        ("forbidden", "google_forbidden", False),
+    ],
+)
+def test_documented_google_reasons_are_allowlisted_without_exposing_content(
+    reason: str, expected_code: str, expected_retryable: bool
+) -> None:
+    content = (
+        '{"error":{"errors":[{"reason":"'
+        + reason
+        + '","message":"private tenant detail"}]}}'
+    ).encode()
+
+    mapped = map_google_api_error(HttpError(Response({"status": "403"}), content))
+
+    assert mapped.code.value == expected_code
+    assert mapped.retryable is expected_retryable
+    assert mapped.google_reason == reason
+    assert "private" not in str(mapped)
+
+
+def test_unknown_or_sensitive_google_reason_is_not_preserved() -> None:
+    content = b'{"error":{"errors":[{"reason":"tenant-secret-value"}]}}'
+
+    mapped = map_google_api_error(HttpError(Response({"status": "403"}), content))
+
+    assert mapped.code.value == "google_forbidden"
+    assert mapped.google_reason is None
+    assert "tenant-secret-value" not in str(mapped)
+
+
+@pytest.mark.parametrize(
     ("error", "expected_code", "retryable"),
     [
         (TimeoutError("secret timeout detail"), "google_timeout", True),
