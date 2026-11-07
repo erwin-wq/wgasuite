@@ -5,6 +5,17 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-11-07 — DIR-003.2 live Organizational Unit move acceptance
+
+- Independently verified one guarded move of an authorized noncritical account from the root to
+  an ordinary test OU and a separately authorized restoration to the original root placement.
+- Confirmed one Google write per approved operation, zero automatic retries, single-use
+  confirmations, successful audit evidence, and read-only reconciliation of the user path and
+  destination direct-user count after each write.
+- Confirmed that the account state and credential files remained intact and that the temporary
+  test OU was left in place. Parity is now `verified/partial`; bulk selectors, CSV execution and
+  effective OU-policy comparison remain outside the implemented workflow.
+
 ## 2026-10-31 — DIR-003.2 guarded user Organizational Unit moves
 
 - Added a tenant-scoped single-user OU relocation flow using immutable Google user and OU IDs,
@@ -12,8 +23,8 @@ data model; WGASuite is the current product name.
   reconciliation for ambiguous results.
 - Extended the user detail interface with a responsive, keyboard-operable destination picker,
   explicit source/destination preview, policy-impact warning and post-success refresh.
-- Added additive confirmation persistence in migration `0016`; automated tests use fakes and no
-  real Workspace relocation was executed. Parity is `implemented/partial` pending live acceptance.
+- Added additive confirmation persistence in migration `0016`; automated tests use fakes. Live
+  move-and-restoration acceptance was subsequently completed on 2026-11-07.
 
 ## 2026-10-30 — DIR-003.1 read-only Organizational Units
 

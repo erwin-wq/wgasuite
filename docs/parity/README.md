@@ -64,9 +64,9 @@ The catalog contains 709 canonical capabilities:
 
 | WGASuite status | Count |
 |---|---:|
-| verified | 14 |
+| verified | 15 |
 | partial | 2 |
-| implemented | 1 |
+| implemented | 0 |
 | mocked | 0 |
 | missing | 692 |
 
