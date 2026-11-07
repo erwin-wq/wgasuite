@@ -131,7 +131,8 @@ delegated administrator, then calls `orgunits.list` with `type=allIncludingParen
 least-privilege `admin.directory.orgunit.readonly` scope. It normalizes unordered results into a
 stable expandable hierarchy, rejects duplicate, orphaned or cyclic structures, and exposes a
 separate identifier-only `orgunits.get` endpoint. OU data is never persisted or cached between
-customers. Create, rename, move, delete and user/device movement remain unavailable.
+customers. Guarded single-user movement between existing OUs is available; OU create, rename,
+move, delete and device movement remain unavailable.
 
 Reverse membership discovery calls `groups.list(userKey=<immutable user ID>)`. Because Google does
 not permit `userKey` and `customer` together, every candidate is separately matched by ID and

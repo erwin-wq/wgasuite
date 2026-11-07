@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "catalog_version": "2026.10.31.1",
+  "catalog_version": "2026.11.07.1",
   "retrieved_on": "2026-10-30",
   "baselines": {
     "psgsuite": {
@@ -37913,7 +37913,7 @@
         ]
       },
       "wgasuite": {
-        "status": "implemented",
+        "status": "verified",
         "parity": "partial",
         "backend_or_frontend_paths": [
           "backend/app/services/google_workspace_user_orgunit.py",
@@ -37922,7 +37922,7 @@
         "evidence_refs": [
           "wgasuite.dir0032.task"
         ],
-        "limitations": "WGASuite supports one guarded immutable-ID user move between verified existing OUs. Upstream selectors, bulk and CSV execution are not implemented. Live Google mutation acceptance remains pending."
+        "limitations": "Live tenant acceptance confirmed one guarded immutable-ID move from the root to an ordinary child OU and a separately authorized restoration, with independent user-path and direct-membership verification after each write. WGASuite cannot calculate OU-dependent policy impact; upstream selectors, bulk and CSV execution are not implemented."
       },
       "roadmap": {
         "epic": "DIR-003",
@@ -37931,7 +37931,7 @@
       },
       "verification": {
         "automated_tests": true,
-        "live_google": false,
+        "live_google": true,
         "evidence_refs": [
           "wgasuite.dir0032.task"
         ]
