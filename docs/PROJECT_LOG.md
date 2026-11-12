@@ -5,6 +5,17 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-11-12 — DIR-003.3 live Organizational Unit creation acceptance
+
+- Independently verified one guarded creation of an authorized empty child OU beneath the tenant
+  root, using the broad operation-scoped Directory OU grant only after separate operator approval.
+- Confirmed one Google `orgunits.insert`, zero automatic retries, an atomically consumed single-use
+  confirmation, successful sanitized audit evidence and an identifier-only read-back of the new OU.
+- Confirmed the new OU had no direct users, the three pre-existing OUs and existing users remained
+  in place, credentials were unchanged and the connector, application and database stayed healthy.
+  Effective inherited policy behavior was not independently evaluated. Parity is now
+  `verified/partial`; bulk and CSV creation remain unsupported.
+
 ## 2026-11-07 — DIR-003.2 live Organizational Unit move acceptance
 
 - Independently verified one guarded move of an authorized noncritical account from the root to

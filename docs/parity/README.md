@@ -113,10 +113,10 @@ foundation:
    already verified suspend/reactivate subset.
 3. `directory.users.aliases.add` — introduce safe alias lifecycle management;
    removal remains a separately guarded capability.
-4. `directory.orgunits.create` — add guarded OU creation only after shared
-   mutation previews and exact parent/customer protections are designed.
-5. `directory.orgunits.update` — add guarded rename and parent changes with
+4. `directory.orgunits.update` — add guarded rename and parent changes with
    stale-hierarchy protection and explicit policy-impact warnings.
+5. `directory.orgunits.delete` — design empty-OU-only deletion with protected
+   paths, explicit impact review and independently verified final state.
 
 These recommendations do not authorize implementation or live Workspace
 mutations as part of PAR-001.
