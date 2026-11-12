@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "catalog_version": "2026.11.07.1",
+  "catalog_version": "2026.11.12.1",
   "retrieved_on": "2026-10-30",
   "baselines": {
     "psgsuite": {
@@ -91,6 +91,10 @@
     "wgasuite.dir0032.task": {
       "title": "DIR-003.2 guarded single-user Organizational Unit move task",
       "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220083367651765"
+    },
+    "wgasuite.dir0033.task": {
+      "title": "DIR-003.3 guarded Organizational Unit creation task",
+      "url": "https://app.asana.com/1/1198172217694356/task/1220328715145980"
     },
     "google.gmail.reference": {
       "title": "Gmail API reference",
@@ -35141,7 +35145,7 @@
         ]
       },
       "wgasuite": {
-        "status": "implemented",
+        "status": "verified",
         "parity": "partial",
         "backend_or_frontend_paths": [
           "backend/app/services/google_workspace_orgunit_creation.py",
@@ -35149,9 +35153,10 @@
         ],
         "evidence_refs": [
           "wgasuite.source",
-          "wgasuite.tests"
+          "wgasuite.tests",
+          "wgasuite.dir0033.task"
         ],
-        "limitations": "WGASuite implements guarded single-child creation with immutable-parent validation, preview, single-use confirmation, audit logging and bounded read-only reconciliation. Bulk/CSV selectors and independent live Google acceptance are not implemented; the broad write scope must be granted manually."
+        "limitations": "Live tenant acceptance confirmed one guarded empty child creation beneath an immutable tenant-bound parent, with one write, zero automatic retries, single-use confirmation, safe audit evidence and independent Directory verification. WGASuite does not calculate effective inherited policies and does not implement bulk/CSV selectors."
       },
       "roadmap": {
         "epic": "DIR-003",
@@ -35160,9 +35165,10 @@
       },
       "verification": {
         "automated_tests": true,
-        "live_google": false,
+        "live_google": true,
         "evidence_refs": [
-          "wgasuite.tests"
+          "wgasuite.tests",
+          "wgasuite.dir0033.task"
         ]
       },
       "evidence_refs": [
@@ -35171,7 +35177,8 @@
         "upstream.gamadv.grammar",
         "google.directory.reference",
         "wgasuite.source",
-        "wgasuite.tests"
+        "wgasuite.tests",
+        "wgasuite.dir0033.task"
       ],
       "notes": "Stable administrative result; syntax aliases, print/show forms, and selector variants are linked in source_inventory."
     },
