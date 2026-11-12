@@ -16,7 +16,8 @@ The canonical source is [`capabilities.yaml`](capabilities.yaml). Run `python sc
 
 | Status | Count |
 |---|---:|
-| missing | 692 |
+| implemented | 1 |
+| missing | 691 |
 | partial | 2 |
 | verified | 15 |
 
@@ -24,8 +25,8 @@ The canonical source is [`capabilities.yaml`](capabilities.yaml). Run `python sc
 
 | Parity | Count |
 |---|---:|
-| missing | 692 |
-| partial | 17 |
+| missing | 691 |
+| partial | 18 |
 
 ### Access classification
 
@@ -497,7 +498,7 @@ The canonical source is [`capabilities.yaml`](capabilities.yaml). Run `python sc
 | `directory.notes.list` | directory | `list` | read | unknown | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.orgtree.list` | directory | `list` | read | unknown | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.orgunits.check` | directory | `check` | read | unknown | missing | missing | [DIR-003](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820346308737) |
-| `directory.orgunits.create` | directory | `create` | write | direct | missing | missing | [DIR-003](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820346308737) |
+| `directory.orgunits.create` | directory | `create` | write | direct | implemented | partial | [DIR-003](https://app.asana.com/1/1198172217694356/task/1220328715145980) |
 | `directory.orgunits.delete` | directory | `delete` | destructive | direct | missing | missing | [DIR-003](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820346308737) |
 | `directory.orgunits.get` | directory | `get` | read | direct | verified | partial | [DIR-003](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820346308737) |
 | `directory.orgunits.list` | directory | `list` | read | direct | verified | partial | [DIR-003](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820346308737) |

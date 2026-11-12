@@ -1585,6 +1585,7 @@ function App() {
                   organizationName={selectedOrganization?.name ?? null}
                   connectorConfig={googleWorkspaceConnectorConfig}
                   canRead={canOperateConnector}
+                  canCreate={canManageConnectorCredentials}
                 />
               }
             />

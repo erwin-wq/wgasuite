@@ -35141,27 +35141,37 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "implemented",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_orgunit_creation.py",
+          "frontend/src/features/google-workspace/OrganizationalUnitCreation.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.source",
+          "wgasuite.tests"
+        ],
+        "limitations": "WGASuite implements guarded single-child creation with immutable-parent validation, preview, single-use confirmation, audit logging and bounded read-only reconciliation. Bulk/CSV selectors and independent live Google acceptance are not implemented; the broad write scope must be granted manually."
       },
       "roadmap": {
         "epic": "DIR-003",
         "release": "v0.3 Directory & Identity",
-        "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820346308737"
+        "task_url": "https://app.asana.com/1/1198172217694356/task/1220328715145980"
       },
       "verification": {
-        "automated_tests": false,
+        "automated_tests": true,
         "live_google": false,
-        "evidence_refs": []
+        "evidence_refs": [
+          "wgasuite.tests"
+        ]
       },
       "evidence_refs": [
         "upstream.psgsuite.source",
         "upstream.gam7.grammar",
         "upstream.gamadv.grammar",
-        "google.directory.reference"
+        "google.directory.reference",
+        "wgasuite.source",
+        "wgasuite.tests"
       ],
       "notes": "Stable administrative result; syntax aliases, print/show forms, and selector variants are linked in source_inventory."
     },

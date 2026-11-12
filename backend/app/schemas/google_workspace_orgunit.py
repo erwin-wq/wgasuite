@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 ORGUNIT_ID_PATTERN = r"^[A-Za-z0-9:_-]+$"
@@ -32,3 +35,52 @@ class OrganizationalUnitTreeNodeRead(OrganizationalUnitRead):
 class OrganizationalUnitHierarchyRead(BaseModel):
     roots: list[OrganizationalUnitTreeNodeRead]
     total: int
+
+
+class OrganizationalUnitCreatePreviewRequest(BaseModel):
+    parent_org_unit_id: str = Field(min_length=1, max_length=256, pattern=ORGUNIT_ID_PATTERN)
+    name: str = Field(min_length=1, max_length=256)
+    description: str | None = Field(default=None, max_length=4096)
+
+    @field_validator("parent_org_unit_id", "name", mode="before")
+    @classmethod
+    def normalize_required(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def normalize_description(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip()
+        return normalized or None
+
+
+class OrganizationalUnitCreatePreviewRead(BaseModel):
+    parent_org_unit_id: str
+    parent_path: str
+    name: str
+    description: str | None
+    expected_path: str
+    confirmation_token: str
+    expires_at: datetime
+    effect: str
+
+
+class OrganizationalUnitCreateRequest(BaseModel):
+    confirmation_token: str = Field(min_length=32, max_length=512)
+
+
+class OrganizationalUnitCreateRead(BaseModel):
+    organizational_unit: OrganizationalUnitRead
+    outcome: Literal["created"]
+    message: str
+
+
+class OrganizationalUnitCreateReconciliationRead(BaseModel):
+    status: Literal["verified", "unknown"]
+    organizational_unit: OrganizationalUnitRead | None
+    expected_path: str
+    attempts: int
+    correlation_id: str
+    message: str

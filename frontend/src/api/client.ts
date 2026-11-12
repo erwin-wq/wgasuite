@@ -30,6 +30,9 @@ import type {
   GoogleWorkspaceUserOrgUnitMovePreview,
   GoogleWorkspaceUserOrgUnitMoveResult,
   GoogleWorkspaceUserOrgUnitMoveReconciliationResult,
+  GoogleWorkspaceOrganizationalUnitCreatePreview,
+  GoogleWorkspaceOrganizationalUnitCreateResult,
+  GoogleWorkspaceOrganizationalUnitCreateReconciliationResult,
   GoogleWorkspaceUserGroupMembershipResult,
   GoogleWorkspaceUserDirectoryRequest,
   GoogleWorkspaceUserDirectoryResult,
@@ -419,6 +422,57 @@ export function getGoogleWorkspaceOrganizationalUnit(
     {
       method: "POST",
       body: JSON.stringify({ org_unit_id: orgUnitId }),
+      signal
+    }
+  );
+}
+
+export function previewGoogleWorkspaceOrganizationalUnitCreation(
+  organizationId: string,
+  parentOrgUnitId: string,
+  name: string,
+  description: string | null,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceOrganizationalUnitCreatePreview> {
+  return request<GoogleWorkspaceOrganizationalUnitCreatePreview>(
+    `/api/v1/organizations/${organizationId}/google-workspace/orgunits/create/preview`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        parent_org_unit_id: parentOrgUnitId,
+        name,
+        description
+      }),
+      signal
+    }
+  );
+}
+
+export function executeGoogleWorkspaceOrganizationalUnitCreation(
+  organizationId: string,
+  confirmationToken: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceOrganizationalUnitCreateResult> {
+  return request<GoogleWorkspaceOrganizationalUnitCreateResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/orgunits/create`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
+      signal
+    }
+  );
+}
+
+export function reconcileGoogleWorkspaceOrganizationalUnitCreation(
+  organizationId: string,
+  confirmationToken: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceOrganizationalUnitCreateReconciliationResult> {
+  return request<GoogleWorkspaceOrganizationalUnitCreateReconciliationResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/orgunits/create/reconcile`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
       signal
     }
   );

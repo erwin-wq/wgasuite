@@ -374,6 +374,32 @@ export interface GoogleWorkspaceOrganizationalUnitHierarchy {
   total: number;
 }
 
+export interface GoogleWorkspaceOrganizationalUnitCreatePreview {
+  parent_org_unit_id: string;
+  parent_path: string;
+  name: string;
+  description: string | null;
+  expected_path: string;
+  confirmation_token: string;
+  expires_at: string;
+  effect: string;
+}
+
+export interface GoogleWorkspaceOrganizationalUnitCreateResult {
+  organizational_unit: GoogleWorkspaceOrganizationalUnit;
+  outcome: "created";
+  message: string;
+}
+
+export interface GoogleWorkspaceOrganizationalUnitCreateReconciliationResult {
+  status: "verified" | "unknown";
+  organizational_unit: GoogleWorkspaceOrganizationalUnit | null;
+  expected_path: string;
+  attempts: number;
+  correlation_id: string;
+  message: string;
+}
+
 export type GmailDelegateVerificationStatus =
   | "accepted"
   | "pending"

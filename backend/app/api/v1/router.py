@@ -83,6 +83,11 @@ from app.schemas.google_workspace_group import (
     GroupSearchRequest,
 )
 from app.schemas.google_workspace_orgunit import (
+    OrganizationalUnitCreatePreviewRead,
+    OrganizationalUnitCreatePreviewRequest,
+    OrganizationalUnitCreateRead,
+    OrganizationalUnitCreateReconciliationRead,
+    OrganizationalUnitCreateRequest,
     OrganizationalUnitHierarchyRead,
     OrganizationalUnitRead,
     OrganizationalUnitReferenceRequest,
@@ -154,6 +159,12 @@ from app.services.google_workspace_groups import (
     GroupMembershipReconciliationError,
 )
 from app.services.google_workspace_mutation_safety import mutation_audit_metadata
+from app.services.google_workspace_orgunit_creation import (
+    GoogleWorkspaceOrgUnitCreationReconciliationService,
+    GoogleWorkspaceOrgUnitCreationService,
+    OrgUnitCreateAmbiguousError,
+    OrgUnitCreateReconciliationError,
+)
 from app.services.google_workspace_orgunits import (
     GoogleWorkspaceOrganizationalUnits,
     OrganizationalUnit,
@@ -1571,6 +1582,22 @@ ORGANIZATIONAL_UNIT_HTTP_STATUS = {
     GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_LOOKUP_MISMATCH: status.HTTP_502_BAD_GATEWAY,
     GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_HIERARCHY_INVALID: status.HTTP_502_BAD_GATEWAY,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_NAME_INVALID: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_DESCRIPTION_INVALID: (
+        status.HTTP_422_UNPROCESSABLE_CONTENT
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_ALREADY_EXISTS: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_PARENT_PROTECTED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_STATE_CHANGED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_CONFIRMATION_INVALID: (
+        status.HTTP_400_BAD_REQUEST
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_CONFIRMATION_EXPIRED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_CONFIRMATION_USED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_RECONCILIATION_NOT_AVAILABLE: (
+        status.HTTP_409_CONFLICT
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_RECONCILIATION_EXPIRED: status.HTTP_409_CONFLICT,
 }
 
 
@@ -1737,6 +1764,228 @@ def get_google_workspace_organizational_unit(
         metadata={"read_only": True},
     )
     return organizational_unit_read(result)
+
+
+def require_orgunit_admin(
+    *, db: Session, current_user: User, organization: Organization, action: str
+) -> None:
+    try:
+        require_customer_admin_access(current_user, organization.customer_id)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_organizational_unit",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected",
+            reason="organization_access_denied",
+        )
+        raise
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/orgunits/create/preview",
+    response_model=OrganizationalUnitCreatePreviewRead,
+    tags=["google-workspace"],
+)
+def preview_google_workspace_organizational_unit_creation(
+    organization_id: UUID,
+    payload: OrganizationalUnitCreatePreviewRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> OrganizationalUnitCreatePreviewRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.orgunit.create_previewed"
+    require_orgunit_admin(
+        db=db, current_user=current_user, organization=organization, action=action
+    )
+    try:
+        result = GoogleWorkspaceOrgUnitCreationService.from_settings(db).preview_creation(
+            actor=current_user,
+            organization_id=organization.id,
+            parent_org_unit_id=payload.parent_org_unit_id,
+            name=payload.name,
+            description=payload.description,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_organizational_unit",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected"
+            if error.code
+            in {
+                GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_NAME_INVALID,
+                GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_DESCRIPTION_INVALID,
+                GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_ALREADY_EXISTS,
+                GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_PARENT_PROTECTED,
+            }
+            else "failure",
+            reason=error.code.value,
+            metadata=mutation_audit_metadata(
+                {"google_reason": error.google_reason} if error.google_reason else None
+            ),
+        )
+        raise organizational_unit_http_error(error) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_organizational_unit",
+        object_id=result.parent_org_unit_id,
+        customer_id=organization.customer_id,
+        metadata=mutation_audit_metadata(
+            {"parent_path": result.parent_path, "expected_path": result.expected_path}
+        ),
+    )
+    return OrganizationalUnitCreatePreviewRead(**result.__dict__)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/orgunits/create",
+    response_model=OrganizationalUnitCreateRead,
+    tags=["google-workspace"],
+)
+def create_google_workspace_organizational_unit(
+    organization_id: UUID,
+    payload: OrganizationalUnitCreateRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> OrganizationalUnitCreateRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.orgunit.created"
+    require_orgunit_admin(
+        db=db, current_user=current_user, organization=organization, action=action
+    )
+    try:
+        result = GoogleWorkspaceOrgUnitCreationService.from_settings(db).execute_creation(
+            actor=current_user,
+            organization_id=organization.id,
+            confirmation_token=payload.confirmation_token,
+        )
+    except GoogleWorkspaceError as error:
+        metadata: dict[str, object] | None = (
+            {"google_reason": error.google_reason} if error.google_reason else None
+        )
+        detail: dict[str, object] | None = None
+        if isinstance(error, OrgUnitCreateAmbiguousError):
+            metadata = {
+                **(metadata or {}),
+                "correlation_id": error.correlation_id,
+                "reconciliation_available": True,
+            }
+            detail = {"correlation_id": error.correlation_id, "reconciliation_available": True}
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_organizational_unit",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome=("unknown" if isinstance(error, OrgUnitCreateAmbiguousError) else "failure"),
+            reason=error.code.value,
+            metadata=mutation_audit_metadata(metadata),
+        )
+        http_error = organizational_unit_http_error(error)
+        if detail:
+            http_error.detail.update(detail)
+        raise http_error from None
+    unit = organizational_unit_read(result.organizational_unit)
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_organizational_unit",
+        object_id=result.organizational_unit.id,
+        customer_id=organization.customer_id,
+        metadata=mutation_audit_metadata(
+            {
+                "path": result.organizational_unit.path,
+                "parent_path": result.organizational_unit.parent_path,
+            }
+        ),
+    )
+    return OrganizationalUnitCreateRead(
+        organizational_unit=unit, outcome=result.outcome, message=result.message
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/orgunits/create/reconcile",
+    response_model=OrganizationalUnitCreateReconciliationRead,
+    tags=["google-workspace"],
+)
+def reconcile_google_workspace_organizational_unit_creation(
+    organization_id: UUID,
+    payload: OrganizationalUnitCreateRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> OrganizationalUnitCreateReconciliationRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.orgunit.create_reconciled"
+    require_orgunit_admin(
+        db=db, current_user=current_user, organization=organization, action=action
+    )
+    try:
+        result = GoogleWorkspaceOrgUnitCreationReconciliationService.from_settings(
+            db
+        ).reconcile_creation(
+            actor=current_user,
+            organization_id=organization.id,
+            confirmation_token=payload.confirmation_token,
+        )
+    except GoogleWorkspaceError as error:
+        metadata: dict[str, object] = {"final_state": "unknown"}
+        if isinstance(error, OrgUnitCreateReconciliationError):
+            metadata.update(
+                {"correlation_id": error.correlation_id, "reconciliation_attempts": error.attempts}
+            )
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_organizational_unit",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+            metadata=mutation_audit_metadata(metadata),
+        )
+        raise organizational_unit_http_error(error) from None
+    unit = (
+        organizational_unit_read(result.organizational_unit) if result.organizational_unit else None
+    )
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_organizational_unit",
+        object_id=result.organizational_unit.id if result.organizational_unit else organization.id,
+        customer_id=organization.customer_id,
+        outcome="success" if result.status == "verified" else "unknown",
+        reason=None if result.status == "verified" else "state_not_observed",
+        metadata=mutation_audit_metadata(
+            {
+                "correlation_id": result.correlation_id,
+                "reconciliation_attempts": result.attempts,
+                "final_state": result.status,
+                "expected_path": result.expected_path,
+            }
+        ),
+    )
+    return OrganizationalUnitCreateReconciliationRead(
+        status=result.status,
+        organizational_unit=unit,
+        expected_path=result.expected_path,
+        attempts=result.attempts,
+        correlation_id=result.correlation_id,
+        message=result.message,
+    )
 
 
 @api_router.post(

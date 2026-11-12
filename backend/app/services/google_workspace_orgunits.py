@@ -56,6 +56,16 @@ def is_workspace_guests_organizational_unit(unit: OrganizationalUnit) -> bool:
     )
 
 
+def is_workspace_guests_organizational_unit_or_descendant(
+    unit: OrganizationalUnit,
+) -> bool:
+    """Protect the exact root-level system OU and only its path descendants."""
+
+    return is_workspace_guests_organizational_unit(unit) or (
+        isinstance(unit.path, str) and unit.path.startswith(f"{WORKSPACE_GUESTS_ORGUNIT_PATH}/")
+    )
+
+
 @dataclass(frozen=True)
 class OrganizationalUnitTreeNode(OrganizationalUnit):
     children: tuple[OrganizationalUnitTreeNode, ...]
@@ -90,15 +100,19 @@ class GoogleWorkspaceOrganizationalUnits:
         *,
         actor: User,
         organization_id: UUID,
+        request_timeout_seconds: float | None = None,
     ) -> OrganizationalUnitHierarchy:
         customer_id = self._verified_customer_id(actor, organization_id)
         client: Any | None = None
         try:
-            client = self.client_factory.for_directory_orgunits(
-                actor=actor,
-                organization_id=organization_id,
-                scopes=(DIRECTORY_ORGUNIT_READONLY_SCOPE,),
-            )
+            arguments: dict[str, Any] = {
+                "actor": actor,
+                "organization_id": organization_id,
+                "scopes": (DIRECTORY_ORGUNIT_READONLY_SCOPE,),
+            }
+            if request_timeout_seconds is not None:
+                arguments["request_timeout_seconds"] = request_timeout_seconds
+            client = self.client_factory.for_directory_orgunits(**arguments)
             response = (
                 client.orgunits()
                 .list(
