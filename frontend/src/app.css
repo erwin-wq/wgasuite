@@ -3649,6 +3649,98 @@ h4 {
   margin-top: var(--space-4);
 }
 
+.ou-create-success,
+.ou-create-warning {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+}
+
+.ou-create-success {
+  color: var(--color-primary-strong);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+}
+
+.ou-create-success svg,
+.ou-create-warning svg {
+  flex: 0 0 auto;
+  height: 1.1rem;
+  margin-top: 0.1rem;
+  width: 1.1rem;
+}
+
+.ou-create-dialog {
+  max-height: min(90vh, 46rem);
+  overflow: auto;
+}
+
+.ou-create-form,
+.ou-create-confirmation {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.ou-create-form label {
+  display: grid;
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  gap: var(--space-2);
+}
+
+.ou-create-form label span {
+  color: var(--color-ink-soft);
+  font-weight: 600;
+}
+
+.ou-create-form textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.ou-create-path {
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.ou-create-path span {
+  color: var(--color-ink-soft);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ou-create-path strong {
+  overflow-wrap: anywhere;
+}
+
+.ou-create-warning {
+  background: var(--color-amber-soft);
+  border-radius: var(--radius-sm);
+  color: #7c4a03;
+  font-size: var(--font-size-sm);
+  padding: var(--space-3);
+}
+
+@media (max-width: 520px) {
+  .ou-create-dialog {
+    padding: var(--space-5);
+  }
+
+  .ou-create-dialog .confirmation-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .ou-create-dialog .confirmation-actions button {
+    width: 100%;
+  }
+}
+
 .ou-state.warning {
   background: var(--color-amber-soft);
   border-color: #fcd34d;

@@ -16,6 +16,7 @@ import type {
   GoogleWorkspaceOrganizationalUnitTreeNode
 } from "../../types";
 import { DIRECTORY_ORGUNIT_READONLY_SCOPE } from "./scopes";
+import { OrganizationalUnitCreation } from "./OrganizationalUnitCreation";
 
 export { DIRECTORY_ORGUNIT_READONLY_SCOPE } from "./scopes";
 
@@ -24,11 +25,21 @@ interface OrganizationalUnitsProps {
   organizationName: string | null;
   connectorConfig: ConnectorConfig | null;
   canRead: boolean;
+  canCreate: boolean;
 }
 
 interface VisibleUnit {
   unit: GoogleWorkspaceOrganizationalUnitTreeNode;
   depth: number;
+}
+
+const WORKSPACE_GUESTS_PATH = "/Workspace Guests";
+
+function isCreationProtected(unit: GoogleWorkspaceOrganizationalUnitTreeNode): boolean {
+  return (
+    unit.path === WORKSPACE_GUESTS_PATH ||
+    unit.path.startsWith(`${WORKSPACE_GUESTS_PATH}/`)
+  );
 }
 
 function organizationalUnitErrorMessage(error: unknown): string {
@@ -98,7 +109,8 @@ export function OrganizationalUnits({
   organizationId,
   organizationName,
   connectorConfig,
-  canRead
+  canRead,
+  canCreate
 }: OrganizationalUnitsProps) {
   const [roots, setRoots] = useState<GoogleWorkspaceOrganizationalUnitTreeNode[]>([]);
   const [total, setTotal] = useState(0);
@@ -130,7 +142,9 @@ export function OrganizationalUnits({
       setTotal(result.total);
       const rootIds = new Set(result.roots.map((root) => root.id));
       setExpanded(rootIds);
-      setSelectedId(result.roots[0]?.id ?? null);
+      setSelectedId((current) =>
+        findUnit(result.roots, current) ? current : (result.roots[0]?.id ?? null)
+      );
     } catch (loadError) {
       if (controller.signal.aborted || requestSequence.current !== sequence) return;
       setRoots([]);
@@ -249,7 +263,7 @@ export function OrganizationalUnits({
             Try again
           </button>
         </div>
-      ) : isLoading ? (
+      ) : isLoading && roots.length === 0 ? (
         <div className="ou-state" role="status">
           <Loader2 className="spin" aria-hidden="true" /> Loading Organizational Units…
         </div>
@@ -319,8 +333,21 @@ export function OrganizationalUnits({
               <>
                 <div className="ou-panel-heading">
                   <div><span className="eyebrow">Selected unit</span><h3>{selectedUnit.name}</h3></div>
-                  <span className="readonly-badge"><ShieldCheck aria-hidden="true" /> Read only</span>
+                  <span className="readonly-badge"><ShieldCheck aria-hidden="true" /> Verified tenant</span>
                 </div>
+                {canCreate && !isCreationProtected(selectedUnit) && (
+                  <OrganizationalUnitCreation
+                    organizationId={organizationId}
+                    parent={selectedUnit}
+                    onCreated={loadHierarchy}
+                  />
+                )}
+                {canCreate && isCreationProtected(selectedUnit) && (
+                  <p className="ou-create-warning" role="status">
+                    <AlertCircle aria-hidden="true" /> Workspace Guests and its descendants are
+                    protected system Organizational Units. Create a child under an ordinary OU.
+                  </p>
+                )}
                 <dl className="ou-details">
                   <div><dt>Full path</dt><dd>{selectedUnit.path}</dd></div>
                   <div><dt>Parent path</dt><dd>{selectedUnit.parent_path ?? "Top level"}</dd></div>
@@ -330,7 +357,7 @@ export function OrganizationalUnits({
                   <div><dt>Access</dt><dd>Read only</dd></div>
                 </dl>
                 <p className="ou-readonly-note">
-                  Create, rename, move, delete, and user/device movement are unavailable in DIR-003.1.
+                  Rename, move, delete, and device movement are not available. Child creation requires customer administrator access and a separately authorized Google write scope.
                 </p>
               </>
             ) : (

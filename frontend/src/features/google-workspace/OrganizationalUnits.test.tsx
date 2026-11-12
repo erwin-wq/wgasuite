@@ -90,6 +90,7 @@ function renderOrganizationalUnits(overrides = {}) {
     organizationName: "Northstar Workspace",
     connectorConfig: connectedConfig,
     canRead: true,
+    canCreate: false,
     ...overrides
   };
   return { ...render(<OrganizationalUnits {...props} />), props };
@@ -119,7 +120,7 @@ describe("OrganizationalUnits", () => {
     expect(screen.getByRole("treeitem", { name: "Platform (/Engineering/Platform)" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Engineering" })).toBeVisible();
     expect(screen.getByText("Product builders")).toBeVisible();
-    expect(screen.getByText(/Create, rename, move, delete/)).toBeVisible();
+    expect(screen.getByText(/Rename, move, delete/)).toBeVisible();
     expect(listGoogleWorkspaceOrganizationalUnits).toHaveBeenCalledWith(
       "organization-1",
       expect.any(AbortSignal)
@@ -135,6 +136,21 @@ describe("OrganizationalUnits", () => {
 
     await waitFor(() =>
       expect(screen.getByRole("treeitem", { name: "Engineering (/Engineering)" })).toHaveFocus()
+    );
+    expect(screen.getByRole("heading", { name: "Engineering" })).toBeVisible();
+  });
+
+  it("preserves the selected parent when a refreshed hierarchy still contains it", async () => {
+    const user = userEvent.setup();
+    renderOrganizationalUnits();
+    await user.click(
+      await screen.findByRole("treeitem", { name: "Engineering (/Engineering)" })
+    );
+
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+    await waitFor(() =>
+      expect(listGoogleWorkspaceOrganizationalUnits).toHaveBeenCalledTimes(2)
     );
     expect(screen.getByRole("heading", { name: "Engineering" })).toBeVisible();
   });
@@ -194,5 +210,64 @@ describe("OrganizationalUnits", () => {
 
     expect(screen.getByText("Connector-operation access is required.")).toBeVisible();
     expect(listGoogleWorkspaceOrganizationalUnits).not.toHaveBeenCalled();
+  });
+
+  it("disables creation for Workspace Guests and descendants without false positives", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listGoogleWorkspaceOrganizationalUnits).mockResolvedValue({
+      total: 4,
+      roots: [
+        {
+          ...hierarchy.roots[0],
+          children: [
+            {
+              ...hierarchy.roots[0].children[0],
+              id: "id:guests",
+              name: "Workspace Guests",
+              path: "/Workspace Guests",
+              user_move_protected: true,
+              children: [
+                {
+                  ...hierarchy.roots[0].children[0],
+                  id: "id:guest-child",
+                  name: "Contractors",
+                  path: "/Workspace Guests/Contractors",
+                  parent_id: "id:guests",
+                  parent_path: "/Workspace Guests",
+                  user_move_protected: false,
+                  children: []
+                }
+              ]
+            },
+            {
+              ...hierarchy.roots[0].children[0],
+              id: "id:training",
+              name: "Workspace Guests Training",
+              path: "/Workspace Guests Training",
+              user_move_protected: false,
+              children: []
+            }
+          ]
+        }
+      ]
+    });
+    renderOrganizationalUnits({ canCreate: true });
+
+    await user.click(await screen.findByRole("treeitem", { name: "Workspace Guests (/Workspace Guests)" }));
+    expect(screen.queryByRole("button", { name: "Create child OU" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Workspace Guests and its descendants are protected/)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Expand Workspace Guests" }));
+    await user.click(screen.getByRole("treeitem", { name: "Contractors (/Workspace Guests/Contractors)" }));
+    expect(screen.queryByRole("button", { name: "Create child OU" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("treeitem", { name: "Workspace Guests Training (/Workspace Guests Training)" }));
+    expect(screen.getByRole("button", { name: "Create child OU" })).toBeVisible();
+  });
+
+  it("hides creation from non-administrators", async () => {
+    renderOrganizationalUnits({ canCreate: false });
+    expect(await screen.findByRole("tree")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Create child OU" })).not.toBeInTheDocument();
   });
 });

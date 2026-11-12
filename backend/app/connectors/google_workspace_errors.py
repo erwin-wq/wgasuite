@@ -95,6 +95,18 @@ class GoogleWorkspaceErrorCode(StrEnum):
         "google_orgunit_reconciliation_not_available"
     )
     GOOGLE_ORGUNIT_RECONCILIATION_EXPIRED = "google_orgunit_reconciliation_expired"
+    GOOGLE_ORGUNIT_NAME_INVALID = "google_orgunit_name_invalid"
+    GOOGLE_ORGUNIT_DESCRIPTION_INVALID = "google_orgunit_description_invalid"
+    GOOGLE_ORGUNIT_ALREADY_EXISTS = "google_orgunit_already_exists"
+    GOOGLE_ORGUNIT_PARENT_PROTECTED = "google_orgunit_parent_protected"
+    GOOGLE_ORGUNIT_CREATE_STATE_CHANGED = "google_orgunit_create_state_changed"
+    GOOGLE_ORGUNIT_CREATE_CONFIRMATION_INVALID = "google_orgunit_create_confirmation_invalid"
+    GOOGLE_ORGUNIT_CREATE_CONFIRMATION_EXPIRED = "google_orgunit_create_confirmation_expired"
+    GOOGLE_ORGUNIT_CREATE_CONFIRMATION_USED = "google_orgunit_create_confirmation_used"
+    GOOGLE_ORGUNIT_CREATE_RECONCILIATION_NOT_AVAILABLE = (
+        "google_orgunit_create_reconciliation_not_available"
+    )
+    GOOGLE_ORGUNIT_CREATE_RECONCILIATION_EXPIRED = "google_orgunit_create_reconciliation_expired"
     GROUP_MEMBER_ALREADY_EXISTS = "group_member_already_exists"
     GROUP_MEMBER_NOT_FOUND = "group_member_not_found"
     GROUP_MEMBER_UNSUPPORTED = "group_member_unsupported"
@@ -308,6 +320,37 @@ SAFE_ERROR_MESSAGES = {
     ),
     GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_RECONCILIATION_EXPIRED: (
         "The read-only reconciliation window expired. Refresh the user."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_NAME_INVALID: (
+        "Enter a valid organizational-unit name without slashes or control characters."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_DESCRIPTION_INVALID: (
+        "The organizational-unit description is invalid or too long."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_ALREADY_EXISTS: (
+        "An organizational unit with that name already exists under the selected parent."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_PARENT_PROTECTED: (
+        "New organizational units cannot be created below this protected system unit."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_STATE_CHANGED: (
+        "The parent organizational unit or requested path changed after preview. "
+        "Refresh and review again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_CONFIRMATION_INVALID: (
+        "The organizational-unit creation confirmation is invalid. Preview the operation again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_CONFIRMATION_EXPIRED: (
+        "The organizational-unit creation confirmation expired. Preview the operation again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_CONFIRMATION_USED: (
+        "This organizational-unit creation was already submitted. Refresh the hierarchy."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_RECONCILIATION_NOT_AVAILABLE: (
+        "This organizational-unit creation is not eligible for read-only reconciliation."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_RECONCILIATION_EXPIRED: (
+        "The read-only reconciliation window expired. Refresh the hierarchy."
     ),
     GoogleWorkspaceErrorCode.GROUP_MEMBER_ALREADY_EXISTS: (
         "That user is already a direct member of this group."

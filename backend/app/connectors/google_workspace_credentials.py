@@ -49,8 +49,10 @@ DIRECTORY_USER_ALLOWED_SCOPE_SETS = {
 DIRECTORY_ORGUNIT_READONLY_SCOPE = (
     "https://www.googleapis.com/auth/admin.directory.orgunit.readonly"
 )
+DIRECTORY_ORGUNIT_WRITE_SCOPE = "https://www.googleapis.com/auth/admin.directory.orgunit"
 DIRECTORY_ORGUNIT_ALLOWED_SCOPE_SETS = {
     (DIRECTORY_ORGUNIT_READONLY_SCOPE,),
+    (DIRECTORY_ORGUNIT_WRITE_SCOPE,),
 }
 
 
@@ -237,7 +239,7 @@ class DelegatedCredentialFactory:
         connector_config: ConnectorConfig,
         scopes: Sequence[str],
     ) -> tuple[Credentials, tuple[str, ...]]:
-        """Create only a read-only, operation-scoped Directory OU client."""
+        """Create an operation-scoped Directory OU client for one allowlisted scope."""
 
         normalized_scopes = normalize_scopes(scopes)
         if normalized_scopes not in DIRECTORY_ORGUNIT_ALLOWED_SCOPE_SETS:
