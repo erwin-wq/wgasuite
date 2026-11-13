@@ -5,6 +5,18 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-11-13 — DIR-003.4 guarded Organizational Unit description editing
+
+- Added a tenant-scoped, description-only OU patch workflow using immutable target identity,
+  current-description stale-state detection, protected root/Workspace Guests paths and the broad
+  operation-scoped OU grant.
+- Reused the shared mutation-safety kernel for five-minute digest-only confirmations, atomic
+  single-use consumption, one `orgunits.patch` with only `description` and zero retries, plus
+  bounded read-only reconciliation for ambiguous outcomes.
+- Added a responsive, keyboard-operable details dialog, migration `0018`, sanitized audit events
+  and backend/frontend regression coverage. Automated tests use fakes; live update and separate
+  restoration acceptance remain required before this partial capability may be marked verified.
+
 ## 2026-11-12 — DIR-003.3 live Organizational Unit creation acceptance
 
 - Independently verified one guarded creation of an authorized empty child OU beneath the tenant

@@ -131,6 +131,14 @@ boom en weigert duplicate IDs/paden, ontbrekende of conflicterende parents, inco
 cycles. Detailopvraging accepteert alleen een begrensde immutable OU-ID. Er is geen OU-cache,
 database-opslag of write-scope in dit pad.
 
+OU-create en description-update zijn afzonderlijke mutatiepaden met alleen de brede
+`admin.directory.orgunit` scope. Beide hergebruiken de ARCH-002-kernel voor digest-only,
+vijf-minuten-confirmations, atomische consumptie, exact één write met `num_retries=0` en begrensde
+read-only reconciliation. Description-update bindt de confirmation aan immutable OU-ID, naam,
+pad, parent en huidige beschrijving en stuurt uitsluitend het `description` veld naar
+`orgunits.patch`. Root en de Workspace Guests-subtree zijn server-side beschermd. Beschrijvingen
+en confirmation tokens komen niet in auditmetadata; reconciliation kan geen write-client bereiken.
+
 De centrale user-detail gebruikt dezelfde canonical `users.get` identity voor reverse
 group-membership context. `groups.list(userKey=<immutable user-id>)` kan volgens Google niet met
 `customer` worden gecombineerd en levert daarom alleen kandidaten. Per kandidaat bewijst een

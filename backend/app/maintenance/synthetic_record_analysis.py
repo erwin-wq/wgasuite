@@ -26,6 +26,8 @@ from app.models import (
     Finding,
     GoogleWorkspaceDelegateConfirmation,
     GoogleWorkspaceGroupMembershipConfirmation,
+    GoogleWorkspaceOrgUnitCreationConfirmation,
+    GoogleWorkspaceOrgUnitDescriptionConfirmation,
     GoogleWorkspaceUserOrgUnitConfirmation,
     GoogleWorkspaceUserStatusConfirmation,
     Organization,
@@ -142,6 +144,12 @@ class CandidateSet:
     user_orgunit_confirmations: list[GoogleWorkspaceUserOrgUnitConfirmation] = field(
         default_factory=list
     )
+    orgunit_creation_confirmations: list[GoogleWorkspaceOrgUnitCreationConfirmation] = field(
+        default_factory=list
+    )
+    orgunit_description_confirmations: list[
+        GoogleWorkspaceOrgUnitDescriptionConfirmation
+    ] = field(default_factory=list)
 
     @property
     def credential_bearing_connector_count(self) -> int:
@@ -165,6 +173,8 @@ class CandidateSet:
             "group_membership_confirmations": len(self.group_membership_confirmations),
             "user_status_confirmations": len(self.user_status_confirmations),
             "user_orgunit_confirmations": len(self.user_orgunit_confirmations),
+            "orgunit_creation_confirmations": len(self.orgunit_creation_confirmations),
+            "orgunit_description_confirmations": len(self.orgunit_description_confirmations),
         }
 
     def private_manifest_entry(self) -> dict[str, Any]:
@@ -183,6 +193,8 @@ class CandidateSet:
             "group_membership_confirmations": self.group_membership_confirmations,
             "user_status_confirmations": self.user_status_confirmations,
             "user_orgunit_confirmations": self.user_orgunit_confirmations,
+            "orgunit_creation_confirmations": self.orgunit_creation_confirmations,
+            "orgunit_description_confirmations": self.orgunit_description_confirmations,
         }
         return {
             "run_token": self.token,
@@ -205,6 +217,12 @@ class CandidateSet:
                 ),
                 "user_status_confirmations": _ids(self.user_status_confirmations),
                 "user_orgunit_confirmations": _ids(self.user_orgunit_confirmations),
+                "orgunit_creation_confirmations": _ids(
+                    self.orgunit_creation_confirmations
+                ),
+                "orgunit_description_confirmations": _ids(
+                    self.orgunit_description_confirmations
+                ),
             },
             "records_expected_to_be_preserved": {
                 "audit_events_detached_from_customer": _ids(self.audit_events),
@@ -458,6 +476,37 @@ def _load_candidate_set(
             )
         ).all()
     )
+    orgunit_creation_confirmations = list(
+        session.scalars(
+            select(GoogleWorkspaceOrgUnitCreationConfirmation).where(
+                or_(
+                    GoogleWorkspaceOrgUnitCreationConfirmation.organization_id == organization.id,
+                    GoogleWorkspaceOrgUnitCreationConfirmation.customer_id == customer.id,
+                    GoogleWorkspaceOrgUnitCreationConfirmation.connector_config_id.in_(
+                        [config.id for config in connector_configs]
+                    )
+                    if connector_configs
+                    else False,
+                )
+            )
+        ).all()
+    )
+    orgunit_description_confirmations = list(
+        session.scalars(
+            select(GoogleWorkspaceOrgUnitDescriptionConfirmation).where(
+                or_(
+                    GoogleWorkspaceOrgUnitDescriptionConfirmation.organization_id
+                    == organization.id,
+                    GoogleWorkspaceOrgUnitDescriptionConfirmation.customer_id == customer.id,
+                    GoogleWorkspaceOrgUnitDescriptionConfirmation.connector_config_id.in_(
+                        [config.id for config in connector_configs]
+                    )
+                    if connector_configs
+                    else False,
+                )
+            )
+        ).all()
+    )
     return CandidateSet(
         token=token,
         customer=customer,
@@ -475,6 +524,8 @@ def _load_candidate_set(
         group_membership_confirmations=group_membership_confirmations,
         user_status_confirmations=user_status_confirmations,
         user_orgunit_confirmations=user_orgunit_confirmations,
+        orgunit_creation_confirmations=orgunit_creation_confirmations,
+        orgunit_description_confirmations=orgunit_description_confirmations,
     )
 
 
@@ -570,6 +621,8 @@ def analyze_synthetic_records(session: Session) -> SyntheticDataAnalysis:
             or candidate.group_membership_confirmations
             or candidate.user_status_confirmations
             or candidate.user_orgunit_confirmations
+            or candidate.orgunit_creation_confirmations
+            or candidate.orgunit_description_confirmations
         ):
             blockers.append("unexpected_google_mutation_confirmations")
 
@@ -645,6 +698,16 @@ def manifest_uuid_sets(analysis: SyntheticDataAnalysis) -> dict[str, list[UUID]]
             item.id
             for candidate in analysis.candidates
             for item in candidate.user_orgunit_confirmations
+        ],
+        "orgunit_creation_confirmations": [
+            item.id
+            for candidate in analysis.candidates
+            for item in candidate.orgunit_creation_confirmations
+        ],
+        "orgunit_description_confirmations": [
+            item.id
+            for candidate in analysis.candidates
+            for item in candidate.orgunit_description_confirmations
         ],
         "audit_events": [
             item.id for candidate in analysis.candidates for item in candidate.audit_events

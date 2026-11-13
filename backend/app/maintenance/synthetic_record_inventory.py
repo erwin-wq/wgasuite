@@ -53,6 +53,12 @@ def build_inventory(session: Session) -> dict[str, Any]:
         ),
         "user_status_confirmations": counts.get("user_status_confirmations", 0),
         "user_orgunit_confirmations": counts.get("user_orgunit_confirmations", 0),
+        "orgunit_creation_confirmations": counts.get(
+            "orgunit_creation_confirmations", 0
+        ),
+        "orgunit_description_confirmations": counts.get(
+            "orgunit_description_confirmations", 0
+        ),
         "cross_tenant_findings": counts.get("cross_tenant_findings", 0),
     }
 

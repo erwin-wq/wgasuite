@@ -400,6 +400,32 @@ export interface GoogleWorkspaceOrganizationalUnitCreateReconciliationResult {
   message: string;
 }
 
+export interface GoogleWorkspaceOrganizationalUnitDescriptionPreview {
+  org_unit_id: string;
+  name: string;
+  path: string;
+  original_description: string | null;
+  proposed_description: string | null;
+  confirmation_token: string;
+  expires_at: string;
+  effect: string;
+}
+
+export interface GoogleWorkspaceOrganizationalUnitDescriptionResult {
+  organizational_unit: GoogleWorkspaceOrganizationalUnit;
+  previous_description: string | null;
+  outcome: "updated";
+  message: string;
+}
+
+export interface GoogleWorkspaceOrganizationalUnitDescriptionReconciliationResult {
+  status: "verified" | "unknown";
+  organizational_unit: GoogleWorkspaceOrganizationalUnit | null;
+  attempts: number;
+  correlation_id: string;
+  message: string;
+}
+
 export type GmailDelegateVerificationStatus =
   | "accepted"
   | "pending"

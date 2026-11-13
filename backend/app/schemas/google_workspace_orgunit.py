@@ -84,3 +84,43 @@ class OrganizationalUnitCreateReconciliationRead(BaseModel):
     attempts: int
     correlation_id: str
     message: str
+
+
+class OrganizationalUnitDescriptionPreviewRequest(BaseModel):
+    org_unit_id: str = Field(min_length=1, max_length=256, pattern=ORGUNIT_ID_PATTERN)
+    description: str = Field(max_length=4096)
+
+    @field_validator("org_unit_id", mode="before")
+    @classmethod
+    def normalize_org_unit_id(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
+class OrganizationalUnitDescriptionPreviewRead(BaseModel):
+    org_unit_id: str
+    name: str
+    path: str
+    original_description: str | None
+    proposed_description: str | None
+    confirmation_token: str
+    expires_at: datetime
+    effect: str
+
+
+class OrganizationalUnitDescriptionUpdateRequest(BaseModel):
+    confirmation_token: str = Field(min_length=32, max_length=512)
+
+
+class OrganizationalUnitDescriptionUpdateRead(BaseModel):
+    organizational_unit: OrganizationalUnitRead
+    previous_description: str | None
+    outcome: Literal["updated"]
+    message: str
+
+
+class OrganizationalUnitDescriptionReconciliationRead(BaseModel):
+    status: Literal["verified", "unknown"]
+    organizational_unit: OrganizationalUnitRead | None
+    attempts: int
+    correlation_id: str
+    message: str

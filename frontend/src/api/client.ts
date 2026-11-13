@@ -33,6 +33,9 @@ import type {
   GoogleWorkspaceOrganizationalUnitCreatePreview,
   GoogleWorkspaceOrganizationalUnitCreateResult,
   GoogleWorkspaceOrganizationalUnitCreateReconciliationResult,
+  GoogleWorkspaceOrganizationalUnitDescriptionPreview,
+  GoogleWorkspaceOrganizationalUnitDescriptionResult,
+  GoogleWorkspaceOrganizationalUnitDescriptionReconciliationResult,
   GoogleWorkspaceUserGroupMembershipResult,
   GoogleWorkspaceUserDirectoryRequest,
   GoogleWorkspaceUserDirectoryResult,
@@ -470,6 +473,52 @@ export function reconcileGoogleWorkspaceOrganizationalUnitCreation(
 ): Promise<GoogleWorkspaceOrganizationalUnitCreateReconciliationResult> {
   return request<GoogleWorkspaceOrganizationalUnitCreateReconciliationResult>(
     `/api/v1/organizations/${organizationId}/google-workspace/orgunits/create/reconcile`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
+      signal
+    }
+  );
+}
+
+export function previewGoogleWorkspaceOrganizationalUnitDescription(
+  organizationId: string,
+  orgUnitId: string,
+  description: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceOrganizationalUnitDescriptionPreview> {
+  return request<GoogleWorkspaceOrganizationalUnitDescriptionPreview>(
+    `/api/v1/organizations/${organizationId}/google-workspace/orgunits/description/preview`,
+    {
+      method: "POST",
+      body: JSON.stringify({ org_unit_id: orgUnitId, description }),
+      signal
+    }
+  );
+}
+
+export function executeGoogleWorkspaceOrganizationalUnitDescription(
+  organizationId: string,
+  confirmationToken: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceOrganizationalUnitDescriptionResult> {
+  return request<GoogleWorkspaceOrganizationalUnitDescriptionResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/orgunits/description`,
+    {
+      method: "POST",
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
+      signal
+    }
+  );
+}
+
+export function reconcileGoogleWorkspaceOrganizationalUnitDescription(
+  organizationId: string,
+  confirmationToken: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceOrganizationalUnitDescriptionReconciliationResult> {
+  return request<GoogleWorkspaceOrganizationalUnitDescriptionReconciliationResult>(
+    `/api/v1/organizations/${organizationId}/google-workspace/orgunits/description/reconcile`,
     {
       method: "POST",
       body: JSON.stringify({ confirmation_token: confirmationToken }),

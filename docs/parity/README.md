@@ -113,8 +113,8 @@ foundation:
    already verified suspend/reactivate subset.
 3. `directory.users.aliases.add` — introduce safe alias lifecycle management;
    removal remains a separately guarded capability.
-4. `directory.orgunits.update` — add guarded rename and parent changes with
-   stale-hierarchy protection and explicit policy-impact warnings.
+4. `directory.orgunits.update` — extend the implemented description-only subset with guarded
+   rename and parent changes, stale-hierarchy protection and explicit policy-impact warnings.
 5. `directory.orgunits.delete` — design empty-OU-only deletion with protected
    paths, explicit impact review and independently verified final state.
 

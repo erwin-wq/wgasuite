@@ -78,13 +78,25 @@ connection test remains read-only and does not prove that this write grant or th
 administrator's write privilege is available. WGASuite never edits DWD grants or performs a test
 user write.
 
+For guarded Organizational Unit creation and description-only updates, add the separate broad OU
+scope below while preserving the read-only OU scope:
+
+```text
+https://www.googleapis.com/auth/admin.directory.orgunit
+```
+
+This scope is requested only by a confirmed OU write. Listing, identifier lookup, preflight and
+ambiguous-outcome reconciliation continue to use the read-only OU scope. The connection test does
+not prove this write grant or the delegated administrator's OU privileges, and WGASuite never
+changes Domain-Wide Delegation grants automatically.
+
 See Google's official [service-account credential guide](https://developers.google.com/workspace/guides/create-credentials#service-account),
 [API enablement guide](https://developers.google.com/workspace/guides/enable-apis), and
 [DWD guide](https://support.google.com/a/answer/162106). The Directory connection test itself still
 uses only the user read-only scope and does not prove OU access. The OU scope is requested only by
 the operation-scoped Organizational Units client. Google Admin changes can take time to propagate.
-WGASuite never changes DWD authorization automatically and does not request the full
-`admin.directory.orgunit` scope for this read-only feature.
+WGASuite never changes DWD authorization automatically. Read-only hierarchy operations do not
+request the broad `admin.directory.orgunit` scope; guarded OU writes use it separately.
 
 ## What the connection test does
 
@@ -212,8 +224,37 @@ Method:     orgunits.get
 Paths and customer IDs supplied by callers are not accepted. Both endpoints authorize the actor
 against the selected organization's customer before credential access, use the same verified
 Google customer ID, disable client retries and emit privacy-safe audit metadata. The UI is
-explicitly read-only; OU creation, update, deletion, user/device movement and bulk/CSV workflows
-remain future DIR-003 work.
+explicit about which actions are guarded writes. OU rename, reparent, deletion, device movement
+and bulk/CSV workflows remain future DIR-003 work.
+
+## Guarded Organizational Unit creation and description editing
+
+Customer administrators can create one child OU beneath a verified ordinary parent or update only
+the description of one verified ordinary OU. Both workflows first resolve Google's immutable
+customer and OU identities, present the exact change, and issue a five-minute confirmation whose
+secret is returned once while only its SHA-256 digest is persisted. Execution atomically consumes
+that confirmation and revalidates tenant, connector, immutable identities and the previewed state.
+
+Description updates also revalidate the target name, path, parent and current description, so a
+confirmation cannot overwrite a description changed after preview. Root and the Workspace Guests
+subtree are protected. Empty input explicitly clears a description; unchanged values and invalid
+control content are rejected. The sole Google write is:
+
+```text
+Method:      orgunits.patch
+customerId:  verified customerId
+orgUnitPath: verified immutable orgUnitId
+Body:        {"description":"<validated value or empty string>"}
+Scope:       https://www.googleapis.com/auth/admin.directory.orgunit
+Retries:     0
+```
+
+No name or parent field is sent. A timeout, network loss or transient Google outage is never
+replayed. Instead, a bounded read-only `orgunits.get` reconciliation can observe whether the exact
+previewed description is present; any third state fails closed as an external change. Creation
+uses the same confirmation, no-retry, reconciliation and sanitized-audit contract with
+`orgunits.insert`. Audit metadata records safe IDs, paths, outcomes and correlation values, never
+descriptions, confirmation tokens, credentials or raw Google responses.
 
 ## User detail and reverse group memberships
 
