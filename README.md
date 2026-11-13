@@ -10,7 +10,8 @@ an admin console or custom script.
 > **Project status:** early development / pre-release. The current repository provides a working
 > local foundation, service-account authentication/client infrastructure, a real read-only
 > Google Workspace connection test, paginated user directory, exact user and alias lookup,
-> read-only Organizational Units hierarchy, guarded single-user OU moves, verified user-to-group
+> Organizational Units hierarchy with guarded creation, description editing and single-user OU
+> moves, verified user-to-group
 > context, and guarded Gmail
 > mailbox delegation and Google Groups
 > direct-membership management. This remains
@@ -56,6 +57,9 @@ Implemented today:
   fail-closed parent/cycle validation and no persisted Directory data;
 - guarded, single-user Organizational Unit moves between verified existing units, with immutable
   user IDs, one-time confirmation, no-retry writes and read-only ambiguous-outcome reconciliation;
+- guarded Organizational Unit creation and description-only editing for ordinary units, with
+  immutable parent/target IDs, stale-state protection, one-time confirmation, no-retry writes and
+  read-only ambiguous-outcome reconciliation;
 - bounded, read-only reverse group membership pages for a canonical user, with current-customer
   ownership and direct MEMBER/MANAGER/OWNER role verification;
 - Gmail mailbox delegate listing plus explicit-preview, one-time-confirmation create/remove
@@ -90,7 +94,7 @@ Not implemented today:
 - OAuth admin-consent authentication or external cloud secret-manager integrations;
 - production identity management, SSO, account recovery or hardened session management;
 - unrestricted user/group administration, ChromeOS/device administration, Organizational Unit
-  create/update/delete and user/device movement, or license administration;
+  rename/reparent/delete and device movement, bulk OU administration, or license administration;
 - a complete production deployment and operations model.
 
 ## Google Workspace status
@@ -131,8 +135,12 @@ delegated administrator, then calls `orgunits.list` with `type=allIncludingParen
 least-privilege `admin.directory.orgunit.readonly` scope. It normalizes unordered results into a
 stable expandable hierarchy, rejects duplicate, orphaned or cyclic structures, and exposes a
 separate identifier-only `orgunits.get` endpoint. OU data is never persisted or cached between
-customers. Guarded single-user movement between existing OUs is available; OU create, rename,
-move, delete and device movement remain unavailable.
+customers. Guarded single-user movement, child-OU creation and description-only editing are
+available to customer administrators through separately confirmed write flows. The root and
+Workspace Guests subtree are protected from description edits. Rename, reparent, delete, device
+movement and bulk/CSV OU administration remain unavailable. Write flows use the separately
+authorized `admin.directory.orgunit` scope; the connection test and hierarchy reads remain
+read-only and do not prove write access.
 
 Reverse membership discovery calls `groups.list(userKey=<immutable user ID>)`. Because Google does
 not permit `userKey` and `customer` together, every candidate is separately matched by ID and

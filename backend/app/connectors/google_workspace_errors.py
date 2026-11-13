@@ -107,6 +107,26 @@ class GoogleWorkspaceErrorCode(StrEnum):
         "google_orgunit_create_reconciliation_not_available"
     )
     GOOGLE_ORGUNIT_CREATE_RECONCILIATION_EXPIRED = "google_orgunit_create_reconciliation_expired"
+    GOOGLE_ORGUNIT_DESCRIPTION_UNCHANGED = "google_orgunit_description_unchanged"
+    GOOGLE_ORGUNIT_DESCRIPTION_TARGET_PROTECTED = (
+        "google_orgunit_description_target_protected"
+    )
+    GOOGLE_ORGUNIT_DESCRIPTION_STATE_CHANGED = "google_orgunit_description_state_changed"
+    GOOGLE_ORGUNIT_DESCRIPTION_CONFIRMATION_INVALID = (
+        "google_orgunit_description_confirmation_invalid"
+    )
+    GOOGLE_ORGUNIT_DESCRIPTION_CONFIRMATION_EXPIRED = (
+        "google_orgunit_description_confirmation_expired"
+    )
+    GOOGLE_ORGUNIT_DESCRIPTION_CONFIRMATION_USED = (
+        "google_orgunit_description_confirmation_used"
+    )
+    GOOGLE_ORGUNIT_DESCRIPTION_RECONCILIATION_NOT_AVAILABLE = (
+        "google_orgunit_description_reconciliation_not_available"
+    )
+    GOOGLE_ORGUNIT_DESCRIPTION_RECONCILIATION_EXPIRED = (
+        "google_orgunit_description_reconciliation_expired"
+    )
     GROUP_MEMBER_ALREADY_EXISTS = "group_member_already_exists"
     GROUP_MEMBER_NOT_FOUND = "group_member_not_found"
     GROUP_MEMBER_UNSUPPORTED = "group_member_unsupported"
@@ -350,6 +370,30 @@ SAFE_ERROR_MESSAGES = {
         "This organizational-unit creation is not eligible for read-only reconciliation."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_CREATE_RECONCILIATION_EXPIRED: (
+        "The read-only reconciliation window expired. Refresh the hierarchy."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_DESCRIPTION_UNCHANGED: (
+        "The proposed description is unchanged. Enter a different description."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_DESCRIPTION_TARGET_PROTECTED: (
+        "The root and Workspace Guests organizational units cannot be edited."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_DESCRIPTION_STATE_CHANGED: (
+        "The organizational unit changed after preview. Refresh and review again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_DESCRIPTION_CONFIRMATION_INVALID: (
+        "The description-update confirmation is invalid. Preview the operation again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_DESCRIPTION_CONFIRMATION_EXPIRED: (
+        "The description-update confirmation expired. Preview the operation again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_DESCRIPTION_CONFIRMATION_USED: (
+        "This description update was already submitted. Refresh the hierarchy."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_DESCRIPTION_RECONCILIATION_NOT_AVAILABLE: (
+        "This description update is not eligible for read-only reconciliation."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ORGUNIT_DESCRIPTION_RECONCILIATION_EXPIRED: (
         "The read-only reconciliation window expired. Refresh the hierarchy."
     ),
     GoogleWorkspaceErrorCode.GROUP_MEMBER_ALREADY_EXISTS: (

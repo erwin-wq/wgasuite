@@ -17,6 +17,7 @@ import type {
 } from "../../types";
 import { DIRECTORY_ORGUNIT_READONLY_SCOPE } from "./scopes";
 import { OrganizationalUnitCreation } from "./OrganizationalUnitCreation";
+import { OrganizationalUnitDescription } from "./OrganizationalUnitDescription";
 
 export { DIRECTORY_ORGUNIT_READONLY_SCOPE } from "./scopes";
 
@@ -40,6 +41,10 @@ function isCreationProtected(unit: GoogleWorkspaceOrganizationalUnitTreeNode): b
     unit.path === WORKSPACE_GUESTS_PATH ||
     unit.path.startsWith(`${WORKSPACE_GUESTS_PATH}/`)
   );
+}
+
+function isDescriptionProtected(unit: GoogleWorkspaceOrganizationalUnitTreeNode): boolean {
+  return unit.path === "/" || isCreationProtected(unit);
 }
 
 function organizationalUnitErrorMessage(error: unknown): string {
@@ -230,7 +235,7 @@ export function OrganizationalUnits({
     <section className="organizational-units" aria-labelledby="organizational-units-heading">
       <div className="workspace-section-heading ou-heading">
         <div>
-          <span className="eyebrow">Read-only Directory</span>
+          <span className="eyebrow">Directory hierarchy</span>
           <h2 id="organizational-units-heading">Organizational Units</h2>
           <p>Inspect the complete hierarchy for the verified Workspace customer.</p>
         </div>
@@ -335,17 +340,34 @@ export function OrganizationalUnits({
                   <div><span className="eyebrow">Selected unit</span><h3>{selectedUnit.name}</h3></div>
                   <span className="readonly-badge"><ShieldCheck aria-hidden="true" /> Verified tenant</span>
                 </div>
-                {canCreate && !isCreationProtected(selectedUnit) && (
-                  <OrganizationalUnitCreation
-                    organizationId={organizationId}
-                    parent={selectedUnit}
-                    onCreated={loadHierarchy}
-                  />
+                {canCreate && (
+                  <div className="ou-detail-actions">
+                    {!isCreationProtected(selectedUnit) ? (
+                      <OrganizationalUnitCreation
+                        organizationId={organizationId}
+                        parent={selectedUnit}
+                        onCreated={loadHierarchy}
+                      />
+                    ) : null}
+                    {!isDescriptionProtected(selectedUnit) ? (
+                      <OrganizationalUnitDescription
+                        organizationId={organizationId}
+                        unit={selectedUnit}
+                        onUpdated={loadHierarchy}
+                      />
+                    ) : null}
+                  </div>
                 )}
                 {canCreate && isCreationProtected(selectedUnit) && (
                   <p className="ou-create-warning" role="status">
                     <AlertCircle aria-hidden="true" /> Workspace Guests and its descendants are
                     protected system Organizational Units. Create a child under an ordinary OU.
+                  </p>
+                )}
+                {canCreate && selectedUnit.path === "/" && (
+                  <p className="ou-create-warning" role="status">
+                    <AlertCircle aria-hidden="true" /> The root Organizational Unit description is
+                    protected. Select an ordinary child unit to edit its description.
                   </p>
                 )}
                 <dl className="ou-details">
@@ -354,10 +376,10 @@ export function OrganizationalUnits({
                   <div><dt>Immutable ID</dt><dd><code>{selectedUnit.id}</code></dd></div>
                   <div><dt>Description</dt><dd>{selectedUnit.description ?? "No description provided."}</dd></div>
                   <div><dt>Direct children</dt><dd>{selectedUnit.children.length}</dd></div>
-                  <div><dt>Access</dt><dd>Read only</dd></div>
+                  <div><dt>Access</dt><dd>{canCreate ? "Guarded administration" : "Read only"}</dd></div>
                 </dl>
                 <p className="ou-readonly-note">
-                  Rename, move, delete, and device movement are not available. Child creation requires customer administrator access and a separately authorized Google write scope.
+                  Rename, reparent, delete, and device movement are not available. Child creation and description updates require customer administrator access, an explicit confirmation, and the separately authorized Google write scope.
                 </p>
               </>
             ) : (

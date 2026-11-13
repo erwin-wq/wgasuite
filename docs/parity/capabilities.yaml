@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "catalog_version": "2026.11.12.1",
+  "catalog_version": "2026.11.13.1",
   "retrieved_on": "2026-10-30",
   "baselines": {
     "psgsuite": {
@@ -84,6 +84,10 @@
       "title": "Admin SDK Directory API orgunits.get reference",
       "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/orgunits/get"
     },
+    "google.directory.orgunits.patch": {
+      "title": "Admin SDK Directory API orgunits.patch reference",
+      "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/orgunits/patch"
+    },
     "wgasuite.dir0031.task": {
       "title": "DIR-003.1 read-only Organizational Units implementation task",
       "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220045481580599"
@@ -95,6 +99,10 @@
     "wgasuite.dir0033.task": {
       "title": "DIR-003.3 guarded Organizational Unit creation task",
       "url": "https://app.asana.com/1/1198172217694356/task/1220328715145980"
+    },
+    "wgasuite.dir0034.task": {
+      "title": "DIR-003.4 guarded Organizational Unit description-edit task",
+      "url": "https://app.asana.com/1/1198172217694356/task/1220506796515515"
     },
     "google.gmail.reference": {
       "title": "Gmail API reference",
@@ -35445,11 +35453,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "partial",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_orgunit_description.py",
+          "backend/app/api/v1/router.py",
+          "frontend/src/features/google-workspace/OrganizationalUnitDescription.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.dir0034.task",
+          "google.directory.orgunits.patch"
+        ],
+        "limitations": "WGASuite implements a guarded single-OU description-only patch with stale-state protection, protected root and Workspace Guests paths, confirmation, no-retry execution and read-only reconciliation. Automated tests use fakes; no live Google description update has yet been authorized or verified. Rename, reparent, selector expansion, CSV and bulk updates are not implemented."
       },
       "roadmap": {
         "epic": "DIR-003",
@@ -35457,15 +35472,19 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820346308737"
       },
       "verification": {
-        "automated_tests": false,
+        "automated_tests": true,
         "live_google": false,
-        "evidence_refs": []
+        "evidence_refs": [
+          "wgasuite.dir0034.task"
+        ]
       },
       "evidence_refs": [
         "upstream.psgsuite.source",
         "upstream.gam7.grammar",
         "upstream.gamadv.grammar",
-        "google.directory.reference"
+        "google.directory.reference",
+        "google.directory.orgunits.patch",
+        "wgasuite.dir0034.task"
       ],
       "notes": "Stable administrative result; syntax aliases, print/show forms, and selector variants are linked in source_inventory."
     },

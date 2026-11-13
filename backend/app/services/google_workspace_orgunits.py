@@ -136,15 +136,19 @@ class GoogleWorkspaceOrganizationalUnits:
         actor: User,
         organization_id: UUID,
         org_unit_id: str,
+        request_timeout_seconds: float | None = None,
     ) -> OrganizationalUnit:
         customer_id = self._verified_customer_id(actor, organization_id)
         client: Any | None = None
         try:
-            client = self.client_factory.for_directory_orgunits(
-                actor=actor,
-                organization_id=organization_id,
-                scopes=(DIRECTORY_ORGUNIT_READONLY_SCOPE,),
-            )
+            arguments: dict[str, Any] = {
+                "actor": actor,
+                "organization_id": organization_id,
+                "scopes": (DIRECTORY_ORGUNIT_READONLY_SCOPE,),
+            }
+            if request_timeout_seconds is not None:
+                arguments["request_timeout_seconds"] = request_timeout_seconds
+            client = self.client_factory.for_directory_orgunits(**arguments)
             response = (
                 client.orgunits()
                 .get(

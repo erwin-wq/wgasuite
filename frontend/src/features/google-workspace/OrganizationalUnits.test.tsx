@@ -120,7 +120,7 @@ describe("OrganizationalUnits", () => {
     expect(screen.getByRole("treeitem", { name: "Platform (/Engineering/Platform)" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Engineering" })).toBeVisible();
     expect(screen.getByText("Product builders")).toBeVisible();
-    expect(screen.getByText(/Rename, move, delete/)).toBeVisible();
+    expect(screen.getByText(/Rename, reparent, delete/)).toBeVisible();
     expect(listGoogleWorkspaceOrganizationalUnits).toHaveBeenCalledWith(
       "organization-1",
       expect.any(AbortSignal)
@@ -255,19 +255,35 @@ describe("OrganizationalUnits", () => {
 
     await user.click(await screen.findByRole("treeitem", { name: "Workspace Guests (/Workspace Guests)" }));
     expect(screen.queryByRole("button", { name: "Create child OU" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit description" })).not.toBeInTheDocument();
     expect(screen.getByText(/Workspace Guests and its descendants are protected/)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Expand Workspace Guests" }));
     await user.click(screen.getByRole("treeitem", { name: "Contractors (/Workspace Guests/Contractors)" }));
     expect(screen.queryByRole("button", { name: "Create child OU" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit description" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("treeitem", { name: "Workspace Guests Training (/Workspace Guests Training)" }));
     expect(screen.getByRole("button", { name: "Create child OU" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Edit description" })).toBeVisible();
+  });
+
+  it("protects the root description while allowing ordinary child descriptions", async () => {
+    const user = userEvent.setup();
+    renderOrganizationalUnits({ canCreate: true });
+
+    expect(await screen.findByRole("heading", { name: "Example Workspace" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Edit description" })).not.toBeInTheDocument();
+    expect(screen.getByText(/root Organizational Unit description is protected/)).toBeVisible();
+
+    await user.click(screen.getByRole("treeitem", { name: "Engineering (/Engineering)" }));
+    expect(screen.getByRole("button", { name: "Edit description" })).toBeVisible();
   });
 
   it("hides creation from non-administrators", async () => {
     renderOrganizationalUnits({ canCreate: false });
     expect(await screen.findByRole("tree")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Create child OU" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit description" })).not.toBeInTheDocument();
   });
 });

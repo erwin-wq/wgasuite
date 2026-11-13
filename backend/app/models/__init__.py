@@ -16,6 +16,9 @@ from app.models.google_workspace_group_membership_confirmation import (
 from app.models.google_workspace_orgunit_creation_confirmation import (
     GoogleWorkspaceOrgUnitCreationConfirmation,
 )
+from app.models.google_workspace_orgunit_description_confirmation import (
+    GoogleWorkspaceOrgUnitDescriptionConfirmation,
+)
 from app.models.google_workspace_user_orgunit_confirmation import (
     GoogleWorkspaceUserOrgUnitConfirmation,
 )
@@ -39,6 +42,7 @@ __all__ = [
     "GoogleWorkspaceDelegateConfirmation",
     "GoogleWorkspaceGroupMembershipConfirmation",
     "GoogleWorkspaceOrgUnitCreationConfirmation",
+    "GoogleWorkspaceOrgUnitDescriptionConfirmation",
     "GoogleWorkspaceUserStatusConfirmation",
     "GoogleWorkspaceUserOrgUnitConfirmation",
     "Organization",

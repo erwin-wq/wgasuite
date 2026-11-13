@@ -25,6 +25,12 @@
   expliciet `allIncludingParent`; caller-supplied customer-id en OU-paden worden niet aanvaard.
   Duplicate, orphaned en cyclic hierarchieën falen gesloten en OU-data wordt niet opgeslagen of
   tussen tenants gecachet.
+- Bevestigde OU-create en description-update writes gebruiken apart uitsluitend
+  `admin.directory.orgunit`. Description-update hervalideert immutable OU-ID, pad, parent en
+  huidige beschrijving, beschermt root en de Workspace Guests-subtree en stuurt alleen het
+  `description` veld. Confirmations zijn digest-only, kort geldig en atomisch single-use; exact
+  één write gebruikt nul retries. Alleen begrensde read-only `orgunits.get` reconciliation is
+  toegestaan na een ambigu resultaat. Beschrijvingen en tokens worden niet geaudit.
 - Reverse user-group listing gebruikt alleen de bestaande user- en group-readonly scopes. Omdat
   `groups.list(userKey)` geen `customer` accepteert, wordt iedere kandidaat eerst met immutable ID
   en primary email in de geverifieerde customer-scope bevestigd en daarna met `members.get` als
