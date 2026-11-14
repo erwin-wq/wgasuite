@@ -12,6 +12,9 @@ interface UserDirectoryAdministrationProps {
   canSearch: boolean;
   canManageDelegates: boolean;
   onOpenGroup: (groupEmail: string) => void;
+  view?: "directory" | "lookup";
+  onViewChange?: (view: "directory" | "lookup") => void;
+  hideNavigation?: boolean;
 }
 
 interface SelectedUser {
@@ -25,13 +28,22 @@ export function UserDirectoryAdministration({
   connectorConfig,
   canSearch,
   canManageDelegates,
-  onOpenGroup
+  onOpenGroup,
+  view,
+  onViewChange,
+  hideNavigation = false
 }: UserDirectoryAdministrationProps) {
-  const [activeView, setActiveView] = useState<"directory" | "lookup">("directory");
+  const [internalView, setInternalView] = useState<"directory" | "lookup">("directory");
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
+  const activeView = view ?? internalView;
+
+  function setActiveView(nextView: "directory" | "lookup") {
+    setInternalView(nextView);
+    onViewChange?.(nextView);
+  }
 
   useEffect(() => {
-    setActiveView("directory");
+    setInternalView("directory");
     setSelectedUser(null);
   }, [organizationId]);
 
@@ -40,27 +52,29 @@ export function UserDirectoryAdministration({
 
   return (
     <div className="user-directory-administration">
-      <nav className="user-directory-navigation" aria-label="User administration tools">
-        <button
-          type="button"
-          className={activeView === "directory" ? "active" : ""}
-          aria-current={activeView === "directory" ? "page" : undefined}
-          onClick={() => setActiveView("directory")}
-        >
-          <ListFilter aria-hidden="true" /> User Directory
-        </button>
-        <button
-          type="button"
-          className={activeView === "lookup" ? "active" : ""}
-          aria-current={activeView === "lookup" ? "page" : undefined}
-          onClick={() => {
-            setSelectedUser(null);
-            setActiveView("lookup");
-          }}
-        >
-          <SearchCheck aria-hidden="true" /> Exact User Lookup
-        </button>
-      </nav>
+      {!hideNavigation && (
+        <nav className="user-directory-navigation" aria-label="User administration tools">
+          <button
+            type="button"
+            className={activeView === "directory" ? "active" : ""}
+            aria-current={activeView === "directory" ? "page" : undefined}
+            onClick={() => setActiveView("directory")}
+          >
+            <ListFilter aria-hidden="true" /> User Directory
+          </button>
+          <button
+            type="button"
+            className={activeView === "lookup" ? "active" : ""}
+            aria-current={activeView === "lookup" ? "page" : undefined}
+            onClick={() => {
+              setSelectedUser(null);
+              setActiveView("lookup");
+            }}
+          >
+            <SearchCheck aria-hidden="true" /> Exact User Lookup
+          </button>
+        </nav>
+      )}
 
       {activeView === "directory" ? (
         <UserDirectory

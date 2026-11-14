@@ -2,23 +2,20 @@ import {
   Activity,
   AlertCircle,
   ArrowLeft,
-  BadgeCheck,
   CheckCircle2,
   Database,
   FileText,
   Layers3,
   Link2,
   LockKeyhole,
-  LogOut,
   Loader2,
-  Menu,
   Plus,
   Printer,
   ShieldAlert,
   Target,
-  X
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import {
   ApiError,
@@ -64,11 +61,13 @@ import type {
 import { ConnectionWizard } from "./features/google-workspace/ConnectionWizard";
 import { GmailDelegationAuthorization } from "./features/google-workspace/GmailDelegationAuthorization";
 import { GroupManagement } from "./features/google-workspace/GroupManagement";
-import { GoogleWorkspaceAdministration } from "./features/google-workspace/GoogleWorkspaceAdministration";
+import { WorkspaceConnectionOverview } from "./features/google-workspace/GoogleWorkspaceAdministration";
 import { OrganizationalUnits } from "./features/google-workspace/OrganizationalUnits";
 import { UserDirectoryAdministration } from "./features/google-workspace/UserDirectoryAdministration";
 import { DashboardOverview } from "./features/dashboard/DashboardOverview";
-import { AppNavigation, type ActiveSection } from "./features/navigation/AppNavigation";
+import { AppShell, RouteUnavailable } from "./features/navigation/AppShell";
+import { appRoutes, findRoute, routeList, type AppRouteId } from "./app/routes";
+import type { ActiveSection } from "./features/navigation/AppNavigation";
 
 type DreadScoreKey = keyof DreadScoreCreate;
 type Feedback = { type: "success" | "error"; message: string } | null;
@@ -142,6 +141,8 @@ function averageDreadScore(score: DreadScoreCreate): number {
 }
 
 function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
@@ -190,14 +191,14 @@ function App() {
   const [isConnectorTesting, setIsConnectorTesting] = useState(false);
   const [showGoogleWorkspaceChecks, setShowGoogleWorkspaceChecks] = useState(false);
   const [saving, setSaving] = useState<SavingTarget>(null);
-  const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
   const [groupNavigationTarget, setGroupNavigationTarget] =
     useState<GroupNavigationTarget | null>(null);
-  const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
+  const [tenantEpoch, setTenantEpoch] = useState(0);
   const [report, setReport] = useState<AssessmentReport | null>(null);
   const [platformAdminOverview, setPlatformAdminOverview] =
     useState<PlatformAdminOverview | null>(null);
   const connectorConfigRequestSequence = useRef(0);
+  const workspaceRequestSequence = useRef(0);
   const [isPlatformAdminOverviewLoading, setIsPlatformAdminOverviewLoading] = useState(false);
 
   const customerById = useMemo(
@@ -297,11 +298,57 @@ function App() {
         ))
   );
 
+  const canReadSelectedCustomer = Boolean(
+    currentUser?.role === "platform_admin" ||
+      currentUser?.role === "platform_support" ||
+      (selectedOrganization?.customer_id &&
+        currentUser?.customer_memberships.some(
+          (membership) =>
+            membership.customer_id === selectedOrganization.customer_id && membership.is_active
+        ))
+  );
+  const canViewAdministration = Boolean(
+    currentUser?.role === "platform_admin" ||
+      currentUser?.customer_memberships.some(
+        (membership) =>
+          membership.is_active &&
+          (membership.role === "customer_admin" || membership.role === "customer_user")
+      )
+  );
+  const resolvedRoute = findRoute(location.pathname);
+  const currentRoute = resolvedRoute ?? appRoutes.overview;
+  const activeSection: ActiveSection =
+    currentRoute.id === "overview"
+      ? "dashboard"
+      : currentRoute.id === "customers"
+        ? "customers"
+        : currentRoute.id === "organizations"
+          ? "organizations"
+          : currentRoute.id === "platform"
+            ? "platform-admin"
+            : "google-workspace";
+
+  const setActiveSection = useCallback(
+    (section: ActiveSection) => {
+      const target =
+        section === "customers"
+          ? appRoutes.customers.path
+          : section === "organizations"
+            ? appRoutes.organizations.path
+            : section === "google-workspace"
+              ? appRoutes.userLookup.path
+              : section === "platform-admin"
+                ? appRoutes.platform.path
+                : appRoutes.overview.path;
+      navigate(target);
+    },
+    [navigate]
+  );
+
   const resetSession = useCallback((message?: string) => {
     clearStoredAuthToken();
     setCurrentUser(null);
     setReport(null);
-    setActiveSection("dashboard");
     setCustomers([]);
     setOrganizations([]);
     setAssessments([]);
@@ -320,6 +367,9 @@ function App() {
     if (message) {
       setFeedback({ type: "error", message });
     }
+    workspaceRequestSequence.current += 1;
+    connectorConfigRequestSequence.current += 1;
+    setTenantEpoch((current) => current + 1);
   }, []);
 
   const handleRequestError = useCallback(
@@ -403,6 +453,8 @@ function App() {
       preferredOrganizationId?: string,
       preferredAssessmentId?: string
     ) => {
+      const sequence = workspaceRequestSequence.current + 1;
+      workspaceRequestSequence.current = sequence;
       setIsLoading(true);
       try {
         const [loadedCustomers, loadedOrganizations, demoData] = await Promise.all([
@@ -422,6 +474,7 @@ function App() {
                 []
               ])
         ]);
+        if (workspaceRequestSequence.current !== sequence) return;
         const [loadedAssessments, loadedAssets, loadedFindings, loadedGoogleWorkspaceChecks] =
           demoData;
 
@@ -432,13 +485,19 @@ function App() {
         setFindings(loadedFindings);
         setGoogleWorkspaceChecks(loadedGoogleWorkspaceChecks);
 
-        const nextCustomerId = preferredCustomerId ?? selectedCustomerId;
-        const organizationOptions = nextCustomerId
-          ? loadedOrganizations.filter((organization) => organization.customer_id === nextCustomerId)
-          : loadedOrganizations;
         const preferredOrganization = preferredOrganizationId
           ? loadedOrganizations.find((organization) => organization.id === preferredOrganizationId)
           : null;
+        const requestedCustomerId = preferredCustomerId ?? selectedCustomerId;
+        const nextCustomerId =
+          requestedCustomerId ||
+          preferredOrganization?.customer_id ||
+          loadedOrganizations[0]?.customer_id ||
+          loadedCustomers[0]?.id ||
+          "";
+        const organizationOptions = nextCustomerId
+          ? loadedOrganizations.filter((organization) => organization.customer_id === nextCustomerId)
+          : loadedOrganizations;
         const canUsePreferredOrganization =
           preferredOrganization &&
           (!nextCustomerId || preferredOrganization.customer_id === nextCustomerId);
@@ -457,9 +516,9 @@ function App() {
         setSelectedOrganizationId(nextOrganizationId);
         setSelectedAssessmentId(nextAssessmentId);
       } catch (loadError) {
-        handleRequestError(loadError);
+        if (workspaceRequestSequence.current === sequence) handleRequestError(loadError);
       } finally {
-        setIsLoading(false);
+        if (workspaceRequestSequence.current === sequence) setIsLoading(false);
       }
     },
     [handleRequestError, selectedCustomerId]
@@ -541,7 +600,11 @@ function App() {
   }, [currentUser, loadOrganizationConnectorConfigs, selectedOrganizationId]);
 
   useEffect(() => {
-    if (!currentUser || !canViewPlatformAdmin) {
+    if (!currentUser) {
+      setPlatformAdminOverview(null);
+      return;
+    }
+    if (!canViewPlatformAdmin) {
       setPlatformAdminOverview(null);
       if (activeSection === "platform-admin") {
         setActiveSection("dashboard");
@@ -552,7 +615,13 @@ function App() {
     if (activeSection === "platform-admin") {
       loadPlatformAdminOverview();
     }
-  }, [activeSection, canViewPlatformAdmin, currentUser, loadPlatformAdminOverview]);
+  }, [
+    activeSection,
+    canViewPlatformAdmin,
+    currentUser,
+    loadPlatformAdminOverview,
+    setActiveSection
+  ]);
 
   useEffect(() => {
     if (!googleWorkspaceConnectorConfig) {
@@ -568,6 +637,90 @@ function App() {
     setConnectorAdminSubjectEmail(googleWorkspaceConnectorConfig.admin_subject_email ?? "");
     setConnectorNotes(googleWorkspaceConnectorConfig.notes ?? "");
   }, [googleWorkspaceConnectorConfig]);
+
+  const isRouteAuthorized = useCallback(
+    (routeId: AppRouteId) => {
+      if (routeId === "platform") return canViewPlatformAdmin;
+      if (routeId === "customers") return currentUser?.role === "platform_admin";
+      if (routeId === "organizations") return canViewAdministration;
+      const route = appRoutes[routeId];
+      if (route.access === "tenant-operator") return canOperateConnector;
+      if (route.access === "tenant") return canReadSelectedCustomer;
+      return true;
+    },
+    [
+      canOperateConnector,
+      canReadSelectedCustomer,
+      canViewAdministration,
+      canViewPlatformAdmin,
+      currentUser?.role
+    ]
+  );
+  const navigationRoutes = useMemo(
+    () => routeList.filter((route) => isRouteAuthorized(route.id)),
+    [isRouteAuthorized]
+  );
+
+  function invalidateTenantContext() {
+    workspaceRequestSequence.current += 1;
+    connectorConfigRequestSequence.current += 1;
+    setSelectedAssessmentId("");
+    setSelectedAssetId("");
+    setScanRuns([]);
+    setConnectorConfigs([]);
+    setGroupNavigationTarget(null);
+    setConnectorFeedback(null);
+    setFeedback(null);
+    setReport(null);
+    setTenantEpoch((current) => current + 1);
+  }
+
+  function canAccessOrganization(organization: Organization, requireOperation: boolean) {
+    if (currentUser?.role === "platform_admin" || currentUser?.role === "platform_support") {
+      return true;
+    }
+    return currentUser?.customer_memberships.some(
+      (membership) =>
+        membership.customer_id === organization.customer_id &&
+        membership.is_active &&
+        (!requireOperation ||
+          membership.role === "customer_admin" ||
+          membership.role === "customer_user")
+    ) ?? false;
+  }
+
+  function requiresSafeFallback(organization: Organization | undefined) {
+    if (!organization) return currentRoute.access !== "authenticated";
+    if (currentRoute.access === "tenant-operator") {
+      return !canAccessOrganization(organization, true);
+    }
+    if (currentRoute.access === "tenant") {
+      return !canAccessOrganization(organization, false);
+    }
+    return false;
+  }
+
+  function handleCustomerContextChange(customerId: string) {
+    invalidateTenantContext();
+    setSelectedCustomerId(customerId);
+    const nextOrganization = organizations.find(
+      (organization) => organization.customer_id === customerId
+    );
+    setSelectedOrganizationId(nextOrganization?.id ?? "");
+    if (requiresSafeFallback(nextOrganization)) {
+      navigate(appRoutes.overview.path);
+    }
+  }
+
+  function handleOrganizationContextChange(organizationId: string) {
+    invalidateTenantContext();
+    setSelectedOrganizationId(organizationId);
+    const organization = organizations.find((candidate) => candidate.id === organizationId);
+    if (organization?.customer_id) setSelectedCustomerId(organization.customer_id);
+    if (requiresSafeFallback(organization)) {
+      navigate(appRoutes.overview.path);
+    }
+  }
 
   async function handleCreateCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -843,6 +996,13 @@ function App() {
       const user = await getCurrentUser();
       setCurrentUser(user);
       await loadWorkspace();
+      const returnPath = (location.state as { from?: unknown } | null)?.from;
+      navigate(
+        typeof returnPath === "string" && findRoute(returnPath)
+          ? returnPath
+          : appRoutes.overview.path,
+        { replace: true, state: null }
+      );
     } catch (loginError) {
       clearStoredAuthToken();
       setCurrentUser(null);
@@ -885,42 +1045,6 @@ function App() {
     window.print();
   }
 
-  const activeOrganizationLabel = isLoading
-    ? "Data laden"
-    : selectedOrganization?.name ?? "Geen organisatie geselecteerd";
-  const activeCustomerLabel = isLoading
-    ? "Data laden"
-    : selectedCustomer?.name ?? selectedOrganizationCustomer?.name ?? "Geen customer geselecteerd";
-  const activeSectionMeta: Record<ActiveSection, { title: string; description: string }> = {
-    dashboard: {
-      title: "Dashboard",
-      description: "View your current workspace, connection status and next steps."
-    },
-    customers: {
-      title: "Customer context",
-      description: "Platform/customer context for this MVP. Nog geen volledig admin-model."
-    },
-    organizations: {
-      title: "Organizations",
-      description: "Maak organisaties aan en controleer de koppeling met de actieve customer."
-    },
-    assessment: {
-      title: "Assessment workspace",
-      description: "Maak assessments, assets en findings aan en vul DREAD-scores in."
-    },
-    "google-workspace": {
-      title: "Google Workspace",
-      description: "Manage Google Workspace for the selected customer and organization."
-    },
-    "platform-admin": {
-      title: "Platform Admin",
-      description: "Read-only support en troubleshooting overzicht voor platformrollen."
-    },
-    reports: {
-      title: "Reports",
-      description: "Open het rapport voor het actieve assessment en print of sla het op als PDF."
-    }
-  };
   const sectionClass = (section: ActiveSection, extraClass = "") =>
     `section-view ${activeSection === section ? "active" : ""} ${extraClass}`.trim();
 
@@ -941,6 +1065,9 @@ function App() {
   }
 
   if (!currentUser) {
+    if (location.pathname !== "/login") {
+      return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    }
     return (
       <main className="app-shell login-shell">
         <section className="login-panel">
@@ -998,6 +1125,10 @@ function App() {
         </section>
       </main>
     );
+  }
+
+  if (location.pathname === "/login") {
+    return <Navigate to={appRoutes.overview.path} replace />;
   }
 
   const reportPanel = (
@@ -1228,80 +1359,35 @@ function App() {
     </>
   );
 
+  if (location.pathname === "/") {
+    return <Navigate to={appRoutes.overview.path} replace />;
+  }
+
   return (
-    <main className="app-shell nav-app-shell">
-      <aside className="app-sidebar no-print" aria-label="Hoofdnavigatie">
-        <div className="sidebar-brand-row">
-          <div className="sidebar-brand">
-            <ShieldAlert aria-hidden="true" />
-            <div>
-              <strong>WGASuite</strong>
-              <span>Workspace administration</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="mobile-nav-toggle"
-            onClick={() => setIsMobileNavigationOpen((current) => !current)}
-            aria-expanded={isMobileNavigationOpen}
-            aria-controls="primary-navigation"
-            aria-label={isMobileNavigationOpen ? "Close navigation" : "Open navigation"}
-          >
-            {isMobileNavigationOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
-          </button>
-        </div>
-
-        <div id="primary-navigation" className={isMobileNavigationOpen ? "mobile-nav-open" : ""}>
-          <AppNavigation
-            activeSection={activeSection}
-            canViewPlatformAdmin={canViewPlatformAdmin}
-            showDemoFeatures={DEMO_FEATURES_ENABLED}
-            onNavigate={(section) => {
-              setActiveSection(section);
-              setIsMobileNavigationOpen(false);
-            }}
-          />
-        </div>
-
-        <div className="sidebar-context">
-          <span>Active customer</span>
-          <strong title={activeCustomerLabel}>{activeCustomerLabel}</strong>
-          <span>Active organization</span>
-          <strong title={activeOrganizationLabel}>{activeOrganizationLabel}</strong>
-        </div>
-      </aside>
-
-      <section className="app-main">
-        <header className="app-topbar no-print">
-          <div className="topbar-context">
-            <span>Active customer</span>
-            <strong title={activeCustomerLabel}>{activeCustomerLabel}</strong>
-          </div>
-          <div className="user-session">
-            <div>
-              <span>Ingelogd als</span>
-              <strong>{currentUser.full_name}</strong>
-              <em>Role: {currentUser.role}</em>
-            </div>
-            <button type="button" className="secondary-button" onClick={() => handleLogout()}>
-              <LogOut aria-hidden="true" />
-              Logout
-            </button>
-          </div>
-        </header>
-
-        <section className="content-header no-print">
-          <div>
-            <h2>{activeSectionMeta[activeSection].title}</h2>
-            <p>{activeSectionMeta[activeSection].description}</p>
-          </div>
-          <div className="hero-status" aria-live="polite">
-            <BadgeCheck aria-hidden="true" />
-            <span className="hero-status-name" title={activeOrganizationLabel}>
-              {activeOrganizationLabel}
-            </span>
-          </div>
-        </section>
+    <AppShell
+      currentUser={currentUser}
+      currentRoute={currentRoute}
+      navigationRoutes={navigationRoutes}
+      customers={customers}
+      organizations={visibleOrganizations}
+      selectedCustomerId={selectedCustomerId}
+      selectedOrganizationId={selectedOrganizationId}
+      isLoading={isLoading}
+      isConnected={googleWorkspaceConnectorConfig?.status === "connected"}
+      onCustomerChange={handleCustomerContextChange}
+      onOrganizationChange={handleOrganizationContextChange}
+      onLogout={() => handleLogout()}
+    >
+      {!resolvedRoute ? (
+        <RouteUnavailable title="Page not found">
+          The requested page does not exist. Choose a destination from the navigation.
+        </RouteUnavailable>
+      ) : !isRouteAuthorized(currentRoute.id) ? (
+        <RouteUnavailable title="Access unavailable">
+          Your current role or workspace context does not permit access to this page.
+        </RouteUnavailable>
+      ) : (
+      <>
 
       {feedback && (
         <section className={`message ${feedback.type}`} aria-live="polite">
@@ -1326,11 +1412,10 @@ function App() {
       <section
         className={`workflow-layout ${
           activeSection === "dashboard" ||
-          activeSection === "reports" ||
           activeSection === "platform-admin"
             ? "section-hidden"
             : ""
-        } ${activeSection === "assessment" ? "" : "single-column"}`}
+        } single-column`}
       >
         <div className="setup-column">
           <article className={sectionClass("customers", "panel compact-panel customer-panel")}>
@@ -1522,15 +1607,15 @@ function App() {
           </article>
 
           <article className={sectionClass("google-workspace", "workspace-admin-panel")}>
-            <GoogleWorkspaceAdministration
-              organizationId={selectedOrganizationId}
-              organizationName={selectedOrganization?.name ?? null}
-              connectorConfig={googleWorkspaceConnectorConfig}
-              canManageConnection={canManageConnectorCredentials}
-              groupNavigationRequestId={activeGroupNavigation?.requestId}
-              connectionWizard={
+            {currentRoute.id === "connections" ? (
+              <WorkspaceConnectionOverview
+                organizationId={selectedOrganizationId}
+                organizationName={selectedOrganization?.name ?? null}
+                connectorConfig={googleWorkspaceConnectorConfig}
+                canManageConnection={canManageConnectorCredentials}
+                connectionWizard={
                 <ConnectionWizard
-                  key={selectedOrganizationId}
+                  key={`${selectedOrganizationId}:${tenantEpoch}`}
                   connectorConfig={googleWorkspaceConnectorConfig}
                   organizationSelected={Boolean(selectedOrganizationId)}
                   canManageCredentials={canManageConnectorCredentials}
@@ -1550,45 +1635,71 @@ function App() {
                   onReload={() => loadOrganizationConnectorConfigs(selectedOrganizationId, true)}
                   onCredentialFeedback={setConnectorFeedback}
                 />
-              }
-              gmailAuthorization={
-                <GmailDelegationAuthorization connectorConfig={googleWorkspaceConnectorConfig} />
-              }
-              userLookup={
+                }
+                gmailAuthorization={
+                  <GmailDelegationAuthorization connectorConfig={googleWorkspaceConnectorConfig} />
+                }
+              />
+            ) : currentRoute.id === "users" || currentRoute.id === "userLookup" ? (
                 <UserDirectoryAdministration
+                  key={`${selectedOrganizationId}:${tenantEpoch}`}
                   organizationId={selectedOrganizationId}
                   organizationName={selectedOrganization?.name ?? null}
                   connectorConfig={googleWorkspaceConnectorConfig}
-                  canSearch={canManageConnectorCredentials}
+                  canSearch={canOperateConnector}
                   canManageDelegates={canManageConnectorCredentials}
-                  onOpenGroup={(groupEmail) =>
+                  view={currentRoute.id === "users" ? "directory" : "lookup"}
+                  hideNavigation
+                  onViewChange={(view) =>
+                    navigate(view === "directory" ? appRoutes.users.path : appRoutes.userLookup.path)
+                  }
+                  onOpenGroup={(groupEmail) => {
                     setGroupNavigationTarget((current) => ({
                       organizationId: selectedOrganizationId,
                       groupEmail,
                       requestId: (current?.requestId ?? 0) + 1
-                    }))
-                  }
+                    }));
+                    navigate(appRoutes.groups.path);
+                  }}
                 />
-              }
-              groupManagement={
+            ) : currentRoute.id === "groups" ? (
                 <GroupManagement
+                  key={`${selectedOrganizationId}:${tenantEpoch}`}
                   organizationId={selectedOrganizationId}
                   canSearch={canOperateConnector}
                   canMutate={canManageConnectorCredentials}
                   initialGroupEmail={activeGroupNavigation?.groupEmail}
                   navigationRequestId={activeGroupNavigation?.requestId}
                 />
-              }
-              organizationalUnits={
+            ) : currentRoute.id === "orgUnits" ? (
                 <OrganizationalUnits
+                  key={`${selectedOrganizationId}:${tenantEpoch}`}
                   organizationId={selectedOrganizationId}
                   organizationName={selectedOrganization?.name ?? null}
                   connectorConfig={googleWorkspaceConnectorConfig}
                   canRead={canOperateConnector}
                   canCreate={canManageConnectorCredentials}
                 />
-              }
-            />
+            ) : currentRoute.id === "delegations" ? (
+              <UserDirectoryAdministration
+                key={`${selectedOrganizationId}:${tenantEpoch}:delegations`}
+                organizationId={selectedOrganizationId}
+                organizationName={selectedOrganization?.name ?? null}
+                connectorConfig={googleWorkspaceConnectorConfig}
+                canSearch={canOperateConnector}
+                canManageDelegates={canManageConnectorCredentials}
+                view="lookup"
+                hideNavigation
+                onOpenGroup={(groupEmail) => {
+                  setGroupNavigationTarget((current) => ({
+                    organizationId: selectedOrganizationId,
+                    groupEmail,
+                    requestId: (current?.requestId ?? 0) + 1
+                  }));
+                  navigate(appRoutes.groups.path);
+                }}
+              />
+            ) : null}
           </article>
 
           {DEMO_FEATURES_ENABLED && (
@@ -2278,8 +2389,9 @@ function App() {
           Workspace laden
         </div>
       )}
-      </section>
-    </main>
+      </>
+      )}
+    </AppShell>
   );
 }
 
