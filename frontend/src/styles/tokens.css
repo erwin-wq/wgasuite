@@ -1,0 +1,206 @@
+:root {
+  color-scheme: light;
+
+  /* Primitive palette. Components consume the semantic tokens below. */
+  --palette-navy-950: #071c2c;
+  --palette-navy-900: #0b293d;
+  --palette-navy-800: #123a52;
+  --palette-teal-700: #0b5f59;
+  --palette-teal-600: #0f766e;
+  --palette-teal-500: #0d9488;
+  --palette-teal-100: #d9f3ee;
+  --palette-cobalt-700: #244a91;
+  --palette-cobalt-600: #315fb5;
+  --palette-cobalt-100: #e8f0ff;
+  --palette-copper-700: #8d4f24;
+  --palette-copper-600: #a9622e;
+  --palette-copper-100: #f7e9dd;
+  --palette-graphite-950: #101a26;
+  --palette-graphite-900: #172433;
+  --palette-graphite-700: #425466;
+  --palette-graphite-600: #5b6b7c;
+  --palette-graphite-500: #718093;
+  --palette-graphite-300: #aab5c0;
+  --palette-graphite-200: #cdd6df;
+  --palette-graphite-150: #dce4eb;
+  --palette-graphite-100: #e8edf2;
+  --palette-ice-100: #f4f8fc;
+  --palette-ice-50: #f8fbfe;
+  --palette-white: #ffffff;
+  --palette-success-700: #16624f;
+  --palette-success-100: #e2f5ef;
+  --palette-warning-800: #7a4708;
+  --palette-warning-100: #fff2d6;
+  --palette-error-800: #8f251d;
+  --palette-error-100: #fde9e7;
+
+  /* Semantic color layer. Future UX-104 themes override only this layer. */
+  --color-background-canvas: var(--palette-ice-100);
+  --color-background-subtle: var(--palette-ice-50);
+  --color-surface-primary: var(--palette-white);
+  --color-surface-secondary: #f1f6fa;
+  --color-surface-tertiary: #e7f0f7;
+  --color-surface-inverse: var(--palette-navy-950);
+  --color-surface-inverse-raised: var(--palette-navy-900);
+  --color-text-primary: var(--palette-graphite-900);
+  --color-text-secondary: var(--palette-graphite-700);
+  --color-text-tertiary: var(--palette-graphite-600);
+  --color-text-disabled: #8492a1;
+  --color-text-inverse: var(--palette-white);
+  --color-text-inverse-muted: #b8cad6;
+  --color-text-inverse-accent: #8ef6dd;
+  --color-text-link: var(--palette-cobalt-700);
+  --color-border-subtle: var(--palette-graphite-100);
+  --color-border-default: var(--palette-graphite-150);
+  --color-border-strong: var(--palette-graphite-200);
+  --color-border-inverse: rgba(255, 255, 255, 0.12);
+  --color-action-primary: var(--palette-teal-600);
+  --color-action-primary-hover: var(--palette-teal-700);
+  --color-action-primary-active: #084d49;
+  --color-action-primary-text: var(--palette-white);
+  --color-action-secondary: var(--palette-white);
+  --color-action-secondary-hover: #edf4f8;
+  --color-action-secondary-text: var(--palette-graphite-900);
+  --color-action-disabled: #e5ebf0;
+  --color-action-disabled-text: #758493;
+  --color-selection: var(--palette-teal-100);
+  --color-selection-strong: var(--palette-teal-500);
+  --color-highlight: var(--palette-cobalt-100);
+  --color-highlight-strong: var(--palette-cobalt-600);
+  --color-accent-decorative: var(--palette-copper-600);
+  --color-accent-decorative-soft: var(--palette-copper-100);
+  --color-focus-ring: #087fa0;
+  --color-focus-halo: rgba(8, 127, 160, 0.24);
+  --color-backdrop: rgba(3, 12, 22, 0.56);
+  --color-success-text: var(--palette-success-700);
+  --color-success-surface: var(--palette-success-100);
+  --color-success-border: #afdccc;
+  --color-warning-text: var(--palette-warning-800);
+  --color-warning-surface: var(--palette-warning-100);
+  --color-warning-border: #efcf8c;
+  --color-error-text: var(--palette-error-800);
+  --color-error-surface: var(--palette-error-100);
+  --color-error-border: #efbbb6;
+  --color-danger-action: #9f2f25;
+  --color-danger-action-hover: #81251e;
+
+  /* Typography. Inter and Geist are optional local faces; no runtime font request. */
+  --font-family-sans: Inter, "Geist Sans", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-mono: "Geist Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-weight-regular: 400;
+  --font-weight-medium: 550;
+  --font-weight-semibold: 650;
+  --font-weight-bold: 750;
+  --font-weight-heavy: 850;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: clamp(1.75rem, 2.4vw, 2.25rem);
+  --font-size-hero: clamp(2.25rem, 4vw, 4.25rem);
+  --line-height-tight: 1.2;
+  --line-height-body: 1.5;
+  --line-height-relaxed: 1.65;
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-label: 0.06em;
+
+  /* Spatial scale and component geometry. */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --shadow-xs: 0 1px 2px rgba(7, 28, 44, 0.08);
+  --shadow-sm: 0 4px 12px rgba(7, 28, 44, 0.08);
+  --shadow-md: 0 12px 28px rgba(7, 28, 44, 0.11);
+  --shadow-overlay: 0 18px 44px rgba(7, 28, 44, 0.18);
+  --shadow-focus: 0 0 0 3px var(--color-focus-halo);
+  --control-height-sm: 2.25rem;
+  --control-height-md: 2.75rem;
+  --control-height-lg: 3.125rem;
+  --icon-size-sm: 1rem;
+  --icon-size-md: 1.125rem;
+  --icon-size-lg: 1.375rem;
+  --density-page-gutter: clamp(1rem, 2.5vw, 2rem);
+  --density-panel-padding: 1.25rem;
+  --density-row-height: 3rem;
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* AppShell semantics. */
+  --color-nav-background: var(--palette-navy-950);
+  --color-nav-background-raised: var(--palette-navy-900);
+  --color-nav-text: var(--color-text-inverse-muted);
+  --color-nav-text-active: var(--color-text-inverse);
+  --color-nav-group-label: #8eabba;
+  --color-nav-security-text: #a8ded6;
+  --color-nav-security-strong: #e1faf6;
+  --color-nav-security-surface: rgba(13, 148, 136, 0.1);
+  --color-nav-security-border: rgba(45, 212, 191, 0.2);
+  --color-nav-item-hover: rgba(255, 255, 255, 0.07);
+  --color-nav-item-active: rgba(13, 148, 136, 0.18);
+  --color-nav-indicator: #2dd4bf;
+
+  /* Compatibility aliases for established domain styles. */
+  --color-page: var(--color-background-canvas);
+  --color-surface: var(--color-surface-primary);
+  --color-surface-muted: var(--color-surface-secondary);
+  --color-surface-strong: var(--color-surface-tertiary);
+  --color-ink: var(--color-text-primary);
+  --color-ink-muted: var(--color-text-secondary);
+  --color-ink-soft: var(--color-text-tertiary);
+  --color-line: var(--color-border-default);
+  --color-line-strong: var(--color-border-strong);
+  --color-border: var(--color-border-default);
+  --color-primary: var(--palette-teal-500);
+  --color-primary-strong: var(--color-action-primary);
+  --color-primary-soft: var(--color-selection);
+  --color-accent: var(--color-selection-strong);
+  --color-blue: var(--color-highlight-strong);
+  --color-blue-soft: var(--color-highlight);
+  --color-amber: #a85f08;
+  --color-amber-soft: var(--color-warning-surface);
+  --color-red: #b9382d;
+  --color-red-strong: var(--color-danger-action);
+  --color-red-soft: var(--color-error-surface);
+  --shadow-soft: var(--shadow-md);
+  --shadow-card: var(--shadow-sm);
+  --shadow-raised: var(--shadow-md);
+
+  color: var(--color-text-primary);
+  background: var(--color-background-canvas);
+  font-family: var(--font-family-sans);
+  font-synthesis: none;
+  line-height: var(--line-height-body);
+  text-rendering: optimizeLegibility;
+}
+
+[data-density="compact"] {
+  --control-height-sm: 2rem;
+  --control-height-md: 2.375rem;
+  --control-height-lg: 2.75rem;
+  --density-page-gutter: clamp(0.75rem, 2vw, 1.5rem);
+  --density-panel-padding: 1rem;
+  --density-row-height: 2.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+  }
+}
