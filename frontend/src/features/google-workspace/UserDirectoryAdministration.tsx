@@ -1,6 +1,7 @@
 import { ListFilter, SearchCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Tabs } from "../../components/ui/Tabs";
 import type { ConnectorConfig } from "../../types";
 import { UserDirectory } from "./UserDirectory";
 import { UserLookup } from "./UserLookup";
@@ -53,27 +54,19 @@ export function UserDirectoryAdministration({
   return (
     <div className="user-directory-administration">
       {!hideNavigation && (
-        <nav className="user-directory-navigation" aria-label="User administration tools">
-          <button
-            type="button"
-            className={activeView === "directory" ? "active" : ""}
-            aria-current={activeView === "directory" ? "page" : undefined}
-            onClick={() => setActiveView("directory")}
-          >
-            <ListFilter aria-hidden="true" /> User Directory
-          </button>
-          <button
-            type="button"
-            className={activeView === "lookup" ? "active" : ""}
-            aria-current={activeView === "lookup" ? "page" : undefined}
-            onClick={() => {
-              setSelectedUser(null);
-              setActiveView("lookup");
-            }}
-          >
-            <SearchCheck aria-hidden="true" /> Exact User Lookup
-          </button>
-        </nav>
+        <Tabs
+          className="user-directory-navigation"
+          ariaLabel="User administration tools"
+          activeId={activeView}
+          items={[
+            { id: "directory", label: "User Directory", icon: <ListFilter aria-hidden="true" /> },
+            { id: "lookup", label: "Exact User Lookup", icon: <SearchCheck aria-hidden="true" /> }
+          ]}
+          onChange={(nextView) => {
+            if (nextView === "lookup") setSelectedUser(null);
+            setActiveView(nextView === "lookup" ? "lookup" : "directory");
+          }}
+        />
       )}
 
       {activeView === "directory" ? (
