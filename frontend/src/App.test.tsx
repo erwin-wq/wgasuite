@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 
 import type { ConnectorConfig } from "./types";
 import App from "./App";
@@ -104,9 +105,14 @@ describe("App Google Workspace connection refresh", () => {
       .mockReturnValueOnce(refresh.promise);
     const user = userEvent.setup();
 
-    render(<App />);
+    render(
+      <MemoryRouter initialEntries={["/settings/connections"]}>
+        <App />
+      </MemoryRouter>
+    );
 
-    await user.click(await screen.findByRole("button", { name: "Google Workspace" }));
+    await waitFor(() => expect(api.listOrganizationConnectorConfigs).toHaveBeenCalled());
+    await screen.findByText("Connection state");
     await user.click(await screen.findByRole("button", { name: "Manage connection" }));
     expect(
       await screen.findByRole("heading", { name: "Test the real Google Workspace connection" })

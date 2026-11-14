@@ -26,6 +26,15 @@ interface GoogleWorkspaceAdministrationProps {
   groupNavigationRequestId?: number;
 }
 
+interface WorkspaceConnectionOverviewProps {
+  organizationId: string;
+  organizationName: string | null;
+  connectorConfig: ConnectorConfig | null;
+  canManageConnection: boolean;
+  connectionWizard: ReactNode;
+  gmailAuthorization?: ReactNode;
+}
+
 function formatTestTime(value: string | null): string {
   if (!value) return "Not yet tested";
   return new Intl.DateTimeFormat("en-GB", {
@@ -46,6 +55,35 @@ export function GoogleWorkspaceAdministration({
   organizationalUnits,
   groupNavigationRequestId
 }: GoogleWorkspaceAdministrationProps) {
+  return (
+    <div className="workspace-administration">
+      <WorkspaceConnectionOverview
+        organizationId={organizationId}
+        organizationName={organizationName}
+        connectorConfig={connectorConfig}
+        canManageConnection={canManageConnection}
+        connectionWizard={connectionWizard}
+        gmailAuthorization={gmailAuthorization}
+      />
+      <WorkspaceToolPanels
+        organizationId={organizationId}
+        userLookup={userLookup}
+        groupManagement={groupManagement}
+        organizationalUnits={organizationalUnits}
+        groupNavigationRequestId={groupNavigationRequestId}
+      />
+    </div>
+  );
+}
+
+export function WorkspaceConnectionOverview({
+  organizationId,
+  organizationName,
+  connectorConfig,
+  canManageConnection,
+  connectionWizard,
+  gmailAuthorization
+}: WorkspaceConnectionOverviewProps) {
   const needsSetup =
     !connectorConfig ||
     !connectorConfig.credentials_configured ||
@@ -54,19 +92,13 @@ export function GoogleWorkspaceAdministration({
   const isConnected = connectorConfig?.status === "connected";
   const isFailed = connectorConfig?.status === "connection_failed";
   const [showWizard, setShowWizard] = useState(needsSetup);
-  const [activeTool, setActiveTool] = useState<"users" | "groups" | "orgunits">("users");
 
   useEffect(() => {
     setShowWizard(needsSetup);
-    setActiveTool("users");
   }, [organizationId, needsSetup]);
 
-  useEffect(() => {
-    if (groupNavigationRequestId !== undefined) setActiveTool("groups");
-  }, [groupNavigationRequestId]);
-
   return (
-    <div className="workspace-administration">
+    <div className="workspace-connection-overview">
       {!organizationId ? (
         <section className="workspace-setup-callout" aria-label="Google Workspace setup unavailable">
           <Building2 aria-hidden="true" />
@@ -81,7 +113,8 @@ export function GoogleWorkspaceAdministration({
           <div>
             <h2>Connect Google Workspace</h2>
             <p>
-              Complete the setup and manually verify read-only Directory access for {organizationName}.
+              Complete the setup and manually verify read-only Directory access for{" "}
+              {organizationName}.
             </p>
           </div>
         </section>
@@ -121,7 +154,11 @@ export function GoogleWorkspaceAdministration({
               aria-controls="workspace-connection-settings"
             >
               <Settings2 aria-hidden="true" />
-              {showWizard ? "Close configuration" : isFailed ? "Inspect configuration" : "Manage connection"}
+              {showWizard
+                ? "Close configuration"
+                : isFailed
+                  ? "Inspect configuration"
+                  : "Manage connection"}
             </button>
           )}
           {isFailed && connectorConfig?.last_error && (
@@ -131,7 +168,6 @@ export function GoogleWorkspaceAdministration({
           )}
         </section>
       )}
-
       {showWizard && organizationId && (
         <section id="workspace-connection-settings" className="workspace-settings-panel">
           <div className="workspace-section-heading">
@@ -145,6 +181,36 @@ export function GoogleWorkspaceAdministration({
         </section>
       )}
 
+    </div>
+  );
+}
+
+function WorkspaceToolPanels({
+  organizationId,
+  userLookup,
+  groupManagement,
+  organizationalUnits,
+  groupNavigationRequestId
+}: Pick<
+  GoogleWorkspaceAdministrationProps,
+  | "organizationId"
+  | "userLookup"
+  | "groupManagement"
+  | "organizationalUnits"
+  | "groupNavigationRequestId"
+>) {
+  const [activeTool, setActiveTool] = useState<"users" | "groups" | "orgunits">("users");
+
+  useEffect(() => {
+    setActiveTool("users");
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (groupNavigationRequestId !== undefined) setActiveTool("groups");
+  }, [groupNavigationRequestId]);
+
+  return (
+    <>
       <nav className="workspace-tool-navigation" aria-label="Google Workspace administration tools">
         <button
           type="button"
@@ -179,6 +245,6 @@ export function GoogleWorkspaceAdministration({
             ? groupManagement
             : organizationalUnits}
       </section>
-    </div>
+    </>
   );
 }
