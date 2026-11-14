@@ -1,8 +1,6 @@
 import {
   Activity,
-  AlertCircle,
   ArrowLeft,
-  CheckCircle2,
   Database,
   FileText,
   Layers3,
@@ -17,6 +15,10 @@ import {
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
+import { Button } from "./components/ui/Button";
+import { Card } from "./components/ui/Card";
+import { Alert } from "./components/ui/Feedback";
+import { Input } from "./components/ui/FormControls";
 import {
   ApiError,
   clearStoredAuthToken,
@@ -1051,7 +1053,7 @@ function App() {
   if (isAuthLoading) {
     return (
       <main className="app-shell login-shell">
-        <section className="login-panel">
+        <Card className="login-panel">
           <LockKeyhole aria-hidden="true" />
           <h1>WGASuite</h1>
           <p>Authenticatie controleren.</p>
@@ -1059,7 +1061,7 @@ function App() {
             <Loader2 className="spin" aria-hidden="true" />
             Sessie laden
           </div>
-        </section>
+        </Card>
       </main>
     );
   }
@@ -1070,7 +1072,7 @@ function App() {
     }
     return (
       <main className="app-shell login-shell">
-        <section className="login-panel">
+        <Card className="login-panel">
           <LockKeyhole aria-hidden="true" />
           <span className="eyebrow">Development login</span>
           <h1>WGASuite</h1>
@@ -1079,50 +1081,33 @@ function App() {
             testen. Dit is geen productie-authenticatie.
           </p>
 
-          {feedback && (
-            <section className={`message ${feedback.type}`} aria-live="polite">
-              {feedback.type === "error" ? (
-                <AlertCircle aria-hidden="true" />
-              ) : (
-                <CheckCircle2 aria-hidden="true" />
-              )}
-              <span>{feedback.message}</span>
-            </section>
-          )}
+          {feedback ? <Alert variant={feedback.type === "error" ? "danger" : "success"}>{feedback.message}</Alert> : null}
 
           <form className="login-form" onSubmit={handleLogin}>
-            <label>
-              Email
-              <input
-                value={loginEmail}
-                onChange={(event) => setLoginEmail(event.target.value)}
-                placeholder="admin@example.local"
-                autoComplete="username"
-                required
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                value={loginPassword}
-                onChange={(event) => setLoginPassword(event.target.value)}
-                placeholder="Password"
-                autoComplete="current-password"
-                required
-              />
-            </label>
-            <button type="submit" disabled={!loginEmail.trim() || !loginPassword || isLoginSaving}>
-              {isLoginSaving ? (
-                <Loader2 className="spin" aria-hidden="true" />
-              ) : (
-                <LockKeyhole aria-hidden="true" />
-              )}
+            <Input
+              label="Email"
+              value={loginEmail}
+              onChange={(event) => setLoginEmail(event.target.value)}
+              placeholder="admin@example.local"
+              autoComplete="username"
+              required
+            />
+            <Input
+              label="Password"
+              type="password"
+              value={loginPassword}
+              onChange={(event) => setLoginPassword(event.target.value)}
+              placeholder="Password"
+              autoComplete="current-password"
+              required
+            />
+            <Button type="submit" loading={isLoginSaving} loadingLabel="Signing in" disabled={!loginEmail.trim() || !loginPassword}>
+              {!isLoginSaving ? <LockKeyhole aria-hidden="true" /> : null}
               Inloggen
-            </button>
+            </Button>
           </form>
 
-        </section>
+        </Card>
       </main>
     );
   }
@@ -1389,16 +1374,7 @@ function App() {
       ) : (
       <>
 
-      {feedback && (
-        <section className={`message ${feedback.type}`} aria-live="polite">
-          {feedback.type === "error" ? (
-            <AlertCircle aria-hidden="true" />
-          ) : (
-            <CheckCircle2 aria-hidden="true" />
-          )}
-          <span>{feedback.message}</span>
-        </section>
-      )}
+      {feedback ? <Alert variant={feedback.type === "error" ? "danger" : "success"}>{feedback.message}</Alert> : null}
 
       <section className={sectionClass("dashboard", "dashboard-view")} aria-label="Dashboard">
         <DashboardOverview

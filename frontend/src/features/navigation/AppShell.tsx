@@ -17,6 +17,10 @@ import {
   type AppRouteDefinition,
   type NavigationGroup
 } from "../../app/routes";
+import { Button, IconButton } from "../../components/ui/Button";
+import { Badge, EmptyState } from "../../components/ui/Feedback";
+import { Select } from "../../components/ui/FormControls";
+import { PageHeader } from "../../components/ui/PageHeader";
 import type { Customer, Organization, User } from "../../types";
 
 interface WorkspaceSwitcherProps {
@@ -63,8 +67,8 @@ function WorkspaceSwitcher({
 
   return (
     <div className="workspace-switcher" ref={panelRef}>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
         className="workspace-switcher-trigger"
         onClick={() => setIsOpen((current) => !current)}
         aria-expanded={isOpen}
@@ -80,42 +84,32 @@ function WorkspaceSwitcher({
           <em>{selectedCustomer?.name ?? "No customer selected"}</em>
         </span>
         <ChevronDown aria-hidden="true" />
-      </button>
+      </Button>
       {isOpen && (
         <div id="workspace-switcher-panel" className="workspace-switcher-panel">
-          <label>
-            Customer
-            <select
-              value={selectedCustomerId}
-              onChange={(event) => onCustomerChange(event.target.value)}
-              disabled={isLoading}
-            >
-              <option value="">Select customer</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Organization
-            <select
-              value={selectedOrganizationId}
-              onChange={(event) => {
-                onOrganizationChange(event.target.value);
-                setIsOpen(false);
-              }}
-              disabled={isLoading || organizations.length === 0}
-            >
-              <option value="">Select organization</option>
-              {organizations.map((organization) => (
-                <option key={organization.id} value={organization.id}>
-                  {organization.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="Customer"
+            value={selectedCustomerId}
+            onChange={(event) => onCustomerChange(event.target.value)}
+            disabled={isLoading}
+            options={[
+              { value: "", label: "Select customer" },
+              ...customers.map((customer) => ({ value: customer.id, label: customer.name }))
+            ]}
+          />
+          <Select
+            label="Organization"
+            value={selectedOrganizationId}
+            onChange={(event) => {
+              onOrganizationChange(event.target.value);
+              setIsOpen(false);
+            }}
+            disabled={isLoading || organizations.length === 0}
+            options={[
+              { value: "", label: "Select organization" },
+              ...organizations.map((organization) => ({ value: organization.id, label: organization.name }))
+            ]}
+          />
         </div>
       )}
     </div>
@@ -191,18 +185,16 @@ export function AppShell({
             <strong>WGASuite</strong>
             <small>Workspace administration</small>
           </span>
-          <button
+          <IconButton
             ref={mobileCloseRef}
-            type="button"
             className="mobile-sidebar-close"
-            aria-label="Close navigation"
+            label="Close navigation"
+            icon={<X aria-hidden="true" />}
             onClick={() => {
               setIsMobileOpen(false);
               mobileToggleRef.current?.focus();
             }}
-          >
-            <X aria-hidden="true" />
-          </button>
+          />
         </div>
 
         <nav className="premium-navigation" aria-label="Workspace administration">
@@ -228,8 +220,9 @@ export function AppShell({
         </nav>
 
         <div className="sidebar-footer">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             className="sidebar-collapse"
             onClick={() => setIsCollapsed((current) => !current)}
             aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -241,7 +234,7 @@ export function AppShell({
               <ChevronsLeft aria-hidden="true" />
             )}
             <span>{isCollapsed ? "Expand" : "Collapse sidebar"}</span>
-          </button>
+          </Button>
           <div className="sidebar-security-note">
             <BadgeCheck aria-hidden="true" />
             <span>
@@ -254,40 +247,35 @@ export function AppShell({
 
       <section className="premium-main">
         <header className="premium-header">
-          <button
+          <IconButton
             ref={mobileToggleRef}
-            type="button"
             className="mobile-menu-trigger"
+            label="Open navigation"
+            icon={<Menu aria-hidden="true" />}
             onClick={() => setIsMobileOpen(true)}
             aria-expanded={isMobileOpen}
-            aria-label="Open navigation"
-          >
-            <Menu aria-hidden="true" />
-          </button>
+          />
           <WorkspaceSwitcher {...workspaceSwitcherProps} />
-          <div className={`connection-pill ${isConnected ? "connected" : ""}`}>
+          <Badge variant={isConnected ? "success" : "neutral"} className={`connection-pill ${isConnected ? "connected" : ""}`}>
             <span aria-hidden="true" /> {isConnected ? "Connected" : "Setup required"}
-          </div>
+          </Badge>
           <div className="header-spacer" />
           <div className="account-summary">
             <span>{currentUser.full_name}</span>
             <small>{currentUser.role.replace(/_/g, " ")}</small>
           </div>
-          <button type="button" className="header-logout" onClick={onLogout}>
+          <Button variant="secondary" size="sm" className="header-logout" onClick={onLogout}>
             <LogOut aria-hidden="true" /><span>Logout</span>
-          </button>
+          </Button>
         </header>
 
         <div className="premium-content">
-          <header className="route-heading">
-            <nav aria-label="Breadcrumb">
-              {currentRoute.breadcrumb.map((item, index) => (
-                <span key={item}>{index > 0 && <em>/</em>}{item}</span>
-              ))}
-            </nav>
-            <h1>{currentRoute.title}</h1>
-            <p>{currentRoute.description}</p>
-          </header>
+          <PageHeader
+            className="route-heading"
+            breadcrumbs={currentRoute.breadcrumb}
+            title={currentRoute.title}
+            description={currentRoute.description}
+          />
           {children}
         </div>
       </section>
@@ -297,10 +285,8 @@ export function AppShell({
 
 export function RouteUnavailable({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="route-unavailable" role="status">
-      <PanelLeftClose aria-hidden="true" />
-      <h2>{title}</h2>
-      <p>{children}</p>
-    </section>
+    <EmptyState className="route-unavailable" title={title} icon={<PanelLeftClose aria-hidden="true" />}>
+      {children}
+    </EmptyState>
   );
 }

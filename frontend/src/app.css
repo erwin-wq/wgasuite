@@ -3207,28 +3207,25 @@ h4 {
 }
 
 .user-directory-navigation {
-  background: var(--color-surface-muted);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--color-line);
+  border-radius: 0;
   display: flex;
   gap: var(--space-2);
   min-width: 0;
-  padding: var(--space-2);
+  padding: 0;
 }
 
-.user-directory-navigation button {
-  background: transparent;
-  box-shadow: none;
-  color: var(--color-ink-muted);
+.user-directory-navigation .ui-tabs__tab {
   flex: 1 1 0;
 }
 
-.user-directory-navigation button:hover:not(:disabled),
-.user-directory-navigation button.active {
+.user-directory-navigation .ui-tabs__tab:hover:not(:disabled),
+.user-directory-navigation .ui-tabs__tab[aria-selected="true"] {
   background: var(--color-surface);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
   color: var(--color-primary-strong);
-  transform: none;
 }
 
 .directory-heading,

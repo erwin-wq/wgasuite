@@ -1,5 +1,7 @@
 import { Building2, CheckCircle2, CircleHelp, ShieldCheck, Users } from "lucide-react";
 
+import { Button } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
 import type { ConnectorConfig } from "../../types";
 import type { ActiveSection } from "../navigation/AppNavigation";
 
@@ -55,17 +57,17 @@ export function DashboardOverview({
 
   return (
     <div className="dashboard-overview">
-      <section className="current-workspace-panel" aria-labelledby="current-workspace-heading">
+      <Card className="current-workspace-panel" aria-labelledby="current-workspace-heading">
         <div className="workspace-panel-heading">
           <div>
             <h2 id="current-workspace-heading">Current workspace</h2>
             <p>Your active customer, organization and Google Workspace connection.</p>
           </div>
           {organizationName && (
-            <button type="button" onClick={() => onNavigate("google-workspace")}>
+            <Button onClick={() => onNavigate("google-workspace")}>
               <ShieldCheck aria-hidden="true" />
               {isConnected ? "Open User Lookup" : "Open Google Workspace"}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -88,28 +90,28 @@ export function DashboardOverview({
             </strong>
           </article>
         </div>
-      </section>
+      </Card>
 
       <div className="dashboard-secondary-grid">
-        <section className="truthful-status-panel" aria-labelledby="assessment-status-heading">
+        <Card className="truthful-status-panel" aria-labelledby="assessment-status-heading">
           <ShieldCheck aria-hidden="true" />
           <div>
             <h2 id="assessment-status-heading">Security assessment</h2>
             <strong>Not assessed</strong>
             <p>No evidence-backed Google Workspace security assessment has been run.</p>
           </div>
-        </section>
+        </Card>
 
-        <section className="next-step-panel" aria-labelledby="next-step-heading">
+        <Card className="next-step-panel" aria-labelledby="next-step-heading">
           <div>
             <h2 id="next-step-heading">Next step</h2>
             <strong>{nextStep.title}</strong>
             <p>{nextStep.description}</p>
           </div>
-          <button type="button" onClick={() => onNavigate(nextStep.target)}>
+          <Button onClick={() => onNavigate(nextStep.target)}>
             {nextStep.button}
-          </button>
-        </section>
+          </Button>
+        </Card>
       </div>
     </div>
   );
