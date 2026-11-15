@@ -150,8 +150,8 @@ embedding domain authorization in visual components.
 
 ### UX-104 theme families
 
-UX-104 should add complete Navy & Teal, Cobalt & Ice, and Graphite & Copper theme mappings by
-overriding the semantic layer. It must not make components read palette primitives directly.
-Success, warning, error, danger, focus, disabled, and contrast meanings remain consistent across
-themes. Theme and density preferences require an explicit persistence and privacy decision before
-they are exposed in the account menu.
+UX-104 implements complete Navy & Teal, Cobalt & Ice, and Graphite & Copper mappings by overriding
+the semantic layer. Success, warning, error, danger, focus, disabled, and contrast meanings remain
+consistent across themes. The account-scoped, browser-local persistence and privacy decisions are
+documented in [`UX-104_THEME_SYSTEM.md`](UX-104_THEME_SYSTEM.md). Density remains reserved for
+UX-105.

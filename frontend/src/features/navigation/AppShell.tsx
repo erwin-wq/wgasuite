@@ -3,7 +3,6 @@ import {
   ChevronDown,
   ChevronsLeft,
   ChevronsRight,
-  LogOut,
   Menu,
   PanelLeftClose,
   ShieldCheck,
@@ -21,7 +20,9 @@ import { Button, IconButton } from "../../components/ui/Button";
 import { Badge, EmptyState } from "../../components/ui/Feedback";
 import { Select } from "../../components/ui/FormControls";
 import { PageHeader } from "../../components/ui/PageHeader";
+import type { ThemeId } from "../../theme/theme";
 import type { Customer, Organization, User } from "../../types";
+import { AccountThemeMenu } from "./AccountThemeMenu";
 
 interface WorkspaceSwitcherProps {
   customers: Customer[];
@@ -121,6 +122,8 @@ interface AppShellProps extends WorkspaceSwitcherProps {
   currentRoute: AppRouteDefinition;
   navigationRoutes: AppRouteDefinition[];
   isConnected: boolean;
+  theme: ThemeId;
+  onThemeChange: (theme: ThemeId) => void;
   onLogout: () => void;
   children: ReactNode;
 }
@@ -130,6 +133,8 @@ export function AppShell({
   currentRoute,
   navigationRoutes,
   isConnected,
+  theme,
+  onThemeChange,
   onLogout,
   children,
   ...workspaceSwitcherProps
@@ -260,13 +265,13 @@ export function AppShell({
             <span aria-hidden="true" /> {isConnected ? "Connected" : "Setup required"}
           </Badge>
           <div className="header-spacer" />
-          <div className="account-summary">
-            <span>{currentUser.full_name}</span>
-            <small>{currentUser.role.replace(/_/g, " ")}</small>
-          </div>
-          <Button variant="secondary" size="sm" className="header-logout" onClick={onLogout}>
-            <LogOut aria-hidden="true" /><span>Logout</span>
-          </Button>
+          <AccountThemeMenu
+            fullName={currentUser.full_name}
+            role={currentUser.role}
+            theme={theme}
+            onThemeChange={onThemeChange}
+            onLogout={onLogout}
+          />
         </header>
 
         <div className="premium-content">

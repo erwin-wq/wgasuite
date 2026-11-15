@@ -129,7 +129,11 @@ export function WorkspaceConnectionOverview({
             <strong>{organizationName ?? "Selected organization"}</strong>
           </div>
           <div className="connection-status-item">
-            {isConnected ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
+            {isConnected ? (
+              <CheckCircle2 className="success" aria-hidden="true" />
+            ) : (
+              <AlertTriangle className="failed" aria-hidden="true" />
+            )}
             <span>Connection state</span>
             <strong className={isConnected ? "connected" : "failed"}>
               {isConnected ? "Connected" : "Connection failed"}

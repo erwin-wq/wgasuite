@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
@@ -47,6 +48,8 @@ function renderShell(overrides: Partial<React.ComponentProps<typeof AppShell>> =
     selectedOrganizationId: "organization-1",
     isLoading: false,
     isConnected: true,
+    theme: "navy-teal",
+    onThemeChange: vi.fn(),
     onCustomerChange: vi.fn(),
     onOrganizationChange: vi.fn(),
     onLogout: vi.fn(),
@@ -54,6 +57,32 @@ function renderShell(overrides: Partial<React.ComponentProps<typeof AppShell>> =
     ...overrides
   };
   return render(<MemoryRouter initialEntries={[appRoutes.users.path]}><AppShell {...props} /></MemoryRouter>);
+}
+
+function ThemeSwitchHarness() {
+  const [theme, setTheme] = useState<React.ComponentProps<typeof AppShell>["theme"]>("navy-teal");
+  return (
+    <MemoryRouter initialEntries={[appRoutes.users.path]}>
+      <AppShell
+        currentUser={user}
+        currentRoute={appRoutes.users}
+        navigationRoutes={routeList}
+        customers={customers}
+        organizations={organizations}
+        selectedCustomerId="customer-1"
+        selectedOrganizationId="organization-1"
+        isLoading={false}
+        isConnected
+        theme={theme}
+        onThemeChange={setTheme}
+        onCustomerChange={vi.fn()}
+        onOrganizationChange={vi.fn()}
+        onLogout={vi.fn()}
+      >
+        <label>Workflow draft<input defaultValue="Preserve this value" /></label>
+      </AppShell>
+    </MemoryRouter>
+  );
 }
 
 describe("premium AppShell", () => {
@@ -81,8 +110,36 @@ describe("premium AppShell", () => {
     const userEvents = userEvent.setup();
     renderShell({ navigationRoutes: [appRoutes.overview, appRoutes.users], onLogout });
     expect(screen.queryByRole("link", { name: "Platform" })).not.toBeInTheDocument();
-    await userEvents.click(screen.getByRole("button", { name: "Logout" }));
+    await userEvents.click(screen.getByRole("button", { name: /Test Operator/i }));
+    await userEvents.click(screen.getByRole("menuitem", { name: "Logout" }));
     expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers all themes with keyboard navigation and exposes the current selection", async () => {
+    const onThemeChange = vi.fn();
+    const userEvents = userEvent.setup();
+    renderShell({ theme: "cobalt-ice", onThemeChange });
+
+    await userEvents.click(screen.getByRole("button", { name: /Test Operator/i }));
+    const selected = screen.getByRole("menuitemradio", { name: /Cobalt & Ice/i });
+    expect(selected).toHaveAttribute("aria-checked", "true");
+    expect(selected).toHaveFocus();
+
+    await userEvents.keyboard("{ArrowDown}{Enter}");
+    expect(onThemeChange).toHaveBeenCalledWith("graphite-copper");
+  });
+
+  it("changes themes without remounting the active workflow", async () => {
+    const userEvents = userEvent.setup();
+    render(<ThemeSwitchHarness />);
+    const workflowDraft = screen.getByLabelText("Workflow draft");
+    await userEvents.clear(workflowDraft);
+    await userEvents.type(workflowDraft, "Unsaved domain state");
+
+    await userEvents.click(screen.getByRole("button", { name: /Account and appearance/i }));
+    await userEvents.click(screen.getByRole("menuitemradio", { name: /Graphite & Copper/i }));
+
+    expect(screen.getByLabelText("Workflow draft")).toHaveValue("Unsaved domain state");
   });
 
   it("opens and closes the mobile drawer with Escape", async () => {

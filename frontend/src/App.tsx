@@ -70,6 +70,7 @@ import { DashboardOverview } from "./features/dashboard/DashboardOverview";
 import { AppShell, RouteUnavailable } from "./features/navigation/AppShell";
 import { appRoutes, findRoute, routeList, type AppRouteId } from "./app/routes";
 import type { ActiveSection } from "./features/navigation/AppNavigation";
+import { useThemePreference } from "./theme/theme";
 
 type DreadScoreKey = keyof DreadScoreCreate;
 type Feedback = { type: "success" | "error"; message: string } | null;
@@ -202,6 +203,9 @@ function App() {
   const connectorConfigRequestSequence = useRef(0);
   const workspaceRequestSequence = useRef(0);
   const [isPlatformAdminOverviewLoading, setIsPlatformAdminOverviewLoading] = useState(false);
+  const { theme, setTheme, activateAccountTheme, resetThemeSession } = useThemePreference(
+    currentUser?.id ?? null
+  );
 
   const customerById = useMemo(
     () => new Map(customers.map((customer) => [customer.id, customer])),
@@ -349,6 +353,7 @@ function App() {
 
   const resetSession = useCallback((message?: string) => {
     clearStoredAuthToken();
+    resetThemeSession();
     setCurrentUser(null);
     setReport(null);
     setCustomers([]);
@@ -372,7 +377,7 @@ function App() {
     workspaceRequestSequence.current += 1;
     connectorConfigRequestSequence.current += 1;
     setTenantEpoch((current) => current + 1);
-  }, []);
+  }, [resetThemeSession]);
 
   const handleRequestError = useCallback(
     (error: unknown) => {
@@ -530,6 +535,7 @@ function App() {
     async function restoreSession() {
       const token = getStoredAuthToken();
       if (!token) {
+        resetThemeSession();
         setIsAuthLoading(false);
         setIsLoading(false);
         return;
@@ -537,6 +543,7 @@ function App() {
 
       try {
         const user = await getCurrentUser();
+        activateAccountTheme(user.id);
         setCurrentUser(user);
         await loadWorkspace();
       } catch (authError) {
@@ -547,7 +554,7 @@ function App() {
     }
 
     restoreSession();
-  }, [handleRequestError, loadWorkspace]);
+  }, [activateAccountTheme, handleRequestError, loadWorkspace, resetThemeSession]);
 
   useEffect(() => {
     if (!selectedCustomerId) {
@@ -996,6 +1003,7 @@ function App() {
       });
       setStoredAuthToken(tokenResponse.access_token);
       const user = await getCurrentUser();
+      activateAccountTheme(user.id);
       setCurrentUser(user);
       await loadWorkspace();
       const returnPath = (location.state as { from?: unknown } | null)?.from;
@@ -1359,6 +1367,8 @@ function App() {
       selectedOrganizationId={selectedOrganizationId}
       isLoading={isLoading}
       isConnected={googleWorkspaceConnectorConfig?.status === "connected"}
+      theme={theme}
+      onThemeChange={setTheme}
       onCustomerChange={handleCustomerContextChange}
       onOrganizationChange={handleOrganizationContextChange}
       onLogout={() => handleLogout()}
