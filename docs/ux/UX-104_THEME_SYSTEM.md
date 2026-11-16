@@ -52,8 +52,8 @@ unavailable storage fail closed to Navy & Teal without blocking the application.
   not rely on color alone.
 - Shared focus and reduced-motion tokens remain authoritative in all themes.
 
-## UX-105 boundary
+## UX-105 extension
 
-UX-104 does not expose comfortable/compact density selection. Existing `data-density` tokens remain
-unchanged for UX-105, which may reuse the same account-scoped preference architecture with an
-independent schema field after its interaction and migration behavior are reviewed.
+UX-105 extends this account-scoped preference record with an independent density field. Existing
+version 1 theme-only records remain valid and safely default to comfortable density. See
+`UX-105_DENSITY_MODES.md` for the density token, accessibility and responsive contracts.

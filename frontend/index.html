@@ -10,18 +10,24 @@
     <title>WGASuite</title>
     <script>
       (() => {
-        const fallback = "navy-teal";
-        const allowed = new Set([fallback, "cobalt-ice", "graphite-copper"]);
-        let theme = fallback;
+        const fallbackTheme = "navy-teal";
+        const fallbackDensity = "comfortable";
+        const allowedThemes = new Set([fallbackTheme, "cobalt-ice", "graphite-copper"]);
+        const allowedDensities = new Set([fallbackDensity, "compact"]);
+        let theme = fallbackTheme;
+        let density = fallbackDensity;
         try {
           const stored = JSON.parse(localStorage.getItem("wgasuite.ui.theme.active.v1") || "null");
-          if (stored?.version === 1 && typeof stored.account === "string" && allowed.has(stored.theme)) {
+          if ((stored?.version === 1 || stored?.version === 2) &&
+              typeof stored.account === "string" && allowedThemes.has(stored.theme)) {
             theme = stored.theme;
+            if (stored.version === 2 && allowedDensities.has(stored.density)) density = stored.density;
           }
         } catch {
           // Use the safe default when storage is unavailable or corrupted.
         }
         document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.density = density;
         document.documentElement.style.colorScheme = theme === "graphite-copper" ? "dark" : "light";
       })();
     </script>

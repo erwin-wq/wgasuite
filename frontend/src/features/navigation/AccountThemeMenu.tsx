@@ -1,14 +1,21 @@
-import { Check, ChevronDown, LogOut, Palette, UserRound } from "lucide-react";
+import { Check, ChevronDown, List, LogOut, Palette, Rows3, UserRound } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { Button } from "../../components/ui/Button";
-import { THEME_OPTIONS, type ThemeId } from "../../theme/theme";
+import {
+  DENSITY_OPTIONS,
+  THEME_OPTIONS,
+  type DensityId,
+  type ThemeId
+} from "../../theme/theme";
 
 interface AccountThemeMenuProps {
   fullName: string;
   role: string;
   theme: ThemeId;
+  density: DensityId;
   onThemeChange: (theme: ThemeId) => void;
+  onDensityChange: (density: DensityId) => void;
   onLogout: () => void;
 }
 
@@ -16,7 +23,9 @@ export function AccountThemeMenu({
   fullName,
   role,
   theme,
+  density,
   onThemeChange,
+  onDensityChange,
   onLogout
 }: AccountThemeMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -113,8 +122,34 @@ export function AccountThemeMenu({
             ))}
           </div>
           <div className="account-menu-divider" />
+          <div className="account-menu-heading">
+            <Rows3 aria-hidden="true" />
+            <span>Display density</span>
+          </div>
+          <div className="density-menu-options" role="group" aria-label="Display density">
+            {DENSITY_OPTIONS.map((option, index) => (
+              <button
+                key={option.id}
+                ref={(node) => { itemRefs.current[THEME_OPTIONS.length + index] = node; }}
+                type="button"
+                role="menuitemradio"
+                aria-checked={density === option.id}
+                data-density-id={option.id}
+                className="density-menu-option"
+                onClick={() => onDensityChange(option.id)}
+              >
+                <List aria-hidden="true" />
+                <span>
+                  <strong>{option.label}</strong>
+                  <small>{option.description}</small>
+                </span>
+                {density === option.id ? <Check aria-hidden="true" /> : null}
+              </button>
+            ))}
+          </div>
+          <div className="account-menu-divider" />
           <button
-            ref={(node) => { itemRefs.current[THEME_OPTIONS.length] = node; }}
+            ref={(node) => { itemRefs.current[THEME_OPTIONS.length + DENSITY_OPTIONS.length] = node; }}
             type="button"
             role="menuitem"
             className="account-menu-logout"

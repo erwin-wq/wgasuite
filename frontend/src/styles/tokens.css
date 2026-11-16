@@ -143,6 +143,14 @@
   --density-page-gutter: clamp(1rem, 2.5vw, 2rem);
   --density-panel-padding: 1.25rem;
   --density-row-height: 3rem;
+  --density-inline-gap: 0.75rem;
+  --density-stack-gap: 1rem;
+  --density-section-gap: 1.5rem;
+  --density-table-cell-y: 0.8rem;
+  --density-dialog-padding: 1.25rem;
+  --density-header-height: 4.85rem;
+  --density-nav-item-height: 2.6rem;
+  --density-nav-y: 0.58rem;
   --motion-fast: 120ms;
   --motion-base: 180ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -350,6 +358,25 @@
   --density-page-gutter: clamp(0.75rem, 2vw, 1.5rem);
   --density-panel-padding: 1rem;
   --density-row-height: 2.5rem;
+  --density-inline-gap: 0.5rem;
+  --density-stack-gap: 0.75rem;
+  --density-section-gap: 1rem;
+  --density-table-cell-y: 0.55rem;
+  --density-dialog-padding: 1rem;
+  --density-header-height: 4.1rem;
+  --density-nav-item-height: 2.25rem;
+  --density-nav-y: 0.38rem;
+}
+
+@media (max-width: 600px) {
+  [data-density="compact"] {
+    --control-height-sm: 2.25rem;
+    --control-height-md: 2.625rem;
+    --control-height-lg: 2.875rem;
+    --density-page-gutter: 0.875rem;
+    --density-row-height: 2.75rem;
+    --density-nav-item-height: 2.625rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

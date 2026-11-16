@@ -153,7 +153,7 @@ label {
   display: grid;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-bold);
-  gap: var(--space-2);
+  gap: var(--density-inline-gap);
 }
 
 h1,
@@ -3869,6 +3869,33 @@ h4 {
   white-space: nowrap;
 }
 
+/* UX-105 shared density integration for data-heavy domain surfaces. */
+.platform-admin-table th,
+.platform-admin-table td,
+.report-table th,
+.report-table td,
+.directory-table th,
+.directory-table td,
+.group-table th,
+.group-table td,
+.user-membership-table th,
+.user-membership-table td {
+  height: var(--density-row-height);
+  padding-bottom: var(--density-table-cell-y);
+  padding-top: var(--density-table-cell-y);
+}
+
+.workspace-connection-status,
+.settings-card,
+.summary-card,
+.detail-card,
+.status-card,
+.composer-panel,
+.panel,
+.findings-section {
+  padding: var(--density-panel-padding);
+}
+
 .pagination-controls {
   align-items: center;
   display: flex;
@@ -4607,7 +4634,7 @@ h4 {
   border-bottom: 1px solid var(--color-border-inverse);
   display: flex;
   gap: 0.75rem;
-  min-height: 4.85rem;
+  min-height: var(--density-header-height);
   padding: 0 1.1rem;
 }
 
@@ -4650,13 +4677,13 @@ h4 {
 .premium-navigation {
   flex: 1;
   overflow-y: auto;
-  padding: 1.35rem 0.85rem;
+  padding: var(--density-section-gap) 0.85rem;
 }
 
 .navigation-group {
   display: grid;
   gap: 0.22rem;
-  margin-bottom: 1.3rem;
+  margin-bottom: var(--density-stack-gap);
 }
 
 .navigation-group-label {
@@ -4676,8 +4703,8 @@ h4 {
   font-size: 0.88rem;
   font-weight: 650;
   gap: 0.8rem;
-  min-height: 2.6rem;
-  padding: 0.58rem 0.75rem;
+  min-height: var(--density-nav-item-height);
+  padding: var(--density-nav-y) 0.75rem;
   position: relative;
   text-decoration: none;
   transition:
@@ -4724,8 +4751,8 @@ h4 {
 .sidebar-footer {
   border-top: 1px solid var(--color-border-inverse);
   display: grid;
-  gap: 0.6rem;
-  padding: 0.85rem;
+  gap: var(--density-inline-gap);
+  padding: var(--density-stack-gap);
 }
 
 .sidebar-collapse,
@@ -4817,8 +4844,8 @@ h4 {
   background: var(--color-surface-primary);
   border-bottom: 1px solid var(--color-border-default);
   display: flex;
-  gap: 0.85rem;
-  min-height: 4.85rem;
+  gap: var(--density-inline-gap);
+  min-height: var(--density-header-height);
   padding: 0.65rem var(--density-page-gutter);
   position: sticky;
   top: 0;
@@ -4889,9 +4916,9 @@ h4 {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-overlay);
   display: grid;
-  gap: 0.85rem;
+  gap: var(--density-stack-gap);
   left: 0;
-  padding: 1rem;
+  padding: var(--density-panel-padding);
   position: absolute;
   top: calc(100% + 0.45rem);
   width: min(23rem, 86vw);
@@ -5010,18 +5037,21 @@ h4 {
 
 .account-menu-heading svg,
 .theme-menu-option > svg,
+.density-menu-option > svg,
 .account-menu-logout svg {
   flex: 0 0 auto;
   height: var(--icon-size-md);
   width: var(--icon-size-md);
 }
 
-.theme-menu-options {
+.theme-menu-options,
+.density-menu-options {
   display: grid;
   gap: var(--space-1);
 }
 
 .theme-menu-option,
+.density-menu-option,
 .account-menu-logout {
   background: transparent;
   border: 1px solid transparent;
@@ -5037,6 +5067,8 @@ h4 {
 
 .theme-menu-option:hover:not(:disabled),
 .theme-menu-option:focus-visible,
+.density-menu-option:hover:not(:disabled),
+.density-menu-option:focus-visible,
 .account-menu-logout:hover:not(:disabled),
 .account-menu-logout:focus-visible {
   background: var(--color-action-secondary-hover);
@@ -5044,28 +5076,33 @@ h4 {
   box-shadow: none;
 }
 
-.theme-menu-option[aria-checked="true"] {
+.theme-menu-option[aria-checked="true"],
+.density-menu-option[aria-checked="true"] {
   background: var(--color-selection);
   color: var(--color-text-primary);
 }
 
-.theme-menu-option > span:nth-child(2) {
+.theme-menu-option > span:nth-child(2),
+.density-menu-option > span:nth-child(2) {
   display: grid;
   flex: 1;
   line-height: 1.25;
 }
 
-.theme-menu-option strong {
+.theme-menu-option strong,
+.density-menu-option strong {
   font-size: var(--font-size-sm);
 }
 
-.theme-menu-option small {
+.theme-menu-option small,
+.density-menu-option small {
   color: var(--color-text-tertiary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-regular);
 }
 
-.theme-menu-option > svg {
+.theme-menu-option > svg,
+.density-menu-option > svg:last-child {
   color: var(--color-selection-strong);
 }
 
@@ -5104,8 +5141,8 @@ h4 {
 
 .route-heading {
   border-bottom: 1px solid var(--color-border-default);
-  margin-bottom: 1.6rem;
-  padding-bottom: 1.35rem;
+  margin-bottom: var(--density-section-gap);
+  padding-bottom: var(--density-stack-gap);
 }
 
 .route-heading nav {

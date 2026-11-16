@@ -20,7 +20,7 @@ import { Button, IconButton } from "../../components/ui/Button";
 import { Badge, EmptyState } from "../../components/ui/Feedback";
 import { Select } from "../../components/ui/FormControls";
 import { PageHeader } from "../../components/ui/PageHeader";
-import type { ThemeId } from "../../theme/theme";
+import type { DensityId, ThemeId } from "../../theme/theme";
 import type { Customer, Organization, User } from "../../types";
 import { AccountThemeMenu } from "./AccountThemeMenu";
 
@@ -123,7 +123,9 @@ interface AppShellProps extends WorkspaceSwitcherProps {
   navigationRoutes: AppRouteDefinition[];
   isConnected: boolean;
   theme: ThemeId;
+  density: DensityId;
   onThemeChange: (theme: ThemeId) => void;
+  onDensityChange: (density: DensityId) => void;
   onLogout: () => void;
   children: ReactNode;
 }
@@ -134,7 +136,9 @@ export function AppShell({
   navigationRoutes,
   isConnected,
   theme,
+  density,
   onThemeChange,
+  onDensityChange,
   onLogout,
   children,
   ...workspaceSwitcherProps
@@ -269,7 +273,9 @@ export function AppShell({
             fullName={currentUser.full_name}
             role={currentUser.role}
             theme={theme}
+            density={density}
             onThemeChange={onThemeChange}
+            onDensityChange={onDensityChange}
             onLogout={onLogout}
           />
         </header>

@@ -49,7 +49,9 @@ function renderShell(overrides: Partial<React.ComponentProps<typeof AppShell>> =
     isLoading: false,
     isConnected: true,
     theme: "navy-teal",
+    density: "comfortable",
     onThemeChange: vi.fn(),
+    onDensityChange: vi.fn(),
     onCustomerChange: vi.fn(),
     onOrganizationChange: vi.fn(),
     onLogout: vi.fn(),
@@ -61,6 +63,7 @@ function renderShell(overrides: Partial<React.ComponentProps<typeof AppShell>> =
 
 function ThemeSwitchHarness() {
   const [theme, setTheme] = useState<React.ComponentProps<typeof AppShell>["theme"]>("navy-teal");
+  const [density, setDensity] = useState<React.ComponentProps<typeof AppShell>["density"]>("comfortable");
   return (
     <MemoryRouter initialEntries={[appRoutes.users.path]}>
       <AppShell
@@ -74,7 +77,9 @@ function ThemeSwitchHarness() {
         isLoading={false}
         isConnected
         theme={theme}
+        density={density}
         onThemeChange={setTheme}
+        onDensityChange={setDensity}
         onCustomerChange={vi.fn()}
         onOrganizationChange={vi.fn()}
         onLogout={vi.fn()}
@@ -129,6 +134,20 @@ describe("premium AppShell", () => {
     expect(onThemeChange).toHaveBeenCalledWith("graphite-copper");
   });
 
+  it("offers both density modes and exposes the current selection", async () => {
+    const onDensityChange = vi.fn();
+    const userEvents = userEvent.setup();
+    renderShell({ density: "compact", onDensityChange });
+
+    await userEvents.click(screen.getByRole("button", { name: /Test Operator/i }));
+    expect(screen.getByRole("menuitemradio", { name: /Compact/i })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    await userEvents.click(screen.getByRole("menuitemradio", { name: /Comfortable/i }));
+    expect(onDensityChange).toHaveBeenCalledWith("comfortable");
+  });
+
   it("changes themes without remounting the active workflow", async () => {
     const userEvents = userEvent.setup();
     render(<ThemeSwitchHarness />);
@@ -138,6 +157,7 @@ describe("premium AppShell", () => {
 
     await userEvents.click(screen.getByRole("button", { name: /Account and appearance/i }));
     await userEvents.click(screen.getByRole("menuitemradio", { name: /Graphite & Copper/i }));
+    await userEvents.click(screen.getByRole("menuitemradio", { name: /Compact/i }));
 
     expect(screen.getByLabelText("Workflow draft")).toHaveValue("Unsaved domain state");
   });
