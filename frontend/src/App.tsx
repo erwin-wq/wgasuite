@@ -203,9 +203,14 @@ function App() {
   const connectorConfigRequestSequence = useRef(0);
   const workspaceRequestSequence = useRef(0);
   const [isPlatformAdminOverviewLoading, setIsPlatformAdminOverviewLoading] = useState(false);
-  const { theme, setTheme, activateAccountTheme, resetThemeSession } = useThemePreference(
-    currentUser?.id ?? null
-  );
+  const {
+    theme,
+    density,
+    setTheme,
+    setDensity,
+    activateAccountTheme,
+    resetThemeSession
+  } = useThemePreference(currentUser?.id ?? null);
 
   const customerById = useMemo(
     () => new Map(customers.map((customer) => [customer.id, customer])),
@@ -1368,7 +1373,9 @@ function App() {
       isLoading={isLoading}
       isConnected={googleWorkspaceConnectorConfig?.status === "connected"}
       theme={theme}
+      density={density}
       onThemeChange={setTheme}
+      onDensityChange={setDensity}
       onCustomerChange={handleCustomerContextChange}
       onOrganizationChange={handleOrganizationContextChange}
       onLogout={() => handleLogout()}
