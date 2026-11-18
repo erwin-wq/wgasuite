@@ -1,7 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import type { ComponentProps } from "react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import { describe, expect, it } from "vitest";
 
+import { appRoutes } from "../../app/routes";
 import type { ConnectorConfig } from "../../types";
 import { DashboardOverview } from "./DashboardOverview";
 
@@ -26,42 +29,153 @@ const connectedConfig: ConnectorConfig = {
   last_error: null
 };
 
+const failedConfig: ConnectorConfig = {
+  ...connectedConfig,
+  status: "connection_failed",
+  last_error_code: "google_forbidden",
+  last_error: "Directory access could not be verified."
+};
+
+const defaultProps: ComponentProps<typeof DashboardOverview> = {
+  customerName: "Northstar Demo",
+  organizationName: "Northstar Workspace",
+  connectorConfig: connectedConfig,
+  isLoading: false,
+  hasLoadError: false,
+  canOperateWorkspace: true,
+  canViewConnections: true
+};
+
+function LocationProbe() {
+  return <output aria-label="Current path">{useLocation().pathname}</output>;
+}
+
+function renderDashboard(props = defaultProps) {
+  return render(
+    <MemoryRouter initialEntries={[appRoutes.overview.path]}>
+      <DashboardOverview {...props} />
+      <LocationProbe />
+    </MemoryRouter>
+  );
+}
+
 describe("DashboardOverview", () => {
-  it("shows active context and recommends user lookup when Workspace is connected", async () => {
+  it("shows truthful connected state and routes every supported quick action", async () => {
     const user = userEvent.setup();
-    const onNavigate = vi.fn();
-    render(
-      <DashboardOverview
-        customerName="Northstar Demo"
-        organizationName="Northstar Workspace"
-        connectorConfig={connectedConfig}
-        onNavigate={onNavigate}
-      />
-    );
+    renderDashboard();
 
-    expect(screen.getByText("Northstar Demo")).toBeVisible();
-    expect(screen.getByText("Northstar Workspace")).toBeVisible();
-    expect(screen.getByText("Connected")).toBeVisible();
-    expect(screen.getByText("Not assessed")).toBeVisible();
-    expect(screen.queryByText(/zero risk/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/mock scan/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText("Connected")).toHaveLength(2);
+    expect(screen.getByText(/Last verified/i)).toBeVisible();
+    expect(screen.queryByText(/assessment|security score|user count/i)).not.toBeInTheDocument();
 
-    await user.click(screen.getAllByRole("button", { name: "Open User Lookup" })[0]);
-    expect(onNavigate).toHaveBeenCalledWith("google-workspace");
+    const actions = [
+      ["Find a user", appRoutes.userLookup.path],
+      ["Manage groups", appRoutes.groups.path],
+      ["View organizational units", appRoutes.orgUnits.path],
+      ["Gmail delegations", appRoutes.delegations.path]
+    ] as const;
+    const actionNavigation = screen.getByRole("navigation", { name: "Common Workspace tasks" });
+
+    for (const [name, path] of actions) {
+      await user.click(within(actionNavigation).getByRole("link", { name: new RegExp(name, "i") }));
+      expect(screen.getByLabelText("Current path")).toHaveTextContent(path);
+    }
   });
 
-  it("recommends the missing real context instead of an assessment", () => {
-    render(
-      <DashboardOverview
-        customerName="Northstar Demo"
-        organizationName={null}
-        connectorConfig={null}
-        onNavigate={vi.fn()}
-      />
+  it("shows the failed connector state and offers connection settings", async () => {
+    const user = userEvent.setup();
+    renderDashboard({ ...defaultProps, connectorConfig: failedConfig });
+
+    expect(screen.getAllByText("Connection failed")).toHaveLength(2);
+    expect(screen.getAllByText(/latest connector test did not verify/i)).toHaveLength(2);
+
+    await user.click(screen.getByRole("link", { name: "Review connection" }));
+    expect(screen.getByLabelText("Current path")).toHaveTextContent(appRoutes.connections.path);
+  });
+
+  it("distinguishes saved but unverified configuration from no configuration", () => {
+    renderDashboard({
+      ...defaultProps,
+      connectorConfig: { ...connectedConfig, status: "configured", last_tested_at: null }
+    });
+
+    expect(screen.getAllByText("Disconnected")).toHaveLength(2);
+    expect(screen.getAllByText(/settings are saved, but Directory access is not verified/i)).toHaveLength(2);
+    expect(screen.queryByText("Not configured")).not.toBeInTheDocument();
+  });
+
+  it("renders a loading state without briefly claiming the connector is unconfigured", () => {
+    renderDashboard({ ...defaultProps, connectorConfig: null, isLoading: true });
+
+    expect(screen.getByLabelText("Loading connection status")).toBeVisible();
+    expect(screen.queryByText("Not configured")).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Common Workspace tasks" })).not.toBeInTheDocument();
+  });
+
+  it("does not present an API failure as an unconfigured connector", () => {
+    renderDashboard({
+      ...defaultProps,
+      connectorConfig: null,
+      hasLoadError: true
+    });
+
+    expect(screen.getAllByText("Status unavailable")).toHaveLength(2);
+    expect(screen.getAllByText(/Connection status could not be loaded/i)).toHaveLength(2);
+    expect(screen.queryByText("Not configured")).not.toBeInTheDocument();
+  });
+
+  it("explains missing tenant context without duplicating customer details", () => {
+    renderDashboard({
+      ...defaultProps,
+      customerName: null,
+      organizationName: null,
+      connectorConfig: null,
+      canOperateWorkspace: false,
+      canViewConnections: false
+    });
+
+    expect(screen.getAllByText("No customer selected")).toHaveLength(2);
+    expect(screen.getByText(/Select a workspace to see available/i)).toBeVisible();
+    expect(screen.queryByRole("link", { name: /Connection settings/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Northstar Demo")).not.toBeInTheDocument();
+  });
+
+  it("keeps read-only connection information visible while hiding operator actions", () => {
+    renderDashboard({ ...defaultProps, canOperateWorkspace: false });
+
+    expect(screen.getAllByText("Connected")).toHaveLength(2);
+    expect(screen.getByText(/current role does not provide/i)).toBeVisible();
+    expect(screen.getByRole("link", { name: /Connection settings/i })).toBeVisible();
+    expect(screen.queryByRole("navigation", { name: "Common Workspace tasks" })).not.toBeInTheDocument();
+  });
+
+  it("updates cleanly when the selected tenant changes", () => {
+    const { rerender } = renderDashboard();
+
+    rerender(
+      <MemoryRouter initialEntries={[appRoutes.overview.path]}>
+        <DashboardOverview
+          {...defaultProps}
+          organizationName="Second Workspace"
+          connectorConfig={null}
+        />
+        <LocationProbe />
+      </MemoryRouter>
     );
 
-    expect(screen.getByText("Select or create an organization")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Open Organizations" })).toBeVisible();
-    expect(screen.queryByText(/assessment workspace/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText("Not configured")).toHaveLength(2);
+    expect(screen.queryByText(/Directory access is available/i)).not.toBeInTheDocument();
+  });
+
+  it("supports keyboard navigation to a quick action", async () => {
+    const user = userEvent.setup();
+    renderDashboard();
+
+    await user.tab();
+    expect(screen.getByRole("link", { name: /Connection settings/i })).toHaveFocus();
+    await user.tab();
+    expect(document.activeElement).toHaveAttribute("href", appRoutes.userLookup.path);
+    await user.keyboard("{Enter}");
+    expect(screen.getByLabelText("Current path")).toHaveTextContent(appRoutes.userLookup.path);
   });
 });

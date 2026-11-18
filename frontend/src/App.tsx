@@ -189,6 +189,8 @@ function App() {
   const [isLoginSaving, setIsLoginSaving] = useState(false);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [isScanLoading, setIsScanLoading] = useState(false);
+  const [isConnectorConfigLoading, setIsConnectorConfigLoading] = useState(false);
+  const [hasConnectorConfigLoadError, setHasConnectorConfigLoadError] = useState(false);
   const [isScanRunning, setIsScanRunning] = useState(false);
   const [isConnectorSaving, setIsConnectorSaving] = useState(false);
   const [isConnectorTesting, setIsConnectorTesting] = useState(false);
@@ -369,6 +371,8 @@ function App() {
     setScanRuns([]);
     setGoogleWorkspaceChecks([]);
     setConnectorConfigs([]);
+    setIsConnectorConfigLoading(false);
+    setHasConnectorConfigLoadError(false);
     setPlatformAdminOverview(null);
     setConnectorFeedback(null);
     setSelectedCustomerId("");
@@ -402,9 +406,13 @@ function App() {
       connectorConfigRequestSequence.current = sequence;
       if (!organizationId) {
         setConnectorConfigs([]);
+        setIsConnectorConfigLoading(false);
+        setHasConnectorConfigLoadError(false);
         return;
       }
 
+      setIsConnectorConfigLoading(true);
+      setHasConnectorConfigLoadError(false);
       if (!preserveExisting) {
         setConnectorConfigs([]);
       }
@@ -415,7 +423,12 @@ function App() {
         }
       } catch (connectorError) {
         if (connectorConfigRequestSequence.current === sequence) {
+          setHasConnectorConfigLoadError(true);
           handleRequestError(connectorError);
+        }
+      } finally {
+        if (connectorConfigRequestSequence.current === sequence) {
+          setIsConnectorConfigLoading(false);
         }
       }
     },
@@ -607,6 +620,8 @@ function App() {
   useEffect(() => {
     if (!currentUser || !selectedOrganizationId) {
       setConnectorConfigs([]);
+      setIsConnectorConfigLoading(false);
+      setHasConnectorConfigLoadError(false);
       return;
     }
 
@@ -682,6 +697,8 @@ function App() {
     setSelectedAssetId("");
     setScanRuns([]);
     setConnectorConfigs([]);
+    setIsConnectorConfigLoading(false);
+    setHasConnectorConfigLoadError(false);
     setGroupNavigationTarget(null);
     setConnectorFeedback(null);
     setFeedback(null);
@@ -1398,7 +1415,10 @@ function App() {
           customerName={selectedCustomer?.name ?? selectedOrganizationCustomer?.name ?? null}
           organizationName={selectedOrganization?.name ?? null}
           connectorConfig={googleWorkspaceConnectorConfig}
-          onNavigate={setActiveSection}
+          isLoading={isLoading || isConnectorConfigLoading}
+          hasLoadError={hasConnectorConfigLoadError}
+          canOperateWorkspace={canOperateConnector}
+          canViewConnections={canReadSelectedCustomer}
         />
       </section>
 

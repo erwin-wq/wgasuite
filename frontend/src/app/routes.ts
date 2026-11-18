@@ -44,7 +44,7 @@ export const appRoutes = {
     path: "/overview",
     title: "Workspace overview",
     shortTitle: "Overview",
-    description: "Connection status and the next safe administration step.",
+    description: "Manage your connected Google Workspace from one place.",
     breadcrumb: ["Workspace", "Overview"],
     group: "workspace",
     icon: LayoutDashboard,
