@@ -296,28 +296,7 @@ export function UserDirectory({
 
   return (
     <section className="user-directory" aria-labelledby="user-directory-heading">
-      <div className="workspace-section-heading directory-heading">
-        <div>
-          <span className="eyebrow">Read-only Directory</span>
-          <h2 id="user-directory-heading">User Directory</h2>
-          <p>Browse users across every domain in the verified Workspace customer.</p>
-        </div>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={isLoading || !connectorReady || !canSearch}
-          onClick={() => void loadPage(
-            appliedFilters,
-            orderBy,
-            sortDirection,
-            pageSize,
-            pageTokens[pageIndex] ?? null,
-            pageIndex
-          )}
-        >
-          <RefreshCw className={isLoading ? "spin" : ""} aria-hidden="true" /> Refresh
-        </button>
-      </div>
+      <h2 id="user-directory-heading" className="sr-only">Directory users</h2>
 
       {!organizationId ? (
         <div className="directory-state" role="status"><Building2 aria-hidden="true" />Select an organization to browse users.</div>
@@ -354,6 +333,21 @@ export function UserDirectory({
               <label>Sort by<select value={orderBy} onChange={(event) => changeOrderBy(event.target.value as UserDirectoryOrder)} disabled={isLoading}><option value="email">Primary email</option><option value="given_name">Given name</option><option value="family_name">Family name</option></select></label>
               <label>Direction<select value={sortDirection} onChange={(event) => changeSortDirection(event.target.value as UserDirectorySortDirection)} disabled={isLoading}><option value="ascending">Ascending</option><option value="descending">Descending</option></select></label>
               <label>Rows per page<select value={pageSize} onChange={(event) => changePageSize(event.target.value)} disabled={isLoading}><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={isLoading}
+                onClick={() => void loadPage(
+                  appliedFilters,
+                  orderBy,
+                  sortDirection,
+                  pageSize,
+                  pageTokens[pageIndex] ?? null,
+                  pageIndex
+                )}
+              >
+                <RefreshCw className={isLoading ? "spin" : ""} aria-hidden="true" /> Refresh
+              </button>
             </div>
           </div>
 

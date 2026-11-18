@@ -1239,59 +1239,33 @@ h4 {
 
 .user-lookup {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--density-section-gap);
 }
 
 .user-lookup-form {
-  align-items: end;
-  display: grid;
-  gap: var(--space-4);
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
-.user-lookup-form > label {
-  display: grid;
-  font-size: var(--font-size-sm);
-  font-weight: 850;
-  gap: var(--space-2);
-}
-
-.user-lookup-input-row {
   align-items: center;
   background: var(--color-surface-primary);
-  border: 1px solid var(--color-line-strong);
-  border-radius: 10px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   display: grid;
-  gap: var(--space-2);
-  grid-template-columns: auto minmax(0, 1fr);
-  padding-left: var(--space-3);
+  gap: var(--density-inline-gap);
+  grid-template-columns: minmax(16rem, 1fr) auto;
+  padding: var(--density-panel-padding);
 }
 
-.user-lookup-input-row:focus-within {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-focus);
-}
-
-.user-lookup-input-row svg {
-  color: var(--color-ink-soft);
-  height: 1.1rem;
-  width: 1.1rem;
-}
-
-.user-lookup-input-row input {
-  border: 0;
-  box-shadow: none;
+.user-lookup-field {
   min-width: 0;
-}
-
-.user-lookup-input-row input:focus {
-  box-shadow: none;
-  outline: none;
 }
 
 .user-lookup-actions {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--density-inline-gap);
+  padding-top: calc(var(--font-size-sm) + var(--space-2));
+}
+
+.user-lookup-actions .ui-button {
+  white-space: nowrap;
 }
 
 .user-lookup-state {
@@ -1326,42 +1300,52 @@ h4 {
 }
 
 .user-result-card {
-  background: var(--color-surface-primary);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
   display: grid;
-  gap: var(--space-5);
-  padding: clamp(var(--space-5), 4vw, var(--space-7));
+  gap: var(--density-section-gap);
+  min-width: 0;
 }
 
 .user-result-heading {
   align-items: center;
+  background: var(--color-surface-primary);
+  border: 1px solid var(--color-border-default);
+  border-left: 0.25rem solid var(--color-accent-decorative);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   display: grid;
-  gap: var(--space-4);
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--density-panel-padding);
+  grid-template-columns: auto minmax(12rem, 1.4fr) minmax(9rem, 0.65fr) minmax(12rem, 0.9fr);
+  padding: var(--density-panel-padding);
 }
 
-.user-result-heading h3,
-.user-result-heading p {
+.user-result-identity h3,
+.user-result-identity span {
+  display: block;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
-.user-result-heading a {
-  color: var(--color-primary-strong);
+.user-result-identity h3 {
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-tight);
+  outline: none;
+}
+
+.user-result-identity span {
+  color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
-  font-weight: 780;
-  overflow-wrap: anywhere;
+  margin-top: var(--space-1);
 }
 
 .user-result-avatar {
   align-items: center;
   background: var(--color-primary-soft);
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   color: var(--color-primary-strong);
   display: flex;
-  height: 3.4rem;
+  height: 3rem;
   justify-content: center;
-  width: 3.4rem;
+  width: 3rem;
 }
 
 .user-result-avatar svg {
@@ -1369,11 +1353,27 @@ h4 {
   width: 1.6rem;
 }
 
-.user-result-badges {
-  align-items: end;
-  display: flex;
-  flex-direction: column;
+.user-result-summary-item {
+  border-left: 1px solid var(--color-border-default);
+  display: grid;
   gap: var(--space-2);
+  min-width: 0;
+  padding-left: var(--density-panel-padding);
+}
+
+.user-result-summary-item > span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.user-result-summary-item .ui-badge {
+  justify-self: start;
+}
+
+.user-result-summary-item strong {
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
 }
 
 .status-success,
@@ -1402,31 +1402,74 @@ h4 {
   color: var(--color-text-link);
 }
 
-.user-result-grid {
+.user-detail-layout {
+  display: grid;
+  gap: var(--density-section-gap);
+  grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 0.8fr);
+  min-width: 0;
+}
+
+.user-detail-primary,
+.user-administration-actions {
+  min-width: 0;
+}
+
+.user-detail-primary {
+  background: var(--color-surface-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  display: grid;
+  padding: 0 var(--density-panel-padding);
+}
+
+.user-detail-section {
+  display: grid;
+  gap: var(--density-inline-gap);
+  padding: var(--density-panel-padding) 0;
+}
+
+.user-detail-section + .user-detail-section,
+.user-detail-section + .user-memberships {
+  border-top: 1px solid var(--color-border-default);
+}
+
+.user-detail-section-heading,
+.user-administration-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.user-detail-section-heading > svg,
+.user-administration-heading > svg {
+  color: var(--color-primary);
+  flex: 0 0 auto;
+  height: 1.25rem;
+  margin-top: 0.1rem;
+  width: 1.25rem;
+}
+
+.user-detail-section h4,
+.user-administration-heading h4,
+.user-administration-heading p {
+  margin: 0;
+}
+
+.user-email-groups {
   display: grid;
   gap: var(--space-4);
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.user-result-grid > section {
-  align-content: start;
-  background: var(--color-surface-primary);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
+.user-email-groups > div {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   min-width: 0;
-  padding: var(--space-4);
 }
 
-.user-result-grid h4 {
-  margin: 0;
-}
-
-.user-result-grid section > strong {
-  color: var(--color-ink-soft);
+.user-email-groups strong {
+  color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
-  text-transform: uppercase;
 }
 
 .alias-list {
@@ -1456,6 +1499,10 @@ h4 {
   display: grid;
   gap: var(--space-3);
   margin: 0;
+}
+
+.user-result-details--columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .user-result-details div {
@@ -1489,10 +1536,10 @@ h4 {
 
 .user-result-note {
   align-items: center;
-  color: var(--color-primary-strong);
+  color: var(--color-text-secondary);
   display: flex;
   font-size: var(--font-size-sm);
-  font-weight: 760;
+  font-weight: var(--font-weight-medium);
   gap: var(--space-2);
 }
 
@@ -1500,6 +1547,53 @@ h4 {
   flex: 0 0 auto;
   height: 1.1rem;
   width: 1.1rem;
+}
+
+.user-administration-actions {
+  align-content: start;
+  background: var(--color-surface-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--density-inline-gap);
+  padding: var(--density-panel-padding);
+}
+
+.user-administration-heading {
+  border-bottom: 1px solid var(--color-border-default);
+  padding-bottom: var(--density-inline-gap);
+}
+
+.user-administration-heading p {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-body);
+  margin-top: var(--space-1);
+}
+
+.user-administration-actions .user-status-management,
+.user-administration-actions .user-orgunit-move {
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  margin: 0;
+  padding: var(--density-panel-padding);
+}
+
+.user-administration-actions .user-status-heading {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.user-administration-actions .user-status-heading button {
+  white-space: normal;
+  width: 100%;
+}
+
+.user-detail-primary > .user-memberships {
+  border: 0;
+  border-radius: 0;
+  padding: var(--density-panel-padding) 0;
 }
 
 .user-status-management {
@@ -3442,6 +3536,20 @@ h4 {
   white-space: nowrap;
 }
 
+.directory-table th:last-child,
+.directory-table td:last-child {
+  background: var(--color-surface-primary);
+  box-shadow: -0.3rem 0 0.6rem rgb(15 23 42 / 5%);
+  position: sticky;
+  right: 0;
+  z-index: 1;
+}
+
+.directory-table th:last-child {
+  background: var(--color-surface-muted);
+  z-index: 2;
+}
+
 .organizational-units {
   display: grid;
   gap: var(--space-5);
@@ -4599,10 +4707,20 @@ h4 {
   .user-lookup-actions {
     align-items: stretch;
     flex-direction: column;
+    padding-top: 0;
   }
 
-  .user-result-badges {
-    align-items: start;
+  .user-detail-layout,
+  .user-email-groups,
+  .user-result-details--columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-result-summary-item {
+    border-left: 0;
+    border-top: 1px solid var(--color-border-default);
+    padding-left: 0;
+    padding-top: var(--space-4);
   }
 
   .mailbox-delegates-heading,

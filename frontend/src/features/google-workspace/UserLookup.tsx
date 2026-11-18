@@ -3,20 +3,25 @@ import {
   AtSign,
   Building2,
   CheckCircle2,
-  Loader2,
+  FolderTree,
+  Mail,
   MailCheck,
   Search,
+  ShieldCheck,
   UserRound,
   X
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, lookupGoogleWorkspaceUser } from "../../api/client";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Feedback";
+import { Input } from "../../components/ui/FormControls";
 import type { ConnectorConfig, GoogleWorkspaceUser } from "../../types";
 import { MailboxDelegates } from "./MailboxDelegates";
 import { UserGroupMemberships } from "./UserGroupMemberships";
-import { UserStatusManagement } from "./UserStatusManagement";
 import { UserOrgUnitMove } from "./UserOrgUnitMove";
+import { UserStatusManagement } from "./UserStatusManagement";
 
 interface UserLookupProps {
   organizationId: string;
@@ -40,7 +45,6 @@ function lookupErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) {
     return "The lookup could not be completed. Check your connection and try again.";
   }
-
   if (error.status === 404 || error.code === "google_user_not_found") {
     return "No Directory user was found for that address. Google Group addresses are not included.";
   }
@@ -106,6 +110,8 @@ export function UserLookup({
   const [isLoading, setIsLoading] = useState(false);
   const requestSequence = useRef(0);
   const requestController = useRef<AbortController | null>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const resultHeading = useRef<HTMLHeadingElement>(null);
   const connectorReady = connectorConfig?.status === "connected";
 
   const runLookup = useCallback(async (email: string) => {
@@ -152,6 +158,10 @@ export function UserLookup({
     void runLookup(normalizedEmail);
   }, [initialEmail, runLookup]);
 
+  useEffect(() => {
+    if (result) resultHeading.current?.focus();
+  }, [result]);
+
   function clearLookup() {
     requestSequence.current += 1;
     requestController.current?.abort();
@@ -160,6 +170,7 @@ export function UserLookup({
     setResult(null);
     setError(null);
     setIsLoading(false);
+    searchInput.current?.focus();
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -173,16 +184,17 @@ export function UserLookup({
     await runLookup(normalizedQuery);
   }
 
+  const announcement = isLoading
+    ? "Searching the Google Workspace Directory."
+    : error
+      ? error
+      : result
+        ? `User found: ${result.full_name ?? result.primary_email}.`
+        : "";
+
   return (
     <div className="user-lookup">
-      <div className="panel-heading">
-        <div>
-          <h2>User &amp; Alias Lookup</h2>
-          <p>
-            Search by a primary email address or user alias to view the canonical Directory account.
-          </p>
-        </div>
-      </div>
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
 
       {!organizationId ? (
         <div className="user-lookup-state" role="status">
@@ -197,179 +209,155 @@ export function UserLookup({
       ) : !connectorReady ? (
         <div className="user-lookup-state warning" role="status">
           <AlertCircle aria-hidden="true" />
-          Connect and successfully test Google Workspace for {organizationName ?? "this organization"}
-          {" "}before searching.
+          Connect and successfully test Google Workspace for {organizationName ?? "this organization"}{" "}
+          before searching.
         </div>
       ) : (
         <>
           <form className="user-lookup-form" onSubmit={handleSubmit} noValidate>
-            <label htmlFor="workspace-user-query">
-              Primary email or user alias
-              <span className="user-lookup-input-row">
-                <AtSign aria-hidden="true" />
-                <input
-                  id="workspace-user-query"
-                  type="email"
-                  autoComplete="off"
-                  value={query}
-                  onChange={(event) => {
-                    setQuery(event.target.value);
-                    if (error) setError(null);
-                  }}
-                  placeholder="alias@example.com"
-                  disabled={isLoading}
-                />
-              </span>
-            </label>
+            <Input
+              ref={searchInput}
+              id="workspace-user-query"
+              className="user-lookup-field"
+              label="Primary email or user alias"
+              hint="Enter one complete address. Partial names, wildcards, and bulk searches are not supported."
+              leadingIcon={<AtSign />}
+              type="email"
+              autoComplete="off"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="person@example.com"
+              disabled={isLoading}
+            />
             <div className="user-lookup-actions">
-              <button type="submit" disabled={isLoading || !query.trim()}>
-                {isLoading ? <Loader2 className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />}
+              <Button type="submit" loading={isLoading} loadingLabel="" disabled={!query.trim()}>
+                {isLoading ? null : <Search aria-hidden="true" />}
                 {isLoading ? "Searching" : "Look up user"}
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={clearLookup}
-                disabled={!query && !result && !error}
-              >
-                <X aria-hidden="true" />
-                Clear
-              </button>
+              </Button>
+              <Button type="button" variant="secondary" onClick={clearLookup} disabled={!query && !result && !error}>
+                <X aria-hidden="true" /> Clear
+              </Button>
             </div>
           </form>
 
-          {error && (
+          {error ? (
             <div className="user-lookup-state error" role="alert">
               <AlertCircle aria-hidden="true" />
               {error}
             </div>
-          )}
+          ) : null}
 
-          {result && (
+          {result ? (
             <article className="user-result-card" aria-label="Google Workspace user result">
-              <div className="user-result-heading">
-                <div className="user-result-avatar" aria-hidden="true">
-                  <UserRound />
+              <header className="user-result-heading">
+                <div className="user-result-avatar" aria-hidden="true"><UserRound /></div>
+                <div className="user-result-identity">
+                  <h3 ref={resultHeading} tabIndex={-1}>{result.full_name ?? "Name unavailable"}</h3>
+                  <span>{result.primary_email}</span>
                 </div>
-                <div>
-                  <h3>{result.full_name ?? "Name unavailable"}</h3>
-                  <a href={`mailto:${result.primary_email}`}>{result.primary_email}</a>
+                <div className="user-result-summary-item">
+                  <span>Account status</span>
+                  <Badge
+                    variant={result.suspended ? "danger" : "success"}
+                    icon={result.suspended ? <AlertCircle aria-hidden="true" /> : <CheckCircle2 aria-hidden="true" />}
+                  >
+                    {result.suspended ? "Suspended" : "Active"}
+                  </Badge>
                 </div>
-                <div className="user-result-badges">
-                  <span className="status-neutral">{matchLabels[result.matched_by]}</span>
+                <div className="user-result-summary-item user-result-match">
+                  <span>Match evidence</span>
+                  <strong>{matchLabels[result.matched_by]}</strong>
                 </div>
-              </div>
+              </header>
 
-              <div className="user-result-grid">
-                <section aria-labelledby="lookup-identity-heading">
-                  <h4 id="lookup-identity-heading">Identity &amp; status</h4>
-                  <dl className="user-result-details">
-                    <div>
-                      <dt>Account status</dt>
-                      <dd>
-                        <span className={result.suspended ? "status-danger" : "status-success"}>
-                          {result.suspended ? "Suspended" : "Active"}
-                        </span>
-                      </dd>
+              <div className="user-detail-layout">
+                <div className="user-detail-primary">
+                  <section className="user-detail-section" aria-labelledby="lookup-identity-heading">
+                    <div className="user-detail-section-heading">
+                      <ShieldCheck aria-hidden="true" />
+                      <h4 id="lookup-identity-heading">Identity &amp; status</h4>
                     </div>
-                    {result.suspended && (
+                    <dl className="user-result-details user-result-details--columns">
+                      <div><dt>Administrator role</dt><dd>{administratorLabel(result)}</dd></div>
+                      <div><dt>Archived</dt><dd>{result.archived === null ? "Unknown" : result.archived ? "Yes" : "No"}</dd></div>
+                      {result.suspended ? <div><dt>Suspension reason</dt><dd>{result.suspension_reason ?? "Not verified"}</dd></div> : null}
+                      <div><dt>Created</dt><dd>{formatDirectoryTime(result.creation_time)}</dd></div>
+                      <div><dt>Last sign-in</dt><dd>{formatDirectoryTime(result.last_login_time)}</dd></div>
+                      <div><dt>Gmail status</dt><dd>{mailboxLabel(result.is_mailbox_setup)}</dd></div>
+                    </dl>
+                  </section>
+
+                  <section className="user-detail-section" aria-labelledby="lookup-aliases-heading">
+                    <div className="user-detail-section-heading">
+                      <Mail aria-hidden="true" />
+                      <h4 id="lookup-aliases-heading">Email addresses</h4>
+                    </div>
+                    <div className="user-email-groups">
+                      <div><strong>Primary email</strong><div className="alias-list"><span>{result.primary_email}</span></div></div>
                       <div>
-                        <dt>Suspension reason</dt>
-                        <dd>{result.suspension_reason ?? "Not verified"}</dd>
+                        <strong>User aliases</strong>
+                        <div className="alias-list">
+                          {result.aliases.length > 0 ? result.aliases.map((alias) => <span key={alias}>{alias}</span>) : <em>No editable aliases</em>}
+                        </div>
                       </div>
-                    )}
-                    <div>
-                      <dt>Archived</dt>
-                      <dd>{result.archived === null ? "Unknown" : result.archived ? "Yes" : "No"}</dd>
+                      <div>
+                        <strong>Non-editable aliases</strong>
+                        <div className="alias-list">
+                          {result.non_editable_aliases.length > 0 ? result.non_editable_aliases.map((alias) => <span key={alias}>{alias}</span>) : <em>No non-editable aliases</em>}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <dt>Administrator role</dt>
-                      <dd>{administratorLabel(result)}</dd>
-                    </div>
-                    <div>
-                      <dt>Created</dt>
-                      <dd>{formatDirectoryTime(result.creation_time)}</dd>
-                    </div>
-                    <div>
-                      <dt>Last sign-in</dt>
-                      <dd>{formatDirectoryTime(result.last_login_time)}</dd>
-                    </div>
-                  </dl>
-                </section>
+                  </section>
 
-                <section aria-labelledby="lookup-aliases-heading">
-                  <h4 id="lookup-aliases-heading">Email addresses &amp; aliases</h4>
-                  <strong>Primary address</strong>
-                  <div className="alias-list">
-                    <span>{result.primary_email}</span>
-                  </div>
-                  <strong>Editable in Google Workspace</strong>
-                  <div className="alias-list">
-                    {result.aliases.length > 0 ? (
-                      result.aliases.map((alias) => <span key={alias}>{alias}</span>)
-                    ) : (
-                      <em>No editable aliases</em>
-                    )}
-                  </div>
-                  <strong>Non-editable aliases</strong>
-                  <div className="alias-list">
-                    {result.non_editable_aliases.length > 0 ? (
-                      result.non_editable_aliases.map((alias) => <span key={alias}>{alias}</span>)
-                    ) : (
-                      <em>No non-editable aliases</em>
-                    )}
-                  </div>
-                </section>
+                  <section className="user-detail-section" aria-labelledby="lookup-workspace-heading">
+                    <div className="user-detail-section-heading">
+                      <FolderTree aria-hidden="true" />
+                      <h4 id="lookup-workspace-heading">Organizational unit</h4>
+                    </div>
+                    <dl className="user-result-details">
+                      <div><dt>Current path</dt><dd>{result.org_unit_path ?? "Not available"}</dd></div>
+                    </dl>
+                  </section>
 
-                <section aria-labelledby="lookup-workspace-heading">
-                  <h4 id="lookup-workspace-heading">Workspace details</h4>
-                  <dl className="user-result-details">
+                  <UserGroupMemberships organizationId={organizationId} user={result} onOpenGroup={onOpenGroup} />
+                </div>
+
+                <aside className="user-administration-actions" aria-labelledby="user-actions-heading">
+                  <div className="user-administration-heading">
+                    <ShieldCheck aria-hidden="true" />
                     <div>
-                      <dt><Building2 aria-hidden="true" /> Organizational unit</dt>
-                      <dd>{result.org_unit_path ?? "Not available"}</dd>
+                      <h4 id="user-actions-heading">Administration actions</h4>
+                      <p>Protected workflows revalidate this account before making a change.</p>
                     </div>
-                    <div>
-                      <dt><MailCheck aria-hidden="true" /> Gmail status</dt>
-                      <dd>{mailboxLabel(result.is_mailbox_setup)}</dd>
-                    </div>
-                  </dl>
-                </section>
+                  </div>
+                  <UserStatusManagement
+                    organizationId={organizationId}
+                    connectorConfig={connectorConfig}
+                    user={result}
+                    canMutate={canManageDelegates}
+                    onRefresh={() => runLookup(result.primary_email)}
+                  />
+                  <UserOrgUnitMove
+                    organizationId={organizationId}
+                    connectorConfig={connectorConfig}
+                    user={result}
+                    canMutate={canManageDelegates}
+                    onRefresh={() => runLookup(result.primary_email)}
+                  />
+                </aside>
               </div>
 
               <div className="user-result-note">
-                <CheckCircle2 aria-hidden="true" />
+                <MailCheck aria-hidden="true" />
                 Live Directory result. Mailbox setup does not imply Gmail delegation or access.
               </div>
 
-              <UserStatusManagement
-                organizationId={organizationId}
-                connectorConfig={connectorConfig}
-                user={result}
-                canMutate={canManageDelegates}
-                onRefresh={() => runLookup(result.primary_email)}
-              />
-
-              <UserOrgUnitMove
-                organizationId={organizationId}
-                connectorConfig={connectorConfig}
-                user={result}
-                canMutate={canManageDelegates}
-                onRefresh={() => runLookup(result.primary_email)}
-              />
-
-              <UserGroupMemberships
-                organizationId={organizationId}
-                user={result}
-                onOpenGroup={onOpenGroup}
-              />
-
-              <MailboxDelegates
-                organizationId={organizationId}
-                owner={result}
-                canMutate={canManageDelegates}
-              />
+              <MailboxDelegates organizationId={organizationId} owner={result} canMutate={canManageDelegates} />
             </article>
-          )}
+          ) : null}
         </>
       )}
     </div>
