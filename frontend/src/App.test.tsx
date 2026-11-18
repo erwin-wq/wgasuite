@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
+import { ApiError } from "./api/client";
 import type { ConnectorConfig } from "./types";
 import App from "./App";
 
@@ -44,10 +45,35 @@ const connector: ConnectorConfig = {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, reject, resolve };
+}
+
+const secondOrganization = {
+  id: "organization-2",
+  customer_id: "customer-1",
+  name: "Second Workspace",
+  description: null,
+  created_at: "2026-10-28T09:00:00Z",
+  updated_at: "2026-10-28T09:00:00Z"
+};
+
+const secondConnector: ConnectorConfig = {
+  ...connector,
+  id: "connector-2",
+  organization_id: secondOrganization.id
+};
+
+function renderOverview() {
+  return render(
+    <MemoryRouter initialEntries={["/overview"]}>
+      <App />
+    </MemoryRouter>
+  );
 }
 
 describe("App Google Workspace connection refresh", () => {
@@ -131,5 +157,111 @@ describe("App Google Workspace connection refresh", () => {
       "aria-expanded",
       "true"
     );
+  });
+
+  it("renders a successful connector-config response", async () => {
+    api.listOrganizationConnectorConfigs.mockResolvedValue([connector]);
+    renderOverview();
+
+    expect(await screen.findByRole("heading", { name: "Workspace ready" })).toBeVisible();
+    expect(screen.queryByText("Status unavailable")).not.toBeInTheDocument();
+  });
+
+  it("renders a truly unconfigured connector only for a successful empty response", async () => {
+    api.listOrganizationConnectorConfigs.mockResolvedValue([]);
+    renderOverview();
+
+    expect(await screen.findAllByText("Not configured")).toHaveLength(2);
+    expect(screen.queryByText("Status unavailable")).not.toBeInTheDocument();
+  });
+
+  it.each([403, 503])("renders HTTP %i connector failures as unavailable", async (status) => {
+    api.listOrganizationConnectorConfigs.mockRejectedValue(
+      new ApiError("Connector configuration request failed.", status)
+    );
+    renderOverview();
+
+    expect(await screen.findAllByText("Status unavailable")).toHaveLength(2);
+    expect(screen.queryByText("Not configured")).not.toBeInTheDocument();
+  });
+
+  it("renders a network connector failure as unavailable", async () => {
+    api.listOrganizationConnectorConfigs.mockRejectedValue(new TypeError("Network unavailable"));
+    renderOverview();
+
+    expect(await screen.findAllByText("Status unavailable")).toHaveLength(2);
+    expect(screen.queryByText("Not configured")).not.toBeInTheDocument();
+  });
+
+  it("shows initial connector loading until a successful response resolves", async () => {
+    const pending = deferred<ConnectorConfig[]>();
+    api.listOrganizationConnectorConfigs.mockReturnValue(pending.promise);
+    renderOverview();
+
+    expect(await screen.findByLabelText("Loading connection status")).toBeVisible();
+    expect(screen.queryByText("Not configured")).not.toBeInTheDocument();
+
+    pending.resolve([]);
+    expect(await screen.findAllByText("Not configured")).toHaveLength(2);
+  });
+
+  it("ignores a stale connector response after switching tenants", async () => {
+    const firstTenantResponse = deferred<ConnectorConfig[]>();
+    api.listOrganizations.mockResolvedValue([
+      {
+        id: "organization-1",
+        customer_id: "customer-1",
+        name: "Example Workspace",
+        description: null,
+        created_at: "2026-10-28T09:00:00Z",
+        updated_at: "2026-10-28T09:00:00Z"
+      },
+      secondOrganization
+    ]);
+    api.listOrganizationConnectorConfigs
+      .mockReturnValueOnce(firstTenantResponse.promise)
+      .mockResolvedValueOnce([secondConnector]);
+    const user = userEvent.setup();
+    renderOverview();
+
+    await waitFor(() =>
+      expect(api.listOrganizationConnectorConfigs).toHaveBeenCalledWith("organization-1")
+    );
+    await user.click(screen.getByRole("button", { name: /Active workspace/i }));
+    await user.selectOptions(screen.getByLabelText("Organization"), secondOrganization.id);
+    await waitFor(() =>
+      expect(api.listOrganizationConnectorConfigs).toHaveBeenCalledWith(secondOrganization.id)
+    );
+    expect(await screen.findByRole("heading", { name: "Workspace ready" })).toBeVisible();
+
+    firstTenantResponse.resolve([{ ...connector, status: "connection_failed" }]);
+    await waitFor(() => expect(screen.queryByText("Connection failed")).not.toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: "Workspace ready" })).toBeVisible();
+  });
+
+  it("recovers from a failed connector request after switching tenants", async () => {
+    api.listOrganizations.mockResolvedValue([
+      {
+        id: "organization-1",
+        customer_id: "customer-1",
+        name: "Example Workspace",
+        description: null,
+        created_at: "2026-10-28T09:00:00Z",
+        updated_at: "2026-10-28T09:00:00Z"
+      },
+      secondOrganization
+    ]);
+    api.listOrganizationConnectorConfigs
+      .mockRejectedValueOnce(new TypeError("Network unavailable"))
+      .mockResolvedValueOnce([secondConnector]);
+    const user = userEvent.setup();
+    renderOverview();
+
+    expect(await screen.findAllByText("Status unavailable")).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: /Active workspace/i }));
+    await user.selectOptions(screen.getByLabelText("Organization"), secondOrganization.id);
+
+    expect(await screen.findByRole("heading", { name: "Workspace ready" })).toBeVisible();
+    expect(screen.queryByText("Status unavailable")).not.toBeInTheDocument();
   });
 });
