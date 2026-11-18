@@ -166,6 +166,58 @@ describe("UserLookup", () => {
     expect(screen.getByText("Active")).toBeVisible();
     expect(screen.getAllByText("/Engineering")[0]).toBeVisible();
     expect(screen.getByText("Gmail mailbox set up")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Example Person" })).toHaveFocus();
+    expect(screen.getByText("User found: Example Person.")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("keeps protected actions permission-aware", async () => {
+    const standardUser = { ...aliasResult, is_delegated_admin: false };
+    vi.mocked(lookupGoogleWorkspaceUser).mockResolvedValue(standardUser);
+    const interaction = userEvent.setup();
+    const view = renderLookup({ canManageDelegates: false });
+
+    await interaction.type(screen.getByLabelText("Primary email or user alias"), standardUser.primary_email);
+    await interaction.click(screen.getByRole("button", { name: "Look up user" }));
+
+    expect(await screen.findByRole("heading", { name: "Example Person" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Suspend user" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Move to Organizational Unit" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Customer administrator access is required.")).toHaveLength(2);
+
+    view.rerender(
+      <UserLookup
+        organizationId="organization-1"
+        organizationName="Primary Workspace"
+        connectorConfig={connectedConfig}
+        canSearch
+        canManageDelegates
+        initialEmail={standardUser.primary_email}
+        onOpenGroup={vi.fn()}
+      />
+    );
+    expect(await screen.findByRole("button", { name: "Suspend user" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Move to Organizational Unit" })).toBeVisible();
+  });
+
+  it("preserves lookup state across theme and density changes without exposing the email in the URL", async () => {
+    vi.mocked(lookupGoogleWorkspaceUser).mockResolvedValue(aliasResult);
+    const interaction = userEvent.setup();
+    renderLookup();
+
+    await interaction.type(screen.getByLabelText("Primary email or user alias"), aliasResult.primary_email);
+    await interaction.click(screen.getByRole("button", { name: "Look up user" }));
+    expect(await screen.findByRole("heading", { name: "Example Person" })).toBeVisible();
+
+    document.documentElement.dataset.theme = "graphite-copper";
+    document.documentElement.dataset.density = "compact";
+
+    expect(screen.getByLabelText("Primary email or user alias")).toHaveValue(aliasResult.primary_email);
+    expect(screen.getByRole("heading", { name: "Example Person" })).toBeVisible();
+    expect(window.location.href).not.toContain(encodeURIComponent(aliasResult.primary_email));
+    expect(document.querySelector(`a[href*="${aliasResult.primary_email}"]`)).not.toBeInTheDocument();
+
+    delete document.documentElement.dataset.theme;
+    delete document.documentElement.dataset.density;
   });
 
   it("renders suspended, archived, empty alias, and unknown mailbox states", async () => {
