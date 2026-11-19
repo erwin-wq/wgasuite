@@ -13,6 +13,7 @@ import {
   previewGoogleWorkspaceOrganizationalUnitDescription,
   reconcileGoogleWorkspaceOrganizationalUnitDescription
 } from "../../api/client";
+import { Textarea } from "../../components/ui/FormControls";
 import type {
   GoogleWorkspaceOrganizationalUnitDescriptionPreview,
   GoogleWorkspaceOrganizationalUnitTreeNode
@@ -240,16 +241,15 @@ export function OrganizationalUnitDescription({
                   <span>Current description</span>
                   <strong>{displayDescription(unit.description)}</strong>
                 </div>
-                <label>
-                  New description <span>(leave empty to clear)</span>
-                  <textarea
-                    ref={textarea}
-                    value={description}
-                    maxLength={4096}
-                    rows={5}
-                    onChange={(event) => setDescription(event.target.value)}
-                  />
-                </label>
+                <Textarea
+                  label="New description"
+                  hint="Leave empty to clear the current description."
+                  ref={textarea}
+                  value={description}
+                  maxLength={4096}
+                  rows={5}
+                  onChange={(event) => setDescription(event.target.value)}
+                />
                 <p id="ou-description-warning" className="ou-create-warning">
                   <AlertTriangle aria-hidden="true" /> Only the description will change. The name,
                   path, parent, users, and effective policies are not modified.

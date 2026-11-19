@@ -1704,121 +1704,12 @@ h4 {
   margin-top: var(--space-1);
 }
 
-.user-membership-state {
-  align-items: center;
-  background: var(--color-surface-muted);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  color: var(--color-ink-muted);
-  display: flex;
-  font-size: var(--font-size-sm);
-  gap: var(--space-3);
-  padding: var(--space-4);
-}
-
-.user-membership-state.error {
-  background: var(--color-red-soft);
-  border-color: #fecaca;
-  color: var(--color-red-strong);
-}
-
-.user-membership-state svg {
-  flex: 0 0 auto;
-  height: 1.15rem;
-  width: 1.15rem;
-}
-
-.user-membership-table-wrap {
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  min-width: 0;
-  overflow-x: auto;
-  position: relative;
-}
-
-.user-membership-table {
-  border-collapse: collapse;
-  min-width: 42rem;
-  width: 100%;
-}
-
-.user-membership-table th,
-.user-membership-table td {
-  border-bottom: 1px solid var(--color-line);
-  padding: var(--space-3) var(--space-4);
-  text-align: left;
-  vertical-align: middle;
-}
-
-.user-membership-table th {
-  background: var(--color-surface-muted);
-  color: var(--color-ink-soft);
-  font-size: var(--font-size-xs);
-  font-weight: 850;
-  text-transform: uppercase;
-}
-
-.user-membership-table td:first-child {
+.user-membership-data-table td:first-child {
   min-width: 14rem;
 }
 
-.user-membership-table td strong,
-.user-membership-table td span {
-  display: block;
-  overflow-wrap: anywhere;
-}
-
-.user-membership-table td span {
-  color: var(--color-ink-soft);
-  font-size: var(--font-size-xs);
-  margin-top: var(--space-1);
-}
-
-.user-membership-table tr:last-child td {
-  border-bottom: 0;
-}
-
-.user-membership-table button {
-  min-height: 2.5rem;
-  padding: 0.6rem 0.8rem;
+.user-membership-data-table .ui-button {
   white-space: nowrap;
-}
-
-.user-membership-controls {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  justify-content: flex-end;
-}
-
-.user-membership-controls label {
-  align-items: center;
-  color: var(--color-ink-soft);
-  display: flex;
-  font-size: var(--font-size-sm);
-  font-weight: 800;
-  gap: var(--space-2);
-  margin-right: auto;
-}
-
-.user-membership-controls select,
-.user-membership-controls button {
-  min-height: 2.5rem;
-}
-
-.user-membership-controls select {
-  padding: 0.5rem 2rem 0.5rem 0.7rem;
-}
-
-.user-membership-controls button {
-  padding: 0.6rem 0.8rem;
-}
-
-.user-membership-controls > span {
-  color: var(--color-ink-soft);
-  font-size: var(--font-size-sm);
-  font-weight: 800;
 }
 
 .mailbox-delegates {
@@ -3327,7 +3218,6 @@ h4 {
 .directory-toolbar,
 .directory-state,
 .directory-filter-actions,
-.directory-search-row,
 .directory-sort-controls {
   align-items: center;
   display: flex;
@@ -3349,52 +3239,17 @@ h4 {
   padding: var(--space-5);
 }
 
-.directory-filters label,
-.directory-toolbar label {
+.directory-filters .ui-field__label {
   color: var(--color-ink-soft);
-  display: grid;
   font-size: var(--font-size-sm);
   font-weight: 800;
-  gap: var(--space-2);
-  min-width: 0;
 }
 
 .directory-search-field {
   grid-column: span 2;
 }
 
-.directory-search-row {
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  padding-left: var(--space-3);
-}
-
-.directory-search-row:focus-within {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-primary-soft);
-}
-
-.directory-search-row svg {
-  color: var(--color-ink-soft);
-  flex: 0 0 auto;
-  height: 1.1rem;
-  width: 1.1rem;
-}
-
-.directory-search-row input {
-  border: 0;
-  box-shadow: none;
-  min-width: 0;
-  padding-left: 0;
-  width: 100%;
-}
-
-.directory-search-row input:focus {
-  box-shadow: none;
-}
-
-.directory-ou-field small {
+.directory-ou-field .ui-field__hint {
   color: var(--color-ink-muted);
   font-weight: 600;
   line-height: 1.4;
@@ -3408,11 +3263,6 @@ h4 {
 .directory-toolbar {
   color: var(--color-ink-soft);
   font-size: var(--font-size-sm);
-}
-
-.directory-toolbar label {
-  align-items: center;
-  display: flex;
 }
 
 .directory-sort-controls {
@@ -3454,100 +3304,30 @@ h4 {
   flex: 1 1 auto;
 }
 
-.directory-table-wrap {
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  min-width: 0;
-  overflow-x: auto;
-  position: relative;
-}
-
-.directory-table-wrap .sr-only {
-  left: 0;
-  top: 0;
-}
-
-.directory-table {
-  border-collapse: collapse;
-  min-width: 80rem;
-  width: 100%;
-}
-
-.directory-table th,
-.directory-table td {
-  border-bottom: 1px solid var(--color-line);
-  padding: var(--space-3) var(--space-4);
-  text-align: left;
-  vertical-align: middle;
-}
-
-.directory-table th {
-  background: var(--color-surface-muted);
-  color: var(--color-ink-soft);
-  font-size: var(--font-size-xs);
-  font-weight: 850;
-  text-transform: uppercase;
-}
-
-.directory-table th button {
-  background: transparent;
-  box-shadow: none;
-  color: inherit;
-  font-size: inherit;
-  min-height: auto;
-  padding: 0;
-  text-transform: inherit;
-}
-
-.directory-table th button:hover {
-  box-shadow: none;
-  color: var(--color-primary-strong);
-  transform: none;
-}
-
-.directory-table th button svg {
-  height: 0.9rem;
-  width: 0.9rem;
-}
-
-.directory-table td:first-child,
-.directory-table td:nth-child(2) {
+.directory-data-table td:first-child,
+.directory-data-table td:nth-child(2) {
   min-width: 13rem;
 }
 
-.directory-table td strong,
-.directory-table td:first-child > span {
+.directory-user-cell,
+.directory-user-cell strong,
+.directory-user-cell > span {
   display: block;
 }
 
-.directory-table td:first-child > span {
+.directory-user-cell > span {
   color: var(--color-ink-soft);
   font-size: var(--font-size-xs);
   margin-top: var(--space-1);
 }
 
-.directory-table tr:last-child td {
-  border-bottom: 0;
+.directory-long-value {
+  display: inline-block;
+  overflow-wrap: anywhere;
 }
 
-.directory-table td:last-child button {
-  min-height: 2.5rem;
-  padding: 0.6rem 0.8rem;
+.directory-data-table td:last-child .ui-button {
   white-space: nowrap;
-}
-
-.directory-table th:last-child,
-.directory-table td:last-child {
-  background: var(--color-surface-primary);
-  box-shadow: -0.3rem 0 0.6rem rgb(15 23 42 / 5%);
-  position: sticky;
-  right: 0;
-  z-index: 1;
-}
-
-.directory-table th:last-child {
-  background: var(--color-surface-muted);
-  z-index: 2;
 }
 
 .organizational-units {
@@ -3772,18 +3552,6 @@ h4 {
   gap: var(--space-4);
 }
 
-.ou-create-form label {
-  display: grid;
-  font-size: var(--font-size-sm);
-  font-weight: 800;
-  gap: var(--space-2);
-}
-
-.ou-create-form label span {
-  color: var(--color-ink-soft);
-  font-weight: 600;
-}
-
 .ou-create-form textarea {
   min-height: 6rem;
   resize: vertical;
@@ -3910,95 +3678,34 @@ h4 {
   max-width: 52rem;
 }
 
-.groups-loading {
-  min-height: 16rem;
-}
-
-.groups-loading .ui-skeleton-group {
-  gap: var(--density-stack-gap);
-}
-
-.groups-loading .ui-skeleton {
-  height: var(--density-row-height);
-}
-
-.group-table-wrap {
-  background: var(--color-surface-primary);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
-  min-width: 0;
-  overflow-x: auto;
-  position: relative;
-}
-
-.user-membership-table-wrap .sr-only,
-.group-table-wrap .sr-only {
-  left: 0;
-  top: 0;
-}
-
-.group-table {
-  border-collapse: collapse;
-  min-width: 50rem;
-  width: 100%;
-}
-
-.group-table th,
-.group-table td {
-  border-bottom: 1px solid var(--color-border-default);
-  padding: var(--space-3) var(--space-4);
-  text-align: left;
-  vertical-align: middle;
-}
-
-.group-table th {
-  background: var(--color-background-subtle);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: var(--letter-spacing-label);
-}
-
-.group-table td:first-child {
+.group-data-table td:first-child {
   min-width: 15rem;
 }
 
-.group-table td strong,
-.group-table td span {
+.group-primary-cell,
+.group-primary-cell strong,
+.group-primary-cell > span {
   display: block;
   overflow-wrap: anywhere;
 }
 
-.group-table td span {
+.group-primary-cell > span {
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   margin-top: var(--space-1);
 }
 
-.group-table tbody tr {
-  transition: background var(--motion-fast) var(--ease-standard);
-}
-
-.group-table tbody tr:hover,
-.group-table tbody tr:focus-within {
-  background: var(--color-highlight);
-}
-
-.group-table tr:last-child td {
-  border-bottom: 0;
-}
-
-.group-table .ui-button {
+.group-data-table .ui-button {
   white-space: nowrap;
 }
 
-.group-table .ui-button svg {
+.group-data-table .ui-button svg {
   height: var(--icon-size-sm);
   width: var(--icon-size-sm);
 }
 
-.group-table .ui-badge {
+.group-data-table .ui-badge,
+.user-membership-data-table .ui-badge {
   justify-content: center;
   min-width: 5.3rem;
 }
@@ -4007,13 +3714,7 @@ h4 {
 .platform-admin-table th,
 .platform-admin-table td,
 .report-table th,
-.report-table td,
-.directory-table th,
-.directory-table td,
-.group-table th,
-.group-table td,
-.user-membership-table th,
-.user-membership-table td {
+.report-table td {
   height: var(--density-row-height);
   padding-bottom: var(--density-table-cell-y);
   padding-top: var(--density-table-cell-y);
@@ -4924,20 +4625,9 @@ h4 {
 
   .workspace-tool-navigation,
   .user-directory-navigation,
-  .pagination-controls,
-  .user-membership-controls {
+  .pagination-controls {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .user-membership-controls label {
-    margin-right: 0;
-  }
-
-  .user-membership-controls button,
-  .user-membership-controls label,
-  .user-membership-controls select {
-    width: 100%;
   }
 
   .group-add-form button,

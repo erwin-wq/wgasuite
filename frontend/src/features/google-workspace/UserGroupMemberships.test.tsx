@@ -127,7 +127,7 @@ describe("UserGroupMemberships", () => {
     );
     expect(await screen.findByText("This user has no verified direct group memberships.")).toBeVisible();
 
-    await interaction.selectOptions(screen.getByLabelText("Rows"), "25");
+    await interaction.selectOptions(screen.getByLabelText("Rows per page"), "25");
     await waitFor(() =>
       expect(api.listGoogleWorkspaceUserGroupMemberships).toHaveBeenLastCalledWith(
         "organization-1",

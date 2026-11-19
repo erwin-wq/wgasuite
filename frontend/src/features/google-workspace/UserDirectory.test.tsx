@@ -107,7 +107,7 @@ describe("UserDirectory", () => {
       expect.any(AbortSignal)
     );
     expect(screen.getByText("Super administrator")).toBeVisible();
-    expect(document.querySelector(".directory-table-wrap")).not.toBeNull();
+    expect(screen.getByRole("table", { name: "Workspace directory users" })).toBeVisible();
   });
 
   it("applies search, OU, status, administrator and archive filters server-side", async () => {
