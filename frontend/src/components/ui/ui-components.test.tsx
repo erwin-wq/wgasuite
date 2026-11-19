@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Settings } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Button, IconButton } from "./Button";
@@ -103,9 +103,78 @@ describe("enterprise UI components", () => {
     await user.click(trigger);
     expect(screen.getByRole("dialog", { name: "Review change" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Close dialog" })).toHaveFocus();
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(screen.getByRole("button", { name: "Confirm" })).toHaveFocus();
+    await user.keyboard("{Tab}");
+    expect(screen.getByRole("button", { name: "Close dialog" })).toHaveFocus();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  it("restores an explicit trigger and supports consecutive modal openings", async () => {
+    const user = userEvent.setup();
+    function ModalFixture() {
+      const [open, setOpen] = useState(false);
+      const triggerRef = useRef<HTMLButtonElement>(null);
+      return (
+        <>
+          <button ref={triggerRef} type="button" onClick={() => setOpen(true)}>Review membership</button>
+          <Modal
+            open={open}
+            onClose={() => setOpen(false)}
+            title="Confirm membership"
+            restoreFocusRef={triggerRef}
+          >
+            <button type="button" onClick={() => setOpen(false)}>Cancel</button>
+          </Modal>
+        </>
+      );
+    }
+    render(<ModalFixture />);
+    const trigger = screen.getByRole("button", { name: "Review membership" });
+
+    await user.click(trigger);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(trigger).toHaveFocus();
+    await user.click(trigger);
+    expect(screen.getByRole("button", { name: "Close dialog" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveFocus();
+  });
+
+  it("dismisses safely when the explicit restore target becomes disabled", async () => {
+    const user = userEvent.setup();
+    function ModalFixture() {
+      const [open, setOpen] = useState(false);
+      const [disabled, setDisabled] = useState(false);
+      const triggerRef = useRef<HTMLButtonElement>(null);
+      return (
+        <>
+          <button ref={triggerRef} type="button" disabled={disabled} onClick={() => setOpen(true)}>
+            Open protected dialog
+          </button>
+          <Modal
+            open={open}
+            onClose={() => setOpen(false)}
+            title="Protected dialog"
+            restoreFocusRef={triggerRef}
+          >
+            <button type="button" onClick={() => { setDisabled(true); setOpen(false); }}>
+              Disable trigger and close
+            </button>
+          </Modal>
+        </>
+      );
+    }
+    render(<ModalFixture />);
+    const trigger = screen.getByRole("button", { name: "Open protected dialog" });
+    await user.click(trigger);
+    await user.click(screen.getByRole("button", { name: "Disable trigger and close" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toBeDisabled();
+    expect(trigger).not.toHaveFocus();
   });
 
   it("renders semantic feedback and status components", () => {

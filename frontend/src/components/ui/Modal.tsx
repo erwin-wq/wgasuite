@@ -21,6 +21,7 @@ export interface ModalProps {
   children: ReactNode;
   footer?: ReactNode;
   initialFocusRef?: RefObject<HTMLElement | null>;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
   closeDisabled?: boolean;
   className?: string;
 }
@@ -33,6 +34,7 @@ export function Modal({
   children,
   footer,
   initialFocusRef,
+  restoreFocusRef,
   closeDisabled = false,
   className
 }: ModalProps) {
@@ -50,6 +52,7 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
     const previousFocus = document.activeElement as HTMLElement | null;
+    const restoreFocus = restoreFocusRef?.current ?? previousFocus;
     const dialog = dialogRef.current;
     (initialFocusRef?.current ?? dialog?.querySelector<HTMLElement>(focusableSelector) ?? dialog)?.focus();
 
@@ -80,9 +83,9 @@ export function Modal({
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      previousFocus?.focus();
+      restoreFocus?.focus();
     };
-  }, [initialFocusRef, open]);
+  }, [initialFocusRef, open, restoreFocusRef]);
 
   if (!open) return null;
 

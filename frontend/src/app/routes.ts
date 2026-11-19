@@ -77,7 +77,7 @@ export const appRoutes = {
     path: "/directory/groups",
     title: "Groups",
     shortTitle: "Groups",
-    description: "Inspect groups and manage memberships with existing safety controls.",
+    description: "Find Workspace groups and manage direct membership.",
     breadcrumb: ["Directory", "Groups"],
     group: "directory",
     icon: UsersRound,
