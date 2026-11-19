@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "../../api/client";
 import type {
   GoogleWorkspaceGroup,
   GoogleWorkspaceGroupMemberList,
@@ -122,6 +123,28 @@ beforeEach(() => {
 });
 
 describe("GroupManagement", () => {
+  it("renders a permission state without starting a group request", () => {
+    render(<GroupManagement organizationId="organization-1" canSearch={false} canMutate={false} />);
+
+    expect(screen.getByRole("heading", { name: "Groups are not available" })).toBeVisible();
+    expect(api.searchGoogleWorkspaceGroups).not.toHaveBeenCalled();
+  });
+
+  it("renders recoverable loading errors and retries the current search", async () => {
+    api.searchGoogleWorkspaceGroups
+      .mockRejectedValueOnce(new ApiError("private upstream detail", 503, "google_service_unavailable"))
+      .mockResolvedValueOnce(searchResult);
+    const user = userEvent.setup();
+    render(<GroupManagement organizationId="organization-1" canSearch canMutate />);
+
+    expect(await screen.findByRole("heading", { name: "Groups could not be loaded" })).toBeVisible();
+    expect(screen.queryByText("private upstream detail")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("team@primary.example")).toBeVisible();
+    expect(api.searchGoogleWorkspaceGroups).toHaveBeenCalledTimes(2);
+  });
+
   it("opens a requested customer group through the existing detail view", async () => {
     render(
       <GroupManagement
@@ -221,6 +244,45 @@ describe("GroupManagement", () => {
       "add",
       preview.confirmation_token
     );
+  });
+
+  it("traps confirmation focus and restores it to the review action", async () => {
+    const user = userEvent.setup();
+    render(<GroupManagement organizationId="organization-1" canSearch canMutate />);
+    await user.click(await screen.findByRole("button", { name: /View members/ }));
+    await user.type(
+      screen.getByLabelText("Add an existing internal user by primary email or alias"),
+      "alias@secondary.example"
+    );
+    const reviewAction = screen.getByRole("button", { name: "Review add" });
+    await user.click(reviewAction);
+
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Close dialog" })).toHaveFocus();
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(screen.getByRole("button", { name: "Confirm add" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(reviewAction).toHaveFocus();
+    expect(api.executeGroupMembershipChange).not.toHaveBeenCalled();
+  });
+
+  it("cancels a protected preview without submitting and restores the exact trigger", async () => {
+    const user = userEvent.setup();
+    render(<GroupManagement organizationId="organization-1" canSearch canMutate />);
+    await user.click(await screen.findByRole("button", { name: /View members/ }));
+    await user.type(
+      screen.getByLabelText("Add an existing internal user by primary email or alias"),
+      "alias@secondary.example"
+    );
+    const reviewAction = screen.getByRole("button", { name: "Review add" });
+    await user.click(reviewAction);
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(reviewAction).toHaveFocus();
+    expect(api.executeGroupMembershipChange).not.toHaveBeenCalled();
   });
 
   it("prevents duplicate membership writes while confirmation is pending", async () => {

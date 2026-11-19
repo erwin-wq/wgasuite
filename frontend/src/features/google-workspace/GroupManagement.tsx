@@ -1,16 +1,16 @@
 import {
-  AlertCircle,
   ArrowLeft,
+  ArrowRight,
+  AtSign,
   ChevronLeft,
   ChevronRight,
-  Loader2,
+  Mail,
   Plus,
   RefreshCw,
   Search,
   ShieldAlert,
   Trash2,
-  UsersRound,
-  X
+  UsersRound
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
@@ -23,6 +23,11 @@ import {
   reconcileGroupMembershipChange,
   searchGoogleWorkspaceGroups
 } from "../../api/client";
+import { Button } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
+import { Alert, Badge, EmptyState, ErrorState, Skeleton } from "../../components/ui/Feedback";
+import { Input, SearchField } from "../../components/ui/FormControls";
+import { Modal } from "../../components/ui/Modal";
 import type {
   GoogleWorkspaceGroup,
   GoogleWorkspaceGroupMember,
@@ -78,6 +83,18 @@ function memberLabel(member: GoogleWorkspaceGroupMember): string {
   return "Unsupported";
 }
 
+function roleVariant(role: GoogleWorkspaceGroupMember["role"]): "neutral" | "info" | "warning" {
+  if (role === "OWNER") return "warning";
+  if (role === "MANAGER") return "info";
+  return "neutral";
+}
+
+function statusVariant(status: string | null): "neutral" | "success" | "warning" {
+  if (status === "ACTIVE") return "success";
+  if (status === "SUSPENDED") return "warning";
+  return "neutral";
+}
+
 export function GroupManagement({
   organizationId,
   canSearch,
@@ -112,6 +129,8 @@ export function GroupManagement({
   const controller = useRef<AbortController | null>(null);
   const reconciliationInFlight = useRef(false);
   const mutationInFlight = useRef(false);
+  const detailHeading = useRef<HTMLHeadingElement>(null);
+  const confirmationTrigger = useRef<HTMLElement | null>(null);
 
   const loadGroups = useCallback(
     async (searchQuery: string, pageToken: string | null, pageIndex: number) => {
@@ -277,6 +296,7 @@ export function GroupManagement({
     setPendingPreview(null);
     setAmbiguousPreview(null);
     await loadMembers(group, null, 0);
+    detailHeading.current?.focus();
   }
 
   function returnToGroups() {
@@ -298,6 +318,7 @@ export function GroupManagement({
       setFeedback({ type: "error", message: "Enter a valid full email address." });
       return;
     }
+    confirmationTrigger.current = document.activeElement as HTMLElement | null;
     const sequence = requestSequence.current;
     setIsPreviewing(true);
     setFeedback(null);
@@ -421,95 +442,128 @@ export function GroupManagement({
   }
 
   const writeLocked = isPreviewing || isMutating || isReconciling || ambiguousPreview !== null;
+  const groupAliases = selectedGroup
+    ? [...selectedGroup.aliases, ...selectedGroup.non_editable_aliases]
+    : [];
+  const announcement = isGroupsLoading
+    ? "Loading Google Workspace groups."
+    : isMembersLoading
+      ? "Loading direct group members."
+      : groupError ?? memberError ?? feedback?.message ?? "";
 
   return (
     <section className="group-management" aria-labelledby="groups-heading">
-      <div className="workspace-section-heading group-heading">
-        <div>
-          <span className="eyebrow">Directory administration</span>
-          <h2 id="groups-heading">Groups</h2>
-          <p>Search every domain in the verified Workspace customer and manage direct internal users.</p>
-        </div>
-        {selectedGroup && (
-          <button type="button" className="secondary-button" onClick={returnToGroups}>
-            <ArrowLeft aria-hidden="true" /> Back to groups
-          </button>
-        )}
-      </div>
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
+      <h2 id="groups-heading" className="sr-only">Google Workspace Groups</h2>
 
       {!canSearch ? (
-        <div className="group-state warning" role="status">
-          <ShieldAlert aria-hidden="true" /> Customer administrator access is required to use Groups.
-        </div>
+        <EmptyState
+          className="groups-permission-state"
+          title="Groups are not available"
+          icon={<ShieldAlert aria-hidden="true" />}
+        >
+          Customer administrator access is required to search groups and inspect direct membership.
+        </EmptyState>
       ) : !selectedGroup ? (
-        <>
+        <div className="groups-overview">
           <form className="group-search-form" onSubmit={handleSearch}>
-            <label htmlFor="group-search">
-              Group name or full email
-              <input
-                id="group-search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Finance or finance@example.com"
-                maxLength={100}
-              />
-            </label>
-            <button type="submit" disabled={isGroupsLoading}>
-              {isGroupsLoading ? <Loader2 className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />}
-              Search
-            </button>
+            <SearchField
+              id="group-search"
+              label="Group name or full email"
+              hideLabel
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onClear={() => setQuery("")}
+              placeholder="Search by group name or full email"
+              maxLength={100}
+              disabled={isGroupsLoading}
+            />
+            <Button type="submit" loading={isGroupsLoading} loadingLabel="Searching groups">
+              {isGroupsLoading ? null : <Search aria-hidden="true" />} Search
+            </Button>
           </form>
           {groupError ? (
-            <div className="group-state error" role="alert"><AlertCircle aria-hidden="true" />{groupError}</div>
+            <ErrorState title="Groups could not be loaded" actionLabel="Try again" onAction={() => void loadGroups(query.trim(), null, 0)}>
+              {groupError}
+            </ErrorState>
           ) : isGroupsLoading ? (
-            <div className="group-state" role="status"><Loader2 className="spin" aria-hidden="true" />Loading groups…</div>
+            <Card className="groups-loading" padding="md" aria-label="Loading groups">
+              <Skeleton lines={5} />
+            </Card>
           ) : groups.length === 0 ? (
-            <div className="group-state" role="status"><UsersRound aria-hidden="true" />No groups matched this search.</div>
+            <EmptyState title="No groups found" icon={<UsersRound aria-hidden="true" />}>
+              {query.trim()
+                ? "No Workspace groups matched this name or email."
+                : "No groups are available in the selected Workspace customer."}
+            </EmptyState>
           ) : (
-            <div className="group-table-wrap">
-              <table className="group-table">
-                <thead><tr><th>Group</th><th>Aliases</th><th>Direct members</th><th><span className="sr-only">Open</span></th></tr></thead>
-                <tbody>
-                  {groups.map((group) => (
-                    <tr key={group.id}>
-                      <td><strong>{group.name}</strong><span>{group.primary_email}</span></td>
-                      <td>{group.aliases.length + group.non_editable_aliases.length || "—"}</td>
-                      <td>{group.direct_members_count ?? "Unknown"}</td>
-                      <td><button type="button" className="secondary-button" onClick={() => void selectGroup(group)}>View members</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <section className="groups-results" aria-labelledby="groups-results-heading">
+              <div className="groups-results-heading">
+                <div>
+                  <h3 id="groups-results-heading">Workspace groups</h3>
+                  <p>Search results include group names, addresses, aliases, and direct-member totals when Google provides them.</p>
+                </div>
+              </div>
+              <div className="group-table-wrap">
+                <table className="group-table">
+                  <thead><tr><th>Group</th><th>Aliases</th><th>Direct members</th><th><span className="sr-only">Open group</span></th></tr></thead>
+                  <tbody>
+                    {groups.map((group) => (
+                      <tr key={group.id}>
+                        <td><strong>{group.name}</strong><span>{group.primary_email}</span></td>
+                        <td>{group.aliases.length + group.non_editable_aliases.length || "—"}</td>
+                        <td>{group.direct_members_count ?? "Unknown"}</td>
+                        <td>
+                          <Button variant="secondary" size="sm" onClick={() => void selectGroup(group)}>
+                            View members <ArrowRight aria-hidden="true" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           )}
           <div className="pagination-controls" aria-label="Group result pages">
-            <button type="button" className="secondary-button" disabled={groupPage === 0 || isGroupsLoading} onClick={() => void loadGroups(query.trim(), groupTokens[groupPage - 1] ?? null, groupPage - 1)}><ChevronLeft aria-hidden="true" /> Previous</button>
+            <Button variant="secondary" size="sm" disabled={groupPage === 0 || isGroupsLoading} onClick={() => void loadGroups(query.trim(), groupTokens[groupPage - 1] ?? null, groupPage - 1)}><ChevronLeft aria-hidden="true" /> Previous</Button>
             <span>Page {groupPage + 1}</span>
-            <button type="button" className="secondary-button" disabled={!groupNextToken || isGroupsLoading} onClick={nextGroupPage}>Next <ChevronRight aria-hidden="true" /></button>
+            <Button variant="secondary" size="sm" disabled={!groupNextToken || isGroupsLoading} onClick={nextGroupPage}>Next <ChevronRight aria-hidden="true" /></Button>
           </div>
-        </>
+        </div>
       ) : (
         <div className="group-detail">
-          <div className="group-detail-card">
-            <div><span>Name</span><strong>{selectedGroup.name}</strong></div>
-            <div><span>Primary email</span><strong>{selectedGroup.primary_email}</strong></div>
-            <div><span>Aliases</span><strong>{[...selectedGroup.aliases, ...selectedGroup.non_editable_aliases].join(", ") || "None"}</strong></div>
-            <div><span>Direct members</span><strong>{selectedGroup.direct_members_count ?? "Unknown"}</strong></div>
-            <p>{selectedGroup.description ?? "No description is available."}</p>
-          </div>
+          <Button className="group-back-action" variant="ghost" size="sm" onClick={returnToGroups}>
+            <ArrowLeft aria-hidden="true" /> Back to groups
+          </Button>
+          <header className="group-identity">
+            <div className="group-identity-title">
+              <span className="group-identity-icon" aria-hidden="true"><UsersRound /></span>
+              <div>
+                <h3 ref={detailHeading} tabIndex={-1}>{selectedGroup.name}</h3>
+                <p><Mail aria-hidden="true" /> {selectedGroup.primary_email}</p>
+              </div>
+            </div>
+            <p className="group-description">{selectedGroup.description ?? "No description is available."}</p>
+            <dl className="group-identity-facts">
+              <div><dt>Primary address</dt><dd>{selectedGroup.primary_email}</dd></div>
+              <div><dt>Aliases</dt><dd>{groupAliases.join(", ") || "None"}</dd></div>
+              <div><dt>Direct members</dt><dd>{selectedGroup.direct_members_count ?? "Unknown"}</dd></div>
+            </dl>
+          </header>
           {!selectedGroup.membership_mutable && (
-            <div className="group-state warning" role="status"><ShieldAlert aria-hidden="true" />{selectedGroup.restriction_reason}</div>
+            <Alert variant="warning" title="Membership changes unavailable">{selectedGroup.restriction_reason}</Alert>
           )}
           <div className="member-toolbar">
             <div><h3>Direct members</h3><p>Indirect and derived memberships are excluded.</p></div>
-            <button type="button" className="secondary-button" disabled={isMembersLoading} onClick={() => void loadMembers(selectedGroup, memberTokens[memberPage] ?? null, memberPage)}><RefreshCw className={isMembersLoading ? "spin" : ""} aria-hidden="true" /> Refresh</button>
+            <Button variant="secondary" size="sm" loading={isMembersLoading} loadingLabel="Refreshing members" onClick={() => void loadMembers(selectedGroup, memberTokens[memberPage] ?? null, memberPage)}><RefreshCw aria-hidden="true" /> Refresh</Button>
           </div>
           {memberError ? (
-            <div className="group-state error" role="alert"><AlertCircle aria-hidden="true" />{memberError}</div>
+            <ErrorState title="Members could not be loaded" actionLabel="Try again" onAction={() => void loadMembers(selectedGroup, memberTokens[memberPage] ?? null, memberPage)}>{memberError}</ErrorState>
           ) : isMembersLoading ? (
-            <div className="group-state" role="status"><Loader2 className="spin" aria-hidden="true" />Loading direct members…</div>
+            <Card className="groups-loading" padding="md" aria-label="Loading direct members"><Skeleton lines={4} /></Card>
           ) : members.length === 0 ? (
-            <div className="group-state" role="status"><UsersRound aria-hidden="true" />This group has no direct members.</div>
+            <EmptyState title="No direct members" icon={<UsersRound aria-hidden="true" />}>This group has no direct members.</EmptyState>
           ) : (
             <div className="group-table-wrap">
               <table className="group-table member-table">
@@ -518,8 +572,10 @@ export function GroupManagement({
                   {members.map((member) => (
                     <tr key={member.id}>
                       <td><strong>{member.email ?? member.id}</strong>{member.restriction_reason && <span>{member.restriction_reason}</span>}</td>
-                      <td>{memberLabel(member)}</td><td>{member.role}</td><td>{member.status ?? "Unknown"}</td>
-                      <td><button type="button" className="danger-button" disabled={!canMutate || !selectedGroup.membership_mutable || !member.mutation_supported || writeLocked || !member.email} onClick={() => member.email && void previewChange("remove", member.email)} title={member.restriction_reason ?? (canMutate ? "Review removal" : "Administrator access required")}><Trash2 aria-hidden="true" /> Remove</button></td>
+                      <td>{memberLabel(member)}</td>
+                      <td><Badge variant={roleVariant(member.role)}>{member.role}</Badge></td>
+                      <td><Badge variant={statusVariant(member.status)}>{member.status ?? "Unknown"}</Badge></td>
+                      <td><Button variant="danger" size="sm" disabled={!canMutate || !selectedGroup.membership_mutable || !member.mutation_supported || writeLocked || !member.email} onClick={() => member.email && void previewChange("remove", member.email)} title={member.restriction_reason ?? (canMutate ? "Review removal" : "Administrator access required")}><Trash2 aria-hidden="true" /> Remove</Button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -527,32 +583,35 @@ export function GroupManagement({
             </div>
           )}
           <div className="pagination-controls" aria-label="Member result pages">
-            <button type="button" className="secondary-button" disabled={memberPage === 0 || isMembersLoading} onClick={() => void loadMembers(selectedGroup, memberTokens[memberPage - 1] ?? null, memberPage - 1)}><ChevronLeft aria-hidden="true" /> Previous</button>
+            <Button variant="secondary" size="sm" disabled={memberPage === 0 || isMembersLoading} onClick={() => void loadMembers(selectedGroup, memberTokens[memberPage - 1] ?? null, memberPage - 1)}><ChevronLeft aria-hidden="true" /> Previous</Button>
             <span>Page {memberPage + 1}</span>
-            <button type="button" className="secondary-button" disabled={!memberNextToken || isMembersLoading} onClick={nextMemberPage}>Next <ChevronRight aria-hidden="true" /></button>
+            <Button variant="secondary" size="sm" disabled={!memberNextToken || isMembersLoading} onClick={nextMemberPage}>Next <ChevronRight aria-hidden="true" /></Button>
           </div>
-          <form className="group-add-form" onSubmit={(event) => { event.preventDefault(); void previewChange("add", memberEmail); }}>
-            <label htmlFor="group-member-email">Add an existing internal user by primary email or alias<input id="group-member-email" type="email" autoComplete="off" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} placeholder="person@example.com" disabled={!canMutate || !selectedGroup.membership_mutable || writeLocked} /></label>
-            <button type="submit" disabled={!canMutate || !selectedGroup.membership_mutable || !memberEmail.trim() || writeLocked}>{isPreviewing ? <Loader2 className="spin" aria-hidden="true" /> : <Plus aria-hidden="true" />}{isPreviewing ? "Validating" : "Review add"}</button>
-          </form>
-          {!canMutate && <p className="group-readonly-note"><ShieldAlert aria-hidden="true" />You can inspect direct membership, but only customer administrators can change it.</p>}
-          {feedback && <div className={`group-state ${feedback.type}`} role={feedback.type === "error" ? "alert" : "status"}>{feedback.type === "error" ? <AlertCircle aria-hidden="true" /> : <ShieldAlert aria-hidden="true" />}{feedback.message}</div>}
+          <Card as="section" className="group-add-panel" padding="md" aria-labelledby="add-member-heading">
+            <div className="group-add-heading"><h3 id="add-member-heading">Add a direct member</h3><p>Add an existing internal user by primary email or alias.</p></div>
+            <form className="group-add-form" onSubmit={(event) => { event.preventDefault(); void previewChange("add", memberEmail); }}>
+              <Input label="Add an existing internal user by primary email or alias" hideLabel leadingIcon={<AtSign />} id="group-member-email" type="email" autoComplete="off" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} placeholder="person@example.com" disabled={!canMutate || !selectedGroup.membership_mutable || writeLocked} />
+              <Button type="submit" loading={isPreviewing} loadingLabel="Validating member" disabled={!canMutate || !selectedGroup.membership_mutable || !memberEmail.trim() || writeLocked}>{isPreviewing ? null : <Plus aria-hidden="true" />}{isPreviewing ? "Validating" : "Review add"}</Button>
+            </form>
+            <p className="group-safety-note"><ShieldAlert aria-hidden="true" />Membership changes require review and explicit confirmation before they are submitted.</p>
+          </Card>
+          {!canMutate && <Alert variant="info">You can inspect direct membership, but only customer administrators can change it.</Alert>}
+          {feedback && <Alert variant={feedback.type === "error" ? "danger" : feedback.type}>{feedback.message}</Alert>}
           {ambiguousPreview && !isReconciling && <div className="group-reconciliation"><div><strong>Outcome still unknown</strong><span>The original write remains consumed and will not be sent again.</span></div><button type="button" className="secondary-button" onClick={() => void reconcile(ambiguousPreview, requestSequence.current)}>Check current state</button></div>}
         </div>
       )}
 
-      {pendingPreview && (
-        <div className="confirmation-backdrop" role="presentation">
-          <section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="group-confirmation-heading">
-            <button type="button" className="dialog-close" aria-label="Close confirmation" onClick={() => setPendingPreview(null)} disabled={isMutating}><X aria-hidden="true" /></button>
-            <h3 id="group-confirmation-heading">Confirm membership {pendingPreview.operation}</h3>
-            <p>{pendingPreview.effect}</p>
-            <dl className="confirmation-identities"><div><dt>Group</dt><dd>{pendingPreview.group_primary_email}</dd></div><div><dt>User</dt><dd>{pendingPreview.member_primary_email}</dd></div><div><dt>Role</dt><dd>{pendingPreview.member_role}</dd></div></dl>
-            <p>This single-use approval expires at {new Date(pendingPreview.expires_at).toLocaleTimeString()}.</p>
-            <div className="confirmation-actions"><button type="button" className="secondary-button" onClick={() => setPendingPreview(null)} disabled={isMutating}>Cancel</button><button type="button" className={pendingPreview.operation === "remove" ? "danger-button" : ""} onClick={() => void confirmChange()} disabled={isMutating}>{isMutating && <Loader2 className="spin" aria-hidden="true" />}Confirm {pendingPreview.operation}</button></div>
-          </section>
-        </div>
-      )}
+      <Modal
+        open={pendingPreview !== null}
+        onClose={() => setPendingPreview(null)}
+        title={`Confirm membership ${pendingPreview?.operation ?? "change"}`}
+        description={pendingPreview?.effect}
+        closeDisabled={isMutating}
+        restoreFocusRef={confirmationTrigger}
+        footer={pendingPreview ? <><Button variant="secondary" onClick={() => setPendingPreview(null)} disabled={isMutating}>Cancel</Button><Button variant={pendingPreview.operation === "remove" ? "danger" : "primary"} loading={isMutating} loadingLabel={`Confirming ${pendingPreview.operation}`} onClick={() => void confirmChange()}>Confirm {pendingPreview.operation}</Button></> : undefined}
+      >
+        {pendingPreview ? <div className="group-confirmation-content"><dl className="confirmation-identities"><div><dt>Group</dt><dd>{pendingPreview.group_primary_email}</dd></div><div><dt>User</dt><dd>{pendingPreview.member_primary_email}</dd></div><div><dt>Role</dt><dd>{pendingPreview.member_role}</dd></div></dl><Alert variant="warning">This single-use approval expires at {new Date(pendingPreview.expires_at).toLocaleTimeString()}.</Alert></div> : null}
+      </Modal>
     </section>
   );
 }
