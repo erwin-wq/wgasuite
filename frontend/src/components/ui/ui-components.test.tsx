@@ -8,7 +8,7 @@ import { Button, IconButton } from "./Button";
 import { Card } from "./Card";
 import { Dropdown } from "./Dropdown";
 import { Alert, Badge, EmptyState, ErrorState, Skeleton, Toast, ToastRegion } from "./Feedback";
-import { Input, SearchField, Select } from "./FormControls";
+import { Input, SearchField, Select, Textarea } from "./FormControls";
 import { Modal } from "./Modal";
 import { PageHeader } from "./PageHeader";
 import { Tabs } from "./Tabs";
@@ -33,6 +33,21 @@ describe("enterprise UI components", () => {
     rerender(<Input label="Name" error="Name is required." />);
     expect(screen.getByLabelText("Name")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("alert")).toHaveTextContent("Name is required.");
+  });
+
+  it("announces required and optional fields and keeps help text associated with errors", () => {
+    render(
+      <>
+        <Input label="Customer name" required hint="Use the legal display name." error="Customer name is required." />
+        <Textarea label="Notes" optional hint="Do not include credentials." />
+      </>
+    );
+
+    expect(screen.getByLabelText("Customer name")).toBeRequired();
+    expect(screen.getByLabelText("Customer name")).toHaveAccessibleDescription(
+      "Use the legal display name. Customer name is required."
+    );
+    expect(screen.getByLabelText(/Notes/)).toHaveAccessibleDescription("Do not include credentials.");
   });
 
   it("renders native select options and clears a search field", async () => {

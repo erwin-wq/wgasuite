@@ -2,8 +2,6 @@ import {
   ArrowLeft,
   ArrowRight,
   AtSign,
-  ChevronLeft,
-  ChevronRight,
   Mail,
   Plus,
   RefreshCw,
@@ -25,7 +23,8 @@ import {
 } from "../../api/client";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
-import { Alert, Badge, EmptyState, ErrorState, Skeleton } from "../../components/ui/Feedback";
+import { DataTable, DataTablePagination, type DataTableColumn } from "../../components/ui/DataTable";
+import { Alert, Badge, EmptyState } from "../../components/ui/Feedback";
 import { Input, SearchField } from "../../components/ui/FormControls";
 import { Modal } from "../../components/ui/Modal";
 import type {
@@ -450,6 +449,19 @@ export function GroupManagement({
     : isMembersLoading
       ? "Loading direct group members."
       : groupError ?? memberError ?? feedback?.message ?? "";
+  const groupColumns: DataTableColumn<GoogleWorkspaceGroup>[] = [
+    { id: "group", header: "Group", cell: (group) => <span className="group-primary-cell"><strong>{group.name}</strong><span>{group.primary_email}</span></span> },
+    { id: "aliases", header: "Aliases", cell: (group) => group.aliases.length + group.non_editable_aliases.length || "—" },
+    { id: "members", header: "Direct members", cell: (group) => group.direct_members_count ?? "Unknown" },
+    { id: "actions", header: <span className="sr-only">Open group</span>, cell: (group) => <Button variant="secondary" size="sm" onClick={() => void selectGroup(group)}>View members <ArrowRight aria-hidden="true" /></Button> }
+  ];
+  const memberColumns: DataTableColumn<GoogleWorkspaceGroupMember>[] = [
+    { id: "member", header: "Member", cell: (member) => <span className="group-primary-cell"><strong>{member.email ?? member.id}</strong>{member.restriction_reason ? <span>{member.restriction_reason}</span> : null}</span> },
+    { id: "type", header: "Type", cell: memberLabel },
+    { id: "role", header: "Role", cell: (member) => <Badge variant={roleVariant(member.role)}>{member.role}</Badge> },
+    { id: "status", header: "Status", cell: (member) => <Badge variant={statusVariant(member.status)}>{member.status ?? "Unknown"}</Badge> },
+    { id: "actions", header: <span className="sr-only">Membership actions</span>, cell: (member) => <Button variant="danger" size="sm" disabled={!canMutate || !selectedGroup?.membership_mutable || !member.mutation_supported || writeLocked || !member.email} onClick={() => member.email && void previewChange("remove", member.email)} title={member.restriction_reason ?? (canMutate ? "Review removal" : "Administrator access required")}><Trash2 aria-hidden="true" /> Remove</Button> }
+  ];
 
   return (
     <section className="group-management" aria-labelledby="groups-heading">
@@ -482,54 +494,16 @@ export function GroupManagement({
               {isGroupsLoading ? null : <Search aria-hidden="true" />} Search
             </Button>
           </form>
-          {groupError ? (
-            <ErrorState title="Groups could not be loaded" actionLabel="Try again" onAction={() => void loadGroups(query.trim(), null, 0)}>
-              {groupError}
-            </ErrorState>
-          ) : isGroupsLoading ? (
-            <Card className="groups-loading" padding="md" aria-label="Loading groups">
-              <Skeleton lines={5} />
-            </Card>
-          ) : groups.length === 0 ? (
-            <EmptyState title="No groups found" icon={<UsersRound aria-hidden="true" />}>
-              {query.trim()
-                ? "No Workspace groups matched this name or email."
-                : "No groups are available in the selected Workspace customer."}
-            </EmptyState>
-          ) : (
-            <section className="groups-results" aria-labelledby="groups-results-heading">
-              <div className="groups-results-heading">
-                <div>
-                  <h3 id="groups-results-heading">Workspace groups</h3>
-                  <p>Search results include group names, addresses, aliases, and direct-member totals when Google provides them.</p>
-                </div>
+          <section className="groups-results" aria-labelledby="groups-results-heading">
+            <div className="groups-results-heading">
+              <div>
+                <h3 id="groups-results-heading">Workspace groups</h3>
+                <p>Search results include group names, addresses, aliases, and direct-member totals when Google provides them.</p>
               </div>
-              <div className="group-table-wrap">
-                <table className="group-table">
-                  <thead><tr><th>Group</th><th>Aliases</th><th>Direct members</th><th><span className="sr-only">Open group</span></th></tr></thead>
-                  <tbody>
-                    {groups.map((group) => (
-                      <tr key={group.id}>
-                        <td><strong>{group.name}</strong><span>{group.primary_email}</span></td>
-                        <td>{group.aliases.length + group.non_editable_aliases.length || "—"}</td>
-                        <td>{group.direct_members_count ?? "Unknown"}</td>
-                        <td>
-                          <Button variant="secondary" size="sm" onClick={() => void selectGroup(group)}>
-                            View members <ArrowRight aria-hidden="true" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-          <div className="pagination-controls" aria-label="Group result pages">
-            <Button variant="secondary" size="sm" disabled={groupPage === 0 || isGroupsLoading} onClick={() => void loadGroups(query.trim(), groupTokens[groupPage - 1] ?? null, groupPage - 1)}><ChevronLeft aria-hidden="true" /> Previous</Button>
-            <span>Page {groupPage + 1}</span>
-            <Button variant="secondary" size="sm" disabled={!groupNextToken || isGroupsLoading} onClick={nextGroupPage}>Next <ChevronRight aria-hidden="true" /></Button>
-          </div>
+            </div>
+            <DataTable ariaLabel="Workspace groups" columns={groupColumns} rows={groups} rowKey={(group) => group.id} loading={isGroupsLoading} error={groupError} errorTitle="Groups could not be loaded" onRetry={() => void loadGroups(query.trim(), null, 0)} emptyTitle="No groups found" emptyDescription={query.trim() ? "No Workspace groups matched this name or email." : "No groups are available in the selected Workspace customer."} minWidth="50rem" className="group-data-table" />
+          </section>
+          <DataTablePagination ariaLabel="Group result pages" page={groupPage} onPrevious={() => void loadGroups(query.trim(), groupTokens[groupPage - 1] ?? null, groupPage - 1)} onNext={nextGroupPage} previousDisabled={groupPage === 0} nextDisabled={!groupNextToken} disabled={isGroupsLoading} />
         </div>
       ) : (
         <div className="group-detail">
@@ -558,35 +532,8 @@ export function GroupManagement({
             <div><h3>Direct members</h3><p>Indirect and derived memberships are excluded.</p></div>
             <Button variant="secondary" size="sm" loading={isMembersLoading} loadingLabel="Refreshing members" onClick={() => void loadMembers(selectedGroup, memberTokens[memberPage] ?? null, memberPage)}><RefreshCw aria-hidden="true" /> Refresh</Button>
           </div>
-          {memberError ? (
-            <ErrorState title="Members could not be loaded" actionLabel="Try again" onAction={() => void loadMembers(selectedGroup, memberTokens[memberPage] ?? null, memberPage)}>{memberError}</ErrorState>
-          ) : isMembersLoading ? (
-            <Card className="groups-loading" padding="md" aria-label="Loading direct members"><Skeleton lines={4} /></Card>
-          ) : members.length === 0 ? (
-            <EmptyState title="No direct members" icon={<UsersRound aria-hidden="true" />}>This group has no direct members.</EmptyState>
-          ) : (
-            <div className="group-table-wrap">
-              <table className="group-table member-table">
-                <thead><tr><th>Member</th><th>Type</th><th>Role</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead>
-                <tbody>
-                  {members.map((member) => (
-                    <tr key={member.id}>
-                      <td><strong>{member.email ?? member.id}</strong>{member.restriction_reason && <span>{member.restriction_reason}</span>}</td>
-                      <td>{memberLabel(member)}</td>
-                      <td><Badge variant={roleVariant(member.role)}>{member.role}</Badge></td>
-                      <td><Badge variant={statusVariant(member.status)}>{member.status ?? "Unknown"}</Badge></td>
-                      <td><Button variant="danger" size="sm" disabled={!canMutate || !selectedGroup.membership_mutable || !member.mutation_supported || writeLocked || !member.email} onClick={() => member.email && void previewChange("remove", member.email)} title={member.restriction_reason ?? (canMutate ? "Review removal" : "Administrator access required")}><Trash2 aria-hidden="true" /> Remove</Button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <div className="pagination-controls" aria-label="Member result pages">
-            <Button variant="secondary" size="sm" disabled={memberPage === 0 || isMembersLoading} onClick={() => void loadMembers(selectedGroup, memberTokens[memberPage - 1] ?? null, memberPage - 1)}><ChevronLeft aria-hidden="true" /> Previous</Button>
-            <span>Page {memberPage + 1}</span>
-            <Button variant="secondary" size="sm" disabled={!memberNextToken || isMembersLoading} onClick={nextMemberPage}>Next <ChevronRight aria-hidden="true" /></Button>
-          </div>
+          <DataTable ariaLabel={`Direct members of ${selectedGroup.name}`} columns={memberColumns} rows={members} rowKey={(member) => member.id} loading={isMembersLoading} error={memberError} errorTitle="Members could not be loaded" onRetry={() => void loadMembers(selectedGroup, memberTokens[memberPage] ?? null, memberPage)} emptyTitle="No direct members" emptyDescription="This group has no direct members." minWidth="50rem" className="group-data-table member-data-table" />
+          <DataTablePagination ariaLabel="Member result pages" page={memberPage} onPrevious={() => void loadMembers(selectedGroup, memberTokens[memberPage - 1] ?? null, memberPage - 1)} onNext={nextMemberPage} previousDisabled={memberPage === 0} nextDisabled={!memberNextToken} disabled={isMembersLoading} />
           <Card as="section" className="group-add-panel" padding="md" aria-labelledby="add-member-heading">
             <div className="group-add-heading"><h3 id="add-member-heading">Add a direct member</h3><p>Add an existing internal user by primary email or alias.</p></div>
             <form className="group-add-form" onSubmit={(event) => { event.preventDefault(); void previewChange("add", memberEmail); }}>

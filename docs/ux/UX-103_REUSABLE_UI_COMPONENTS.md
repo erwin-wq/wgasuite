@@ -28,7 +28,10 @@ large barrel that can hide bundle boundaries.
 | `Tooltip` | `Tooltip.tsx` | top/bottom content linked to one interactive child with `aria-describedby` |
 | `Input` | `FormControls.tsx` | required label, optional hint/error, leading icon, native input attributes |
 | `Select` | `FormControls.tsx` | required label, typed option list, optional hint/error, native select attributes |
+| `Textarea` | `FormControls.tsx` | required label, optional hint/error, native textarea attributes |
 | `SearchField` | `FormControls.tsx` | search input semantics, search icon, optional accessible clear action |
+| `DataTable` | `DataTable.tsx` | typed columns, controlled sorting, responsive containment, state presentation |
+| `DataTablePagination` | `DataTable.tsx` | controlled page boundaries and optional supported page sizes |
 | `Badge` | `Feedback.tsx` | `neutral|info|success|warning|danger`, optional supporting icon |
 | `Alert` | `Feedback.tsx` | semantic variant, optional title/icon, status or alert live-region behavior |
 | `Toast` | `Feedback.tsx` | semantic notification with optional dismiss action; use inside `ToastRegion` |
@@ -107,6 +110,11 @@ those dialogs merely for visual consistency. Each later migration must preserve:
 
 Feature-specific tables, tree controls, pagination, and complex pickers also remain domain-owned.
 They can adopt the simple primitives independently without becoming a generic framework.
+
+UX-112 subsequently added the presentational `DataTable` foundation and migrated the bounded
+Users, Groups, direct group-member, and user-detail membership views. Fetching, opaque page-token
+history, server filtering/sorting, cancellation, and stale-response rejection remain domain-owned.
+See [`UX-112_ENTERPRISE_DATA_TABLES_AND_FORMS.md`](UX-112_ENTERPRISE_DATA_TABLES_AND_FORMS.md).
 
 ## Accessibility requirements
 

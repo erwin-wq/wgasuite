@@ -14,6 +14,7 @@ import {
   previewGoogleWorkspaceOrganizationalUnitCreation,
   reconcileGoogleWorkspaceOrganizationalUnitCreation
 } from "../../api/client";
+import { Input, Textarea } from "../../components/ui/FormControls";
 import type {
   GoogleWorkspaceOrganizationalUnitCreatePreview,
   GoogleWorkspaceOrganizationalUnitTreeNode
@@ -195,8 +196,8 @@ export function OrganizationalUnitCreation({ organizationId, parent, onCreated }
             </div>
             {!preview ? (
               <form className="ou-create-form" onSubmit={(event) => void requestPreview(event)}>
-                <label>Name<input ref={nameInput} value={name} maxLength={256} required onChange={(event) => setName(event.target.value)} /></label>
-                <label>Description <span>(optional)</span><textarea value={description} maxLength={4096} rows={3} onChange={(event) => setDescription(event.target.value)} /></label>
+                <Input label="Name" ref={nameInput} value={name} maxLength={256} required onChange={(event) => setName(event.target.value)} />
+                <Textarea label="Description" optional value={description} maxLength={4096} rows={3} onChange={(event) => setDescription(event.target.value)} />
                 <div className="ou-create-path"><span>Resulting path</span><strong>{expectedPath ?? "Enter a name"}</strong></div>
                 <p id="ou-create-policy-warning" className="ou-create-warning"><AlertTriangle aria-hidden="true" /> New child units normally inherit settings from their parent. The Directory API does not verify effective policy inheritance.</p>
                 {error && <p className="form-error" role="alert">{error}</p>}

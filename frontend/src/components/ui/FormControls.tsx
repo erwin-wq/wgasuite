@@ -4,6 +4,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
   useId
 } from "react";
 
@@ -15,6 +16,8 @@ interface FieldMetaProps {
   hint?: string;
   error?: string;
   hideLabel?: boolean;
+  required?: boolean;
+  optional?: boolean;
   className?: string;
 }
 
@@ -24,17 +27,27 @@ function FieldMeta({
   hint,
   error,
   hideLabel,
+  required,
+  optional,
   className,
   children
 }: FieldMetaProps & { id: string; children: ReactNode }) {
   return (
     <div className={cx("ui-field", error && "ui-field--invalid", className)}>
-      <label className={hideLabel ? "sr-only" : "ui-field__label"} htmlFor={id}>{label}</label>
+      <label className={hideLabel ? "sr-only" : cx("ui-field__label", required && "ui-field__label--required")} htmlFor={id}>
+        {label}
+        {!required && optional ? <span className="ui-field__optional"> (optional)</span> : null}
+      </label>
       {children}
       {error ? <p id={`${id}-error`} className="ui-field__error" role="alert">{error}</p> : null}
-      {!error && hint ? <p id={`${id}-hint`} className="ui-field__hint">{hint}</p> : null}
+      {hint ? <p id={`${id}-hint`} className="ui-field__hint">{hint}</p> : null}
     </div>
   );
+}
+
+function describedByIds(id: string, hint?: string, error?: string): string | undefined {
+  const ids = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean);
+  return ids.length > 0 ? ids.join(" ") : undefined;
 }
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement>, FieldMetaProps {
@@ -42,14 +55,14 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement>, Field
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, hint, error, hideLabel, leadingIcon, className, id: providedId, ...props },
+  { label, hint, error, hideLabel, optional, leadingIcon, className, id: providedId, ...props },
   ref
 ) {
   const generatedId = useId();
   const id = providedId ?? generatedId;
-  const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
+  const describedBy = describedByIds(id, hint, error);
   return (
-    <FieldMeta id={id} label={label} hint={hint} error={error} hideLabel={hideLabel} className={className}>
+    <FieldMeta id={id} label={label} hint={hint} error={error} hideLabel={hideLabel} required={props.required} optional={optional} className={className}>
       <span className={cx("ui-field__control", Boolean(leadingIcon) && "ui-field__control--with-icon")}>
         {leadingIcon ? <span className="ui-field__leading" aria-hidden="true">{leadingIcon}</span> : null}
         <input
@@ -75,14 +88,14 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement>, Fi
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { label, hint, error, hideLabel, className, id: providedId, options, ...props },
+  { label, hint, error, hideLabel, optional, className, id: providedId, options, ...props },
   ref
 ) {
   const generatedId = useId();
   const id = providedId ?? generatedId;
-  const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
+  const describedBy = describedByIds(id, hint, error);
   return (
-    <FieldMeta id={id} label={label} hint={hint} error={error} hideLabel={hideLabel} className={className}>
+    <FieldMeta id={id} label={label} hint={hint} error={error} hideLabel={hideLabel} required={props.required} optional={optional} className={className}>
       <select
         {...props}
         ref={ref}
@@ -94,6 +107,37 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
           <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
         ))}
       </select>
+    </FieldMeta>
+  );
+});
+
+export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement>, FieldMetaProps {}
+
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(
+  { label, hint, error, hideLabel, optional, className, id: providedId, ...props },
+  ref
+) {
+  const generatedId = useId();
+  const id = providedId ?? generatedId;
+  const describedBy = describedByIds(id, hint, error);
+  return (
+    <FieldMeta
+      id={id}
+      label={label}
+      hint={hint}
+      error={error}
+      hideLabel={hideLabel}
+      required={props.required}
+      optional={optional}
+      className={className}
+    >
+      <textarea
+        {...props}
+        ref={ref}
+        id={id}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy}
+      />
     </FieldMeta>
   );
 });

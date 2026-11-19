@@ -1,17 +1,13 @@
-import {
-  AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  Loader2,
-  RefreshCw,
-  UsersRound
-} from "lucide-react";
+import { ExternalLink, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, listGoogleWorkspaceUserGroupMemberships } from "../../api/client";
+import { Button } from "../../components/ui/Button";
+import { DataTable, DataTablePagination, type DataTableColumn } from "../../components/ui/DataTable";
+import { Badge } from "../../components/ui/Feedback";
 import type {
   GoogleWorkspaceUser,
+  GoogleWorkspaceUserGroupMembership,
   GoogleWorkspaceUserGroupMembershipResult
 } from "../../types";
 
@@ -112,6 +108,13 @@ export function UserGroupMemberships({
     void loadMemberships(result.next_page_token, page + 1, pageSize);
   }
 
+  const columns: DataTableColumn<GoogleWorkspaceUserGroupMembership>[] = [
+    { id: "group", header: "Group", cell: (membership) => <span className="group-primary-cell"><strong>{membership.group_name}</strong><span>{membership.group_primary_email}</span></span> },
+    { id: "role", header: "Role", cell: (membership) => <Badge variant={membership.role === "OWNER" ? "warning" : membership.role === "MANAGER" ? "info" : "neutral"}>{membership.role}</Badge> },
+    { id: "status", header: "Status", cell: (membership) => <Badge variant={membership.status === "ACTIVE" ? "success" : "neutral"}>{membership.status ?? "Unknown"}</Badge> },
+    { id: "actions", header: <span className="sr-only">Open group</span>, cell: (membership) => <Button variant="secondary" size="sm" onClick={() => onOpenGroup(membership.group_primary_email)}>Open group <ExternalLink aria-hidden="true" /></Button> }
+  ];
+
   return (
     <section className="user-memberships" aria-labelledby="user-memberships-heading">
       <div className="user-memberships-heading">
@@ -119,58 +122,18 @@ export function UserGroupMemberships({
           <h4 id="user-memberships-heading">Direct group memberships</h4>
           <p>Verified direct memberships in this Workspace customer. External and indirect groups are omitted.</p>
         </div>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={isLoading}
+        <Button
+          variant="secondary"
+          size="sm"
+          loading={isLoading}
+          loadingLabel="Refreshing memberships"
           onClick={() => void loadMemberships(pageTokens[page] ?? null, page, pageSize)}
         >
-          <RefreshCw className={isLoading ? "spin" : ""} aria-hidden="true" /> Refresh
-        </button>
+          <RefreshCw aria-hidden="true" /> Refresh
+        </Button>
       </div>
 
-      {error ? (
-        <div className="user-membership-state error" role="alert">
-          <AlertCircle aria-hidden="true" /> {error}
-        </div>
-      ) : isLoading && !result ? (
-        <div className="user-membership-state" role="status">
-          <Loader2 className="spin" aria-hidden="true" /> Loading direct memberships…
-        </div>
-      ) : result && result.memberships.length > 0 ? (
-        <div className="user-membership-table-wrap">
-          <table className="user-membership-table">
-            <thead>
-              <tr><th>Group</th><th>Role</th><th>Status</th><th><span className="sr-only">Open</span></th></tr>
-            </thead>
-            <tbody>
-              {result.memberships.map((membership) => (
-                <tr key={membership.group_id}>
-                  <td><strong>{membership.group_name}</strong><span>{membership.group_primary_email}</span></td>
-                  <td>{membership.role}</td>
-                  <td>{membership.status ?? "Unknown"}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => onOpenGroup(membership.group_primary_email)}
-                    >
-                      Open group <ExternalLink aria-hidden="true" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : result ? (
-        <div className="user-membership-state" role="status">
-          <UsersRound aria-hidden="true" />
-          {result.next_page_token
-            ? "No verified direct memberships are on this page. Continue to the next page."
-            : "This user has no verified direct group memberships."}
-        </div>
-      ) : null}
+      <DataTable ariaLabel={`Direct group memberships for ${user.primary_email}`} columns={columns} rows={result?.memberships ?? []} rowKey={(membership) => membership.group_id} loading={isLoading && !result} error={error} errorTitle="Memberships could not be loaded" onRetry={() => void loadMemberships(pageTokens[page] ?? null, page, pageSize)} emptyTitle="No direct memberships on this page" emptyDescription={result?.next_page_token ? "No verified direct memberships are on this page. Continue to the next page." : "This user has no verified direct group memberships."} minWidth="42rem" className="user-membership-data-table" />
 
       {result && (result.omitted_external_count > 0 || result.omitted_indirect_count > 0) && (
         <p className="user-membership-note">
@@ -178,36 +141,7 @@ export function UserGroupMemberships({
         </p>
       )}
 
-      <div className="user-membership-controls" aria-label="User group membership pages">
-        <label>
-          Rows
-          <select
-            value={pageSize}
-            disabled={isLoading}
-            onChange={(event) => setPageSize(Number(event.target.value) as 10 | 25)}
-          >
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-          </select>
-        </label>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={page === 0 || isLoading}
-          onClick={() => void loadMemberships(pageTokens[page - 1] ?? null, page - 1, pageSize)}
-        >
-          <ChevronLeft aria-hidden="true" /> Previous
-        </button>
-        <span>Page {page + 1}</span>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={!result?.next_page_token || isLoading}
-          onClick={nextPage}
-        >
-          Next <ChevronRight aria-hidden="true" />
-        </button>
-      </div>
+      <DataTablePagination ariaLabel="User group membership pages" page={page} onPrevious={() => void loadMemberships(pageTokens[page - 1] ?? null, page - 1, pageSize)} onNext={nextPage} previousDisabled={page === 0} nextDisabled={!result?.next_page_token} pageSize={pageSize} pageSizeOptions={[{ value: 10 }, { value: 25 }]} onPageSizeChange={(value) => setPageSize(value as 10 | 25)} disabled={isLoading} />
     </section>
   );
 }
