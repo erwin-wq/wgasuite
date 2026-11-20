@@ -138,7 +138,7 @@ describe("App Google Workspace connection refresh", () => {
     );
 
     await waitFor(() => expect(api.listOrganizationConnectorConfigs).toHaveBeenCalled());
-    await screen.findByText("Connection state");
+    await screen.findByRole("heading", { name: "Google Workspace" });
     await user.click(await screen.findByRole("button", { name: "Manage connection" }));
     expect(
       await screen.findByRole("heading", { name: "Test the real Google Workspace connection" })

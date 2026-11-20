@@ -4,7 +4,6 @@ import {
   Database,
   FileText,
   Layers3,
-  Link2,
   LockKeyhole,
   Loader2,
   Plus,
@@ -68,6 +67,9 @@ import { WorkspaceConnectionOverview } from "./features/google-workspace/GoogleW
 import { OrganizationalUnits } from "./features/google-workspace/OrganizationalUnits";
 import { UserDirectoryAdministration } from "./features/google-workspace/UserDirectoryAdministration";
 import { DashboardOverview } from "./features/dashboard/DashboardOverview";
+import { CustomerAdministration } from "./features/administration/CustomerAdministration";
+import { OrganizationAdministration } from "./features/administration/OrganizationAdministration";
+import { PlatformAdministration } from "./features/administration/PlatformAdministration";
 import { AppShell, RouteUnavailable } from "./features/navigation/AppShell";
 import { appRoutes, findRoute, routeList, type AppRouteId } from "./app/routes";
 import type { ActiveSection } from "./features/navigation/AppNavigation";
@@ -122,10 +124,6 @@ function formatDateTime(value: string): string {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
-}
-
-function formatNullableDateTime(value: string | null): string {
-  return value ? formatDateTime(value) : "-";
 }
 
 function buildExecutiveSummary(report: AssessmentReport): string {
@@ -203,6 +201,7 @@ function App() {
   const [report, setReport] = useState<AssessmentReport | null>(null);
   const [platformAdminOverview, setPlatformAdminOverview] =
     useState<PlatformAdminOverview | null>(null);
+  const [platformAdminOverviewError, setPlatformAdminOverviewError] = useState<string | null>(null);
   const connectorConfigRequestSequence = useRef(0);
   const workspaceRequestSequence = useRef(0);
   const [isPlatformAdminOverviewLoading, setIsPlatformAdminOverviewLoading] = useState(false);
@@ -329,6 +328,16 @@ function App() {
           (membership.role === "customer_admin" || membership.role === "customer_user")
       )
   );
+  const canCreateOrganization = Boolean(
+    currentUser?.role === "platform_admin" ||
+      (selectedCustomerId &&
+        currentUser?.customer_memberships.some(
+          (membership) =>
+            membership.customer_id === selectedCustomerId &&
+            membership.is_active &&
+            (membership.role === "customer_admin" || membership.role === "customer_user")
+        ))
+  );
   const resolvedRoute = findRoute(location.pathname);
   const currentRoute = resolvedRoute ?? appRoutes.overview;
   const activeSection: ActiveSection =
@@ -375,6 +384,7 @@ function App() {
     setIsConnectorConfigLoading(false);
     setHasConnectorConfigLoadError(false);
     setPlatformAdminOverview(null);
+    setPlatformAdminOverviewError(null);
     setConnectorFeedback(null);
     setSelectedCustomerId("");
     setSelectedOrganizationId("");
@@ -459,14 +469,17 @@ function App() {
   const loadPlatformAdminOverview = useCallback(async () => {
     if (!canViewPlatformAdmin) {
       setPlatformAdminOverview(null);
+      setPlatformAdminOverviewError(null);
       return;
     }
 
     setIsPlatformAdminOverviewLoading(true);
+    setPlatformAdminOverviewError(null);
     try {
       const loadedOverview = await getPlatformAdminOverview();
       setPlatformAdminOverview(loadedOverview);
     } catch (overviewError) {
+      setPlatformAdminOverviewError("The platform support overview could not be loaded.");
       handleRequestError(overviewError);
     } finally {
       setIsPlatformAdminOverviewLoading(false);
@@ -632,10 +645,12 @@ function App() {
   useEffect(() => {
     if (!currentUser) {
       setPlatformAdminOverview(null);
+      setPlatformAdminOverviewError(null);
       return;
     }
     if (!canViewPlatformAdmin) {
       setPlatformAdminOverview(null);
+      setPlatformAdminOverviewError(null);
       if (activeSection === "platform-admin") {
         setActiveSection("dashboard");
       }
@@ -754,10 +769,10 @@ function App() {
     }
   }
 
-  async function handleCreateCustomer(event: FormEvent<HTMLFormElement>) {
+  async function handleCreateCustomer(event: FormEvent<HTMLFormElement>): Promise<boolean> {
     event.preventDefault();
     if (!canCreateCustomer) {
-      return;
+      return false;
     }
 
     setFeedback(null);
@@ -780,18 +795,20 @@ function App() {
       setSelectedCustomerId(customer.id);
       setFeedback({ type: "success", message: "Customer aangemaakt." });
       await loadWorkspace(customer.id);
+      return true;
     } catch (submitError) {
       handleRequestError(submitError);
+      return false;
     } finally {
       setSaving(null);
     }
   }
 
-  async function handleCreateOrganization(event: FormEvent<HTMLFormElement>) {
+  async function handleCreateOrganization(event: FormEvent<HTMLFormElement>): Promise<boolean> {
     event.preventDefault();
     const name = organizationName.trim();
     if (!name) {
-      return;
+      return false;
     }
 
     setFeedback(null);
@@ -807,8 +824,10 @@ function App() {
       setSelectedOrganizationId(organization.id);
       setFeedback({ type: "success", message: "Organisatie aangemaakt." });
       await loadWorkspace(selectedCustomerId, organization.id);
+      return true;
     } catch (submitError) {
       handleRequestError(submitError);
+      return false;
     } finally {
       setSaving(null);
     }
@@ -1432,193 +1451,47 @@ function App() {
         } single-column`}
       >
         <div className="setup-column">
-          <article className={sectionClass("customers", "panel compact-panel customer-panel")}>
-            <div className="panel-heading">
-              <span className="step-number">A</span>
-              <div>
-                <h2>Customer context</h2>
-                <p>
-                  Platform/customer context for this MVP. Dit is nog geen volledig
-                  platform-admin/customer-user model.
-                </p>
-              </div>
-            </div>
-
-            <form className="form-stack" onSubmit={handleCreateCustomer}>
-              <label>
-                Customernaam
-                <input
-                  value={customerName}
-                  onChange={(event) => setCustomerName(event.target.value)}
-                  placeholder="Demo Customer"
-                  required
-                />
-              </label>
-              <label>
-                Slug
-                <input
-                  value={customerSlug}
-                  onChange={(event) => setCustomerSlug(event.target.value)}
-                  placeholder="demo-customer"
-                  required
-                />
-              </label>
-              <div className="two-column-fields">
-                <label>
-                  Contactpersoon
-                  <input
-                    value={customerContactName}
-                    onChange={(event) => setCustomerContactName(event.target.value)}
-                    placeholder="Alex Admin"
-                  />
-                </label>
-                <label>
-                  Contact e-mail
-                  <input
-                    type="email"
-                    value={customerContactEmail}
-                    onChange={(event) => setCustomerContactEmail(event.target.value)}
-                    placeholder="alex@example.local"
-                  />
-                </label>
-              </div>
-              <label>
-                Status
-                <select
-                  value={customerStatus}
-                  onChange={(event) => setCustomerStatus(event.target.value)}
-                >
-                  <option value="active">Active</option>
-                  <option value="prospect">Prospect</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </label>
-              <label>
-                Notes
-                <textarea
-                  value={customerNotes}
-                  onChange={(event) => setCustomerNotes(event.target.value)}
-                  placeholder="Korte interne notitie"
-                  rows={3}
-                />
-              </label>
-              <button type="submit" disabled={!canCreateCustomer || saving === "customer"}>
-                <Plus aria-hidden="true" />
-                {renderButtonLabel("customer", "Customer aanmaken")}
-              </button>
-            </form>
-
-            <label className="selector">
-              Actieve customer
-              <select
-                value={selectedCustomerId}
-                onChange={(event) => setSelectedCustomerId(event.target.value)}
-                disabled={customers.length === 0}
-              >
-                <option value="">Geen actieve customer</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {customers.length === 0 ? (
-              <div className="mini-empty-state">Nog geen customers. Maak de eerste customer aan.</div>
-            ) : (
-              <div className="customer-list" aria-label="Customer overzicht">
-                {customers.map((customer) => (
-                  <article
-                    className={`customer-list-item ${
-                      customer.id === selectedCustomerId ? "active" : ""
-                    }`}
-                    key={customer.id}
-                  >
-                    <div>
-                      <strong title={customer.name}>{customer.name}</strong>
-                      <span>{customer.slug}</span>
-                    </div>
-                    <em>{customer.status}</em>
-                  </article>
-                ))}
-              </div>
-            )}
+          <article className={sectionClass("customers", "administration-route-shell")}>
+            <CustomerAdministration
+              customers={customers}
+              organizations={organizations}
+              selectedCustomerId={selectedCustomerId}
+              isLoading={isLoading}
+              isSaving={saving === "customer"}
+              name={customerName}
+              slug={customerSlug}
+              contactName={customerContactName}
+              contactEmail={customerContactEmail}
+              status={customerStatus}
+              notes={customerNotes}
+              onNameChange={setCustomerName}
+              onSlugChange={setCustomerSlug}
+              onContactNameChange={setCustomerContactName}
+              onContactEmailChange={setCustomerContactEmail}
+              onStatusChange={setCustomerStatus}
+              onNotesChange={setCustomerNotes}
+              onCreate={handleCreateCustomer}
+              onSelectCustomer={handleCustomerContextChange}
+            />
           </article>
 
-          <article className={sectionClass("organizations", "panel compact-panel")}>
-            <div className="panel-heading">
-              <span className="step-number">1</span>
-              <div>
-                <h2>Organisatie</h2>
-                <p>Kies een bestaande organisatie of maak een nieuwe aan.</p>
-              </div>
-            </div>
-
-            {selectedCustomer && (
-              <div className="helper-note">
-                <Link2 aria-hidden="true" />
-                Nieuwe organisaties worden gekoppeld aan {selectedCustomer.name}.
-              </div>
-            )}
-
-            <form className="form-stack" onSubmit={handleCreateOrganization}>
-              <label>
-                Organisatienaam
-                <input
-                  value={organizationName}
-                  onChange={(event) => setOrganizationName(event.target.value)}
-                  placeholder="Acme Security"
-                  required
-                />
-              </label>
-              <label>
-                Beschrijving
-                <textarea
-                  value={organizationDescription}
-                  onChange={(event) => setOrganizationDescription(event.target.value)}
-                  placeholder="Interne security organisatie"
-                  rows={3}
-                />
-              </label>
-              <button type="submit" disabled={!organizationName.trim() || saving === "organization"}>
-                <Plus aria-hidden="true" />
-                {renderButtonLabel("organization", "Organisatie aanmaken")}
-              </button>
-            </form>
-
-            <label className="selector">
-              Actieve organisatie
-              <select
-                value={selectedOrganizationId}
-                onChange={(event) => setSelectedOrganizationId(event.target.value)}
-                disabled={visibleOrganizations.length === 0}
-              >
-                <option value="">Selecteer organisatie</option>
-                {visibleOrganizations.map((organization) => (
-                  <option key={organization.id} value={organization.id}>
-                    {organization.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {selectedCustomerId && visibleOrganizations.length === 0 && (
-              <div className="mini-empty-state">
-                Deze customer heeft nog geen gekoppelde organizations.
-              </div>
-            )}
-
-            {selectedOrganization && (
-              <div className="linked-customer-note">
-                <Link2 aria-hidden="true" />
-                <span>
-                  Gekoppelde customer:{" "}
-                  <strong>{selectedOrganizationCustomer?.name ?? "geen customer gekoppeld"}</strong>
-                </span>
-              </div>
-            )}
+          <article className={sectionClass("organizations", "administration-route-shell")}>
+            <OrganizationAdministration
+              customer={selectedCustomer ?? null}
+              organizations={visibleOrganizations}
+              selectedOrganizationId={selectedOrganizationId}
+              isLoading={isLoading}
+              canCreate={canCreateOrganization}
+              isSaving={saving === "organization"}
+              name={organizationName}
+              description={organizationDescription}
+              onNameChange={setOrganizationName}
+              onDescriptionChange={setOrganizationDescription}
+              onCreate={handleCreateOrganization}
+              onSelectOrganization={handleOrganizationContextChange}
+            />
           </article>
+
 
           <article className={sectionClass("google-workspace", "workspace-admin-panel")}>
             {currentRoute.id === "connections" ? (
@@ -1627,6 +1500,12 @@ function App() {
                 organizationName={selectedOrganization?.name ?? null}
                 connectorConfig={googleWorkspaceConnectorConfig}
                 canManageConnection={canManageConnectorCredentials}
+                canTestConnection={canOperateConnector}
+                isLoading={isConnectorConfigLoading && !googleWorkspaceConnectorConfig}
+                hasLoadError={hasConnectorConfigLoadError}
+                isTesting={isConnectorTesting}
+                onReload={() => void loadOrganizationConnectorConfigs(selectedOrganizationId, true)}
+                onTest={() => void handleTestConnectorConfig()}
                 connectionWizard={
                 <ConnectionWizard
                   key={`${selectedOrganizationId}:${tenantEpoch}`}
@@ -2109,251 +1988,13 @@ function App() {
         className={sectionClass("platform-admin", "platform-admin-view")}
         aria-label="Platform Admin overview"
       >
-        <article className="platform-admin-hero">
-          <div>
-            <span className="eyebrow">Platform Admin</span>
-            <h2>Read-only support overview</h2>
-            <p>
-              Read-only platform overview for support and troubleshooting. Customer data access is
-              scoped and support actions are audit logged.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={loadPlatformAdminOverview}
-            disabled={!canViewPlatformAdmin || isPlatformAdminOverviewLoading}
-          >
-            {isPlatformAdminOverviewLoading ? (
-              <Loader2 className="spin" aria-hidden="true" />
-            ) : (
-              <Activity aria-hidden="true" />
-            )}
-            Refresh overview
-          </button>
-        </article>
-
-        {!canViewPlatformAdmin ? (
-          <div className="empty-state">
-            <LockKeyhole aria-hidden="true" />
-            <h3>Geen toegang</h3>
-            <p>Alleen platform_admin en platform_support kunnen dit overzicht openen.</p>
-          </div>
-        ) : !platformAdminOverview ? (
-          <div className="empty-state">
-            <Activity className={isPlatformAdminOverviewLoading ? "spin" : ""} aria-hidden="true" />
-            <h3>Platform overzicht laden</h3>
-            <p>Open of refresh het overzicht om supportdata op te halen.</p>
-          </div>
-        ) : (
-          <>
-            <div className="platform-admin-kpi-grid" aria-label="Platform totals">
-              <article>
-                <span>Customers</span>
-                <strong>{platformAdminOverview.totals.customers_count}</strong>
-              </article>
-              <article>
-                <span>Organizations</span>
-                <strong>{platformAdminOverview.totals.organizations_count}</strong>
-              </article>
-              <article>
-                <span>Connector configs</span>
-                <strong>{platformAdminOverview.totals.connector_configs_count}</strong>
-              </article>
-              {DEMO_FEATURES_ENABLED && (
-                <article>
-                  <span>Demo scan runs</span>
-                  <strong>{platformAdminOverview.totals.scan_runs_count}</strong>
-                </article>
-              )}
-              <article>
-                <span>Audit events</span>
-                <strong>{platformAdminOverview.totals.audit_events_count}</strong>
-              </article>
-            </div>
-
-            <section className="platform-admin-table-card">
-              <div className="platform-admin-section-heading">
-                <h3>Customer overview</h3>
-                <p>Customers, gekoppelde organisaties, connectorconfigs en recente activiteit.</p>
-              </div>
-              {platformAdminOverview.customers.length === 0 ? (
-                <div className="mini-empty-state">Nog geen customers beschikbaar.</div>
-              ) : (
-                <div className="platform-admin-table-wrap">
-                  <table className="platform-admin-table">
-                    <thead>
-                      <tr>
-                        <th>Customer</th>
-                        <th>Status</th>
-                        <th>Organizations</th>
-                        <th>Connector configs</th>
-                        {DEMO_FEATURES_ENABLED && <th>Last demo scan</th>}
-                        <th>Last audit event</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {platformAdminOverview.customers.map((customer) => (
-                        <tr key={customer.id}>
-                          <td>
-                            <strong>{customer.name}</strong>
-                            <span>{customer.slug}</span>
-                          </td>
-                          <td>
-                            <span className="status-pill">{customer.status}</span>
-                          </td>
-                          <td>{customer.organization_count}</td>
-                          <td>{customer.connector_config_count}</td>
-                          {DEMO_FEATURES_ENABLED && (
-                            <td>{formatNullableDateTime(customer.last_scan_run_at)}</td>
-                          )}
-                          <td>{formatNullableDateTime(customer.last_audit_event_at)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-
-            <section className="platform-admin-table-card">
-              <div className="platform-admin-section-heading">
-                <h3>Connector status</h3>
-                <p>Configuratiemetadata. Er worden geen secrets of credentials getoond.</p>
-              </div>
-              {platformAdminOverview.connector_configs.length === 0 ? (
-                <div className="mini-empty-state">Nog geen connectorconfigs beschikbaar.</div>
-              ) : (
-                <div className="platform-admin-table-wrap">
-                  <table className="platform-admin-table">
-                    <thead>
-                      <tr>
-                        <th>Customer</th>
-                        <th>Organization</th>
-                        <th>Connector type</th>
-                        <th>Status</th>
-                        <th>Primary domain</th>
-                        <th>Last tested</th>
-                        <th>Last error</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {platformAdminOverview.connector_configs.map((connectorConfig) => (
-                        <tr key={connectorConfig.id}>
-                          <td>{connectorConfig.customer_name ?? "-"}</td>
-                          <td>{connectorConfig.organization_name}</td>
-                          <td>{connectorConfig.connector_type.replace(/_/g, " ")}</td>
-                          <td>
-                            <span
-                              className={`connector-status connector-status-${connectorConfig.status.replace(
-                                "_",
-                                "-"
-                              )}`}
-                            >
-                              {connectorConfig.status.replace(/_/g, " ")}
-                            </span>
-                          </td>
-                          <td>{connectorConfig.primary_domain ?? "-"}</td>
-                          <td>{formatNullableDateTime(connectorConfig.last_tested_at)}</td>
-                          <td>{connectorConfig.last_error ?? "-"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-
-            {DEMO_FEATURES_ENABLED && (
-            <section className="platform-admin-table-card">
-              <div className="platform-admin-section-heading">
-                <h3>Recent scan runs</h3>
-                <p>Laatste 10 scan runs voor troubleshooting.</p>
-              </div>
-              {platformAdminOverview.recent_scan_runs.length === 0 ? (
-                <div className="mini-empty-state">Nog geen scan runs beschikbaar.</div>
-              ) : (
-                <div className="platform-admin-table-wrap">
-                  <table className="platform-admin-table">
-                    <thead>
-                      <tr>
-                        <th>Customer</th>
-                        <th>Organization</th>
-                        <th>Assessment</th>
-                        <th>Status</th>
-                        <th>Findings</th>
-                        <th>Completed</th>
-                        <th>Summary</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {platformAdminOverview.recent_scan_runs.map((scanRun) => (
-                        <tr key={scanRun.id}>
-                          <td>{scanRun.customer_name ?? "-"}</td>
-                          <td>{scanRun.organization_name}</td>
-                          <td>{scanRun.assessment_title}</td>
-                          <td>
-                            <span className={`status-pill status-${scanRun.status}`}>
-                              {scanRun.status}
-                            </span>
-                          </td>
-                          <td>{scanRun.findings_created}</td>
-                          <td>{formatNullableDateTime(scanRun.completed_at)}</td>
-                          <td>{scanRun.summary ?? "-"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-            )}
-
-            <section className="platform-admin-table-card">
-              <div className="platform-admin-section-heading">
-                <h3>Recent audit events</h3>
-                <p>Laatste 10 audit events zonder metadata of secretvelden.</p>
-              </div>
-              {platformAdminOverview.recent_audit_events.length === 0 ? (
-                <div className="mini-empty-state">Nog geen audit events beschikbaar.</div>
-              ) : (
-                <div className="platform-admin-table-wrap">
-                  <table className="platform-admin-table">
-                    <thead>
-                      <tr>
-                        <th>Time</th>
-                        <th>Actor</th>
-                        <th>Customer</th>
-                        <th>Action</th>
-                        <th>Object type</th>
-                        <th>Outcome</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {platformAdminOverview.recent_audit_events.map((auditEvent) => (
-                        <tr key={auditEvent.id}>
-                          <td>{formatDateTime(auditEvent.created_at)}</td>
-                          <td>
-                            <strong>{auditEvent.actor_email ?? "system"}</strong>
-                            <span>{auditEvent.actor_role ?? "-"}</span>
-                          </td>
-                          <td>{auditEvent.customer_name ?? "-"}</td>
-                          <td>{auditEvent.action}</td>
-                          <td>{auditEvent.object_type}</td>
-                          <td>
-                            <span className={`status-pill status-${auditEvent.outcome}`}>
-                              {auditEvent.outcome}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-          </>
-        )}
+        <PlatformAdministration
+          overview={platformAdminOverview}
+          loading={isPlatformAdminOverviewLoading}
+          error={platformAdminOverviewError}
+          demoFeaturesEnabled={DEMO_FEATURES_ENABLED}
+          onRefresh={() => void loadPlatformAdminOverview()}
+        />
       </section>
 
       <section className={sectionClass("reports", "reports-view report-shell")}>
