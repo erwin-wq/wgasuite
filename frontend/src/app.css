@@ -1712,13 +1712,141 @@ h4 {
   white-space: nowrap;
 }
 
+.gmail-delegation-management,
+.gmail-selected-mailbox,
+.mailbox-delegates,
+.delegate-add-panel,
+.delegate-confirmation-content {
+  display: grid;
+  gap: var(--density-section-gap);
+  min-width: 0;
+}
+
+.gmail-mailbox-lookup h3,
+.gmail-mailbox-lookup p,
+.gmail-mailbox-owner h3,
+.gmail-mailbox-owner p,
+.mailbox-delegates-heading h4,
+.mailbox-delegates-heading p,
+.delegate-add-heading h4,
+.delegate-add-heading p,
+.delegate-reconciliation p {
+  margin: 0;
+}
+
+.gmail-mailbox-lookup p,
+.gmail-mailbox-owner p,
+.mailbox-delegates-heading p,
+.delegate-add-heading p {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-1);
+}
+
+.gmail-mailbox-lookup,
+.gmail-mailbox-identity,
 .mailbox-delegates {
   background: var(--color-surface-primary);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  padding: var(--density-panel-padding);
+}
+
+.gmail-mailbox-lookup {
+  display: grid;
+  gap: var(--density-stack-gap);
+}
+
+.gmail-mailbox-lookup form,
+.delegate-add-form {
+  align-items: end;
+  display: grid;
+  gap: var(--density-inline-gap);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.gmail-mailbox-lookup-actions {
+  display: flex;
+  gap: var(--density-inline-gap);
+}
+
+.gmail-mailbox-identity {
+  display: grid;
+  gap: var(--density-stack-gap);
+}
+
+.gmail-mailbox-owner {
+  align-items: center;
   display: grid;
   gap: var(--space-4);
-  padding: var(--space-5);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.gmail-mailbox-owner h3:focus-visible {
+  border-radius: var(--radius-sm);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}
+
+.gmail-mailbox-owner p,
+.delegate-address,
+.confirmation-identities dd {
+  overflow-wrap: anywhere;
+}
+
+.gmail-mailbox-owner-icon {
+  align-items: center;
+  background: var(--color-highlight);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-highlight-strong);
+  display: flex;
+  height: 3rem;
+  justify-content: center;
+  width: 3rem;
+}
+
+.gmail-mailbox-owner-icon svg,
+.gmail-mailbox-facts svg {
+  height: var(--icon-size-md);
+  width: var(--icon-size-md);
+}
+
+.gmail-mailbox-facts {
+  border-top: 1px solid var(--color-border-default);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding-top: var(--density-stack-gap);
+}
+
+.gmail-mailbox-facts > div {
+  min-width: 0;
+  padding: 0 var(--space-4);
+}
+
+.gmail-mailbox-facts > div:first-child {
+  padding-left: 0;
+}
+
+.gmail-mailbox-facts > div + div {
+  border-left: 1px solid var(--color-border-default);
+}
+
+.gmail-mailbox-facts dt {
+  align-items: center;
+  color: var(--color-text-secondary);
+  display: flex;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  gap: var(--space-2);
+}
+
+.gmail-mailbox-facts dd {
+  font-weight: var(--font-weight-bold);
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
 }
 
 .mailbox-delegates-heading {
@@ -1728,168 +1856,32 @@ h4 {
   justify-content: space-between;
 }
 
-.mailbox-delegates-heading h4,
-.mailbox-delegates-heading p {
-  margin: 0;
+.delegate-data-table .ui-badge {
+  justify-content: center;
+  min-width: 5.5rem;
 }
 
-.mailbox-delegates-heading p {
-  color: var(--color-ink-soft);
-  font-size: var(--font-size-sm);
-  margin-top: var(--space-1);
-  overflow-wrap: anywhere;
+.delegate-data-table .ui-button {
+  white-space: nowrap;
 }
 
-.delegate-state {
-  align-items: center;
-  background: var(--color-surface-muted);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  color: var(--color-ink-muted);
-  display: flex;
-  font-size: var(--font-size-sm);
-  gap: var(--space-3);
-  padding: var(--space-4);
+.delegate-add-panel {
+  border-top: 1px solid var(--color-border-default);
+  padding-top: var(--density-section-gap);
 }
 
-.delegate-state > span {
+.delegate-reconciliation > div:last-child {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--density-inline-gap);
 }
 
-.delegate-state.error {
-  background: var(--color-red-soft);
-  border-color: var(--color-error-border);
-  color: var(--color-red-strong);
+.delegate-reconciliation .ui-button {
+  justify-self: start;
+  margin-top: var(--space-3);
 }
 
-.delegate-state.success {
-  background: var(--color-success-surface);
-  border-color: var(--color-success-border);
-  color: var(--color-success-text);
-}
-
-.delegate-state.warning,
-.delegate-state.info,
-.delegate-reconciliation {
-  background: var(--color-amber-soft);
-  border-color: var(--color-warning-border);
-  color: var(--color-warning-text);
-}
-
-.delegate-reconciliation {
-  align-items: center;
-  border: 1px solid;
-  border-radius: var(--radius-sm);
-  display: flex;
-  gap: var(--space-4);
-  justify-content: space-between;
-  padding: var(--space-4);
-}
-
-.delegate-reconciliation > div {
-  display: grid;
-  font-size: var(--font-size-sm);
-  gap: var(--space-1);
-}
-
-.delegate-reconciliation span {
-  overflow-wrap: anywhere;
-}
-
-.delegate-reconciliation button {
-  flex: 0 0 auto;
-}
-
-.delegate-list {
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-.delegate-list-summary {
-  background: var(--color-surface-muted);
-  color: var(--color-ink-soft);
-  font-size: var(--font-size-xs);
-  font-weight: 850;
-  padding: var(--space-3) var(--space-4);
-  text-transform: uppercase;
-}
-
-.delegate-row {
-  align-items: center;
-  display: flex;
-  gap: var(--space-4);
-  justify-content: space-between;
-  padding: var(--space-4);
-}
-
-.delegate-row + .delegate-row {
-  border-top: 1px solid var(--color-line);
-}
-
-.delegate-row > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.delegate-row strong {
-  overflow-wrap: anywhere;
-}
-
-.verification-status {
-  border-radius: var(--radius-pill);
-  font-size: var(--font-size-xs);
-  font-weight: 850;
-  padding: 0.25rem 0.6rem;
-}
-
-.verification-status.accepted {
-  background: var(--color-success-surface);
-  color: var(--color-success-text);
-}
-
-.verification-status.pending,
-.verification-status.unknown {
-  background: var(--color-amber-soft);
-  color: var(--color-warning-text);
-}
-
-.verification-status.rejected {
-  background: var(--color-red-soft);
-  color: var(--color-red-strong);
-}
-
-.delegate-add-form {
-  align-items: end;
-  display: grid;
-  gap: var(--space-3);
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
-.delegate-add-form label {
-  display: grid;
-  font-size: var(--font-size-sm);
-  font-weight: 820;
-  gap: var(--space-2);
-}
-
-.delegate-permission-note {
-  align-items: center;
-  color: var(--color-ink-soft);
-  display: flex;
-  font-size: var(--font-size-sm);
-  gap: var(--space-2);
-  margin: 0;
-}
-
-.delegate-permission-note svg,
-.delegate-state svg {
-  flex: 0 0 auto;
-  height: 1.15rem;
-  width: 1.15rem;
+.delegate-confirmation-modal {
+  max-width: 38rem;
 }
 
 .confirmation-backdrop {
@@ -4431,6 +4423,7 @@ h4 {
   .credential-options,
   .credential-entry,
   .copy-field,
+  .gmail-mailbox-lookup form,
   .delegate-add-form,
   .directory-filters,
   .group-add-form,
@@ -4573,8 +4566,6 @@ h4 {
   .ou-heading,
   .ou-state,
   .ou-panel-heading,
-  .delegate-reconciliation,
-  .delegate-row,
   .confirmation-actions {
     align-items: stretch;
     flex-direction: column;
@@ -4590,9 +4581,44 @@ h4 {
   .member-toolbar button,
   .ou-heading button,
   .ou-state button,
-  .delegate-reconciliation button,
-  .delegate-row button,
   .confirmation-actions button {
+    width: 100%;
+  }
+
+  .gmail-mailbox-lookup-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gmail-mailbox-lookup-actions .ui-button,
+  .delegate-add-form .ui-button,
+  .mailbox-delegates-heading .ui-button {
+    width: 100%;
+  }
+
+  .gmail-mailbox-owner {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .gmail-mailbox-owner .ui-badge {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .gmail-mailbox-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gmail-mailbox-facts > div {
+    padding: var(--space-3) 0;
+  }
+
+  .gmail-mailbox-facts > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--color-border-default);
+  }
+
+  .delegate-reconciliation .ui-button {
     width: 100%;
   }
 
