@@ -62,6 +62,7 @@ import type {
 } from "./types";
 import { ConnectionWizard } from "./features/google-workspace/ConnectionWizard";
 import { GmailDelegationAuthorization } from "./features/google-workspace/GmailDelegationAuthorization";
+import { GmailDelegationManagement } from "./features/google-workspace/GmailDelegationManagement";
 import { GroupManagement } from "./features/google-workspace/GroupManagement";
 import { WorkspaceConnectionOverview } from "./features/google-workspace/GoogleWorkspaceAdministration";
 import { OrganizationalUnits } from "./features/google-workspace/OrganizationalUnits";
@@ -1694,23 +1695,13 @@ function App() {
                   canCreate={canManageConnectorCredentials}
                 />
             ) : currentRoute.id === "delegations" ? (
-              <UserDirectoryAdministration
+              <GmailDelegationManagement
                 key={`${selectedOrganizationId}:${tenantEpoch}:delegations`}
                 organizationId={selectedOrganizationId}
                 organizationName={selectedOrganization?.name ?? null}
                 connectorConfig={googleWorkspaceConnectorConfig}
                 canSearch={canOperateConnector}
                 canManageDelegates={canManageConnectorCredentials}
-                view="lookup"
-                hideNavigation
-                onOpenGroup={(groupEmail) => {
-                  setGroupNavigationTarget((current) => ({
-                    organizationId: selectedOrganizationId,
-                    groupEmail,
-                    requestId: (current?.requestId ?? 0) + 1
-                  }));
-                  navigate(appRoutes.groups.path);
-                }}
               />
             ) : null}
           </article>

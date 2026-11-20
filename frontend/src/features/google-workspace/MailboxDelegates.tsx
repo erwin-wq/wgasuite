@@ -1,14 +1,4 @@
-import {
-  AlertCircle,
-  CheckCircle2,
-  Loader2,
-  MailPlus,
-  RefreshCw,
-  ShieldAlert,
-  Trash2,
-  UsersRound,
-  X
-} from "lucide-react";
+import { CircleAlert, MailPlus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -18,6 +8,11 @@ import {
   previewGmailDelegateChange,
   reconcileGmailDelegateChange
 } from "../../api/client";
+import { Button } from "../../components/ui/Button";
+import { DataTable, type DataTableColumn } from "../../components/ui/DataTable";
+import { Alert, Badge } from "../../components/ui/Feedback";
+import { Input } from "../../components/ui/FormControls";
+import { Modal } from "../../components/ui/Modal";
 import type {
   GmailDelegate,
   GmailDelegateChangePreview,
@@ -125,6 +120,8 @@ export function MailboxDelegates({
   const readController = useRef<AbortController | null>(null);
   const reconciliationInFlight = useRef(false);
   const mutationInFlight = useRef(false);
+  const addTriggerRef = useRef<HTMLButtonElement>(null);
+  const previewTriggerRef = useRef<HTMLElement | null>(null);
 
   const loadDelegates = useCallback(async (preserveActionFeedback = false) => {
     readController.current?.abort();
@@ -172,13 +169,18 @@ export function MailboxDelegates({
     return () => readController.current?.abort();
   }, [loadDelegates]);
 
-  async function previewChange(operation: "create" | "remove", email: string) {
+  async function previewChange(
+    operation: "create" | "remove",
+    email: string,
+    trigger?: HTMLElement | null
+  ) {
     const normalizedEmail = email.trim().toLowerCase();
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
       setActionFeedback({ type: "error", message: "Enter a valid full email address." });
       return;
     }
     if (!canMutate || isPreviewing || isMutating || isReconciling || ambiguousChange) return;
+    previewTriggerRef.current = trigger ?? null;
 
     readController.current?.abort();
     const controller = new AbortController();
@@ -209,7 +211,7 @@ export function MailboxDelegates({
 
   async function handleAddSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await previewChange("create", delegateEmail);
+    await previewChange("create", delegateEmail, addTriggerRef.current);
   }
 
   async function reconcileAmbiguousChange(change: AmbiguousChange, sequence: number) {
@@ -299,76 +301,92 @@ export function MailboxDelegates({
 
   const writeLocked =
     isPreviewing || isMutating || isReconciling || ambiguousChange !== null;
+  const columns: DataTableColumn<GmailDelegate>[] = [
+    {
+      id: "delegate",
+      header: "Delegate",
+      cell: (delegate) => <span className="delegate-address">{delegate.primary_email}</span>
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: (delegate) => (
+        <Badge
+          variant={
+            delegate.verification_status === "accepted"
+              ? "success"
+              : delegate.verification_status === "rejected"
+                ? "danger"
+                : "warning"
+          }
+        >
+          {verificationLabel(delegate)}
+        </Badge>
+      )
+    },
+    {
+      id: "actions",
+      header: <span className="sr-only">Delegate actions</span>,
+      cell: (delegate) => (
+        <Button
+          variant="danger"
+          size="sm"
+          onClick={(event) =>
+            void previewChange("remove", delegate.primary_email, event.currentTarget)
+          }
+          disabled={!canMutate || writeLocked}
+          title={canMutate ? "Remove delegate" : "Administrator access required"}
+        >
+          <Trash2 aria-hidden="true" /> Remove
+        </Button>
+      )
+    }
+  ];
 
   return (
     <section className="mailbox-delegates" aria-labelledby="mailbox-delegates-heading">
       <div className="mailbox-delegates-heading">
         <div>
-          <span className="eyebrow">Gmail administration</span>
-          <h4 id="mailbox-delegates-heading">Mailbox Delegates</h4>
-          <p>
-            Mailbox owner <strong>{owner.primary_email}</strong>
-          </p>
+          <h4 id="mailbox-delegates-heading">Existing delegates</h4>
+          <p>Direct Gmail mailbox delegates reported by Google.</p>
         </div>
-        <button
-          type="button"
-          className="secondary-button"
+        <Button
+          variant="secondary"
+          size="sm"
+          loading={isLoading}
+          loadingLabel="Refreshing delegates"
           onClick={() => void loadDelegates()}
-          disabled={isLoading || isPreviewing || isMutating || isReconciling}
+          disabled={isPreviewing || isMutating || isReconciling}
         >
-          <RefreshCw className={isLoading ? "spin" : ""} aria-hidden="true" />
-          Refresh
-        </button>
+          <RefreshCw aria-hidden="true" /> Refresh
+        </Button>
       </div>
 
-      {listError ? (
-        <div className="delegate-state error" role="alert">
-          <AlertCircle aria-hidden="true" />
-          <span>{listError}</span>
-        </div>
-      ) : isLoading ? (
-        <div className="delegate-state" role="status">
-          <Loader2 className="spin" aria-hidden="true" />
-          Loading Gmail delegates…
-        </div>
-      ) : delegates.length === 0 ? (
-        <div className="delegate-state" role="status">
-          <UsersRound aria-hidden="true" />
-          <span><strong>No delegates</strong>This mailbox has no delegated users.</span>
-        </div>
-      ) : (
-        <div className="delegate-list" aria-label={`${delegates.length} mailbox delegates`}>
-          <div className="delegate-list-summary">
-            {delegates.length} delegate{delegates.length === 1 ? "" : "s"}
-          </div>
-          {delegates.map((delegate) => (
-            <div className="delegate-row" key={delegate.primary_email}>
-              <div>
-                <strong>{delegate.primary_email}</strong>
-                <span className={`verification-status ${delegate.verification_status}`}>
-                  {verificationLabel(delegate)}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="danger-button"
-                onClick={() => void previewChange("remove", delegate.primary_email)}
-                disabled={!canMutate || writeLocked}
-                title={canMutate ? "Remove delegate" : "Administrator access required"}
-              >
-                <Trash2 aria-hidden="true" />
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      <DataTable
+        ariaLabel={`Gmail delegates for ${owner.primary_email}`}
+        columns={columns}
+        rows={delegates}
+        rowKey={(delegate) => delegate.primary_email}
+        loading={isLoading}
+        error={listError}
+        errorTitle="Delegates could not be loaded"
+        onRetry={() => void loadDelegates()}
+        emptyTitle="No delegates"
+        emptyDescription="This mailbox has no delegated users."
+        minWidth="38rem"
+        className="delegate-data-table"
+      />
 
-      <form className="delegate-add-form" onSubmit={handleAddSubmit} noValidate>
-        <label htmlFor="delegate-email">
-          Add delegate by primary email or alias
-          <input
+      <section className="delegate-add-panel" aria-labelledby="delegate-add-heading">
+        <div className="delegate-add-heading">
+          <h4 id="delegate-add-heading">Grant mailbox access</h4>
+          <p>Add an eligible internal user. You will review the exact change before it is submitted.</p>
+        </div>
+        <form className="delegate-add-form" onSubmit={handleAddSubmit} noValidate>
+          <Input
             id="delegate-email"
+            label="Delegate primary email or alias"
+            hint="Enter one complete internal address. Partial names, wildcards, and bulk changes are not supported."
             type="email"
             autoComplete="off"
             value={delegateEmail}
@@ -376,116 +394,97 @@ export function MailboxDelegates({
             placeholder="delegate@example.com"
             disabled={!canMutate || writeLocked}
           />
-        </label>
-        <button
-          type="submit"
-          disabled={!canMutate || !delegateEmail.trim() || writeLocked}
-        >
-          {isPreviewing ? <Loader2 className="spin" aria-hidden="true" /> : <MailPlus aria-hidden="true" />}
-          {isPreviewing ? "Validating" : "Review delegate"}
-        </button>
-      </form>
+          <Button
+            ref={addTriggerRef}
+            type="submit"
+            loading={isPreviewing}
+            loadingLabel="Validating delegate"
+            disabled={!canMutate || !delegateEmail.trim() || writeLocked}
+          >
+            <MailPlus aria-hidden="true" /> Review delegate
+          </Button>
+        </form>
+        <Alert variant="info" icon={<ShieldCheck />}>
+          Changes require review and explicit confirmation before they are submitted.
+        </Alert>
+      </section>
       {!canMutate && (
-        <p className="delegate-permission-note">
-          <ShieldAlert aria-hidden="true" /> Administrator access is required to change delegates.
-        </p>
+        <Alert variant="warning" title="Read-only access">
+          Administrator access is required to change delegates.
+        </Alert>
       )}
 
       {actionFeedback && (
-        <div
-          className={`delegate-state ${actionFeedback.type}`}
-          role={actionFeedback.type === "error" ? "alert" : "status"}
+        <Alert
+          variant={actionFeedback.type === "error" ? "danger" : actionFeedback.type}
           aria-live="polite"
         >
-          {actionFeedback.type === "success" ? (
-            <CheckCircle2 aria-hidden="true" />
-          ) : actionFeedback.type === "info" ? (
-            <Loader2 className="spin" aria-hidden="true" />
-          ) : (
-            <AlertCircle aria-hidden="true" />
-          )}
-          <span>{actionFeedback.message}</span>
-        </div>
+          {actionFeedback.message}
+        </Alert>
       )}
 
       {ambiguousChange && (
-        <div className="delegate-reconciliation" aria-label="Ambiguous delegate change">
-          <div>
-            <strong>Outcome unknown</strong>
-            <span>
-              Google did not confirm whether access for {ambiguousChange.preview.delegate_primary_email}
-              {ambiguousChange.preview.operation === "create" ? " was granted" : " was revoked"}.
-              Checking status only reads the delegate list and never repeats the change.
-            </span>
-          </div>
-          <button
-            type="button"
-            className="secondary-button"
+        <Alert
+          className="delegate-reconciliation"
+          variant="warning"
+          title="Outcome unknown"
+          icon={<CircleAlert />}
+          aria-label="Ambiguous delegate change"
+        >
+          <p>
+            Google did not confirm whether access for {ambiguousChange.preview.delegate_primary_email}
+            {ambiguousChange.preview.operation === "create" ? " was granted" : " was revoked"}.
+            Checking status only reads the delegate list and never repeats the change.
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={isReconciling}
+            loadingLabel="Checking status"
             onClick={() =>
               void reconcileAmbiguousChange(ambiguousChange, requestSequence.current)
             }
-            disabled={isReconciling}
           >
-            {isReconciling && <Loader2 className="spin" aria-hidden="true" />}
-            {isReconciling ? "Checking status" : "Check status"}
-          </button>
-        </div>
+            <RefreshCw aria-hidden="true" /> Check status
+          </Button>
+        </Alert>
       )}
 
-      {pendingPreview && (
-        <div className="confirmation-backdrop" role="presentation">
-          <section
-            className="confirmation-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delegate-confirmation-title"
-          >
-            <button
-              type="button"
-              className="dialog-close"
-              onClick={() => setPendingPreview(null)}
-              aria-label="Cancel delegate change"
-              disabled={isMutating}
+      <Modal
+        open={pendingPreview !== null}
+        onClose={() => setPendingPreview(null)}
+        title={pendingPreview?.operation === "remove" ? "Revoke mailbox access?" : "Grant mailbox access?"}
+        description="Review this protected change before submitting it to Google."
+        restoreFocusRef={previewTriggerRef}
+        closeDisabled={isMutating}
+        className="delegate-confirmation-modal"
+        footer={pendingPreview ? (
+          <>
+            <Button variant="secondary" onClick={() => setPendingPreview(null)} disabled={isMutating}>
+              Cancel
+            </Button>
+            <Button
+              variant={pendingPreview.operation === "remove" ? "danger" : "primary"}
+              loading={isMutating}
+              loadingLabel="Submitting delegate change"
+              onClick={() => void confirmChange()}
             >
-              <X aria-hidden="true" />
-            </button>
-            <span className={`confirmation-icon ${pendingPreview.operation}`}>
-              {pendingPreview.operation === "create" ? (
-                <MailPlus aria-hidden="true" />
-              ) : (
-                <Trash2 aria-hidden="true" />
-              )}
-            </span>
-            <h3 id="delegate-confirmation-title">
-              {pendingPreview.operation === "create" ? "Grant mailbox access?" : "Revoke mailbox access?"}
-            </h3>
+              {pendingPreview.operation === "create" ? "Grant access" : "Revoke access"}
+            </Button>
+          </>
+        ) : null}
+      >
+        {pendingPreview ? (
+          <div className="delegate-confirmation-content">
             <dl className="confirmation-identities">
               <div><dt>Mailbox owner</dt><dd>{pendingPreview.owner_primary_email}</dd></div>
               <div><dt>Delegate</dt><dd>{pendingPreview.delegate_primary_email}</dd></div>
+              <div><dt>Effect</dt><dd>{pendingPreview.effect}</dd></div>
             </dl>
-            <p>{pendingPreview.effect}</p>
-            <div className="confirmation-actions">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setPendingPreview(null)}
-                disabled={isMutating}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className={pendingPreview.operation === "remove" ? "danger-button" : ""}
-                onClick={() => void confirmChange()}
-                disabled={isMutating}
-              >
-                {isMutating && <Loader2 className="spin" aria-hidden="true" />}
-                {pendingPreview.operation === "create" ? "Grant access" : "Revoke access"}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
+            <Alert variant="warning">This confirmation is single-use and expires automatically.</Alert>
+          </div>
+        ) : null}
+      </Modal>
     </section>
   );
 }

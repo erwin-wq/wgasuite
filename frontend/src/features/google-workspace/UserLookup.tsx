@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
-import { ApiError, lookupGoogleWorkspaceUser } from "../../api/client";
+import { lookupGoogleWorkspaceUser } from "../../api/client";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Feedback";
 import { Input } from "../../components/ui/FormControls";
@@ -22,6 +22,11 @@ import { MailboxDelegates } from "./MailboxDelegates";
 import { UserGroupMemberships } from "./UserGroupMemberships";
 import { UserOrgUnitMove } from "./UserOrgUnitMove";
 import { UserStatusManagement } from "./UserStatusManagement";
+import {
+  administratorLabel,
+  googleWorkspaceUserLookupError,
+  mailboxSetupLabel
+} from "./googleWorkspaceUserPresentation";
 
 interface UserLookupProps {
   organizationId: string;
@@ -41,58 +46,12 @@ const matchLabels = {
   non_editable_alias: "Matched non-editable alias"
 };
 
-function lookupErrorMessage(error: unknown): string {
-  if (!(error instanceof ApiError)) {
-    return "The lookup could not be completed. Check your connection and try again.";
-  }
-  if (error.status === 404 || error.code === "google_user_not_found") {
-    return "No Directory user was found for that address. Google Group addresses are not included.";
-  }
-  if (error.code === "missing_scope_or_permission" || error.code === "google_forbidden") {
-    return "Google denied this lookup. Verify the delegated administrator and the authorized read-only Directory scope.";
-  }
-  if (error.code === "google_rate_limited") {
-    return "Google rate-limited the lookup. Wait a moment and try again.";
-  }
-  if (
-    error.code === "google_service_unavailable" ||
-    error.code === "google_network_error" ||
-    error.code === "google_timeout"
-  ) {
-    return "Google is temporarily unavailable. Try the lookup again shortly.";
-  }
-  if (
-    error.status === 409 ||
-    error.code === "connector_not_configured" ||
-    error.code === "credentials_not_found"
-  ) {
-    return "The Google Workspace connector is not ready. Complete and test the connection first.";
-  }
-  if (error.status === 403) {
-    return "You do not have permission to search users for this organization.";
-  }
-  return error.message;
-}
-
-function mailboxLabel(value: boolean | null): string {
-  if (value === true) return "Gmail mailbox set up";
-  if (value === false) return "Gmail mailbox not set up";
-  return "Mailbox setup unknown";
-}
-
 function formatDirectoryTime(value: string | null): string {
   if (!value) return "Not available";
   return new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
-}
-
-function administratorLabel(user: GoogleWorkspaceUser): string {
-  if (user.is_super_admin) return "Super administrator";
-  if (user.is_delegated_admin) return "Delegated administrator";
-  if (user.is_super_admin === null || user.is_delegated_admin === null) return "Unknown";
-  return "Standard user";
 }
 
 export function UserLookup({
@@ -131,7 +90,7 @@ export function UserLookup({
       if (requestSequence.current === sequence) setResult(user);
     } catch (lookupError) {
       if (controller.signal.aborted || requestSequence.current !== sequence) return;
-      setError(lookupErrorMessage(lookupError));
+      setError(googleWorkspaceUserLookupError(lookupError));
     } finally {
       if (requestSequence.current === sequence) {
         requestController.current = null;
@@ -286,7 +245,7 @@ export function UserLookup({
                       {result.suspended ? <div><dt>Suspension reason</dt><dd>{result.suspension_reason ?? "Not verified"}</dd></div> : null}
                       <div><dt>Created</dt><dd>{formatDirectoryTime(result.creation_time)}</dd></div>
                       <div><dt>Last sign-in</dt><dd>{formatDirectoryTime(result.last_login_time)}</dd></div>
-                      <div><dt>Gmail status</dt><dd>{mailboxLabel(result.is_mailbox_setup)}</dd></div>
+                    <div><dt>Gmail status</dt><dd>{mailboxSetupLabel(result.is_mailbox_setup)}</dd></div>
                     </dl>
                   </section>
 

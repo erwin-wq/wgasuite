@@ -99,6 +99,8 @@ function renderDelegates(overrides = {}) {
 describe("MailboxDelegates", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete document.documentElement.dataset.theme;
+    delete document.documentElement.dataset.density;
     vi.mocked(listGmailDelegates).mockResolvedValue(populatedList);
   });
 
@@ -107,7 +109,7 @@ describe("MailboxDelegates", () => {
     renderDelegates();
 
     expect(await screen.findByText("delegate@primary.example")).toBeVisible();
-    expect(screen.getByText("1 delegate")).toBeVisible();
+    expect(screen.getByRole("table", { name: `Gmail delegates for ${owner.primary_email}` })).toBeVisible();
     expect(screen.getByText("Accepted")).toBeVisible();
     expect(listGmailDelegates).toHaveBeenCalledWith(
       "organization-1",
@@ -144,7 +146,7 @@ describe("MailboxDelegates", () => {
     await screen.findByText("delegate@primary.example");
 
     await user.type(
-      screen.getByLabelText("Add delegate by primary email or alias"),
+      screen.getByLabelText("Delegate primary email or alias"),
       "Alias@Primary.Example"
     );
     await user.click(screen.getByRole("button", { name: "Review delegate" }));
@@ -206,13 +208,41 @@ describe("MailboxDelegates", () => {
     );
   });
 
+  it("traps confirmation focus and restores it to the invoking action", async () => {
+    vi.mocked(previewGmailDelegateChange).mockResolvedValue(createPreview);
+    const user = userEvent.setup();
+    renderDelegates();
+    await screen.findByText("delegate@primary.example");
+    const input = screen.getByLabelText("Delegate primary email or alias");
+    await user.type(input, "canonical@primary.example");
+    const review = screen.getByRole("button", { name: "Review delegate" });
+    await user.click(review);
+
+    const dialog = await screen.findByRole("dialog", { name: "Grant mailbox access?" });
+    expect(screen.getByRole("button", { name: "Close dialog" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(dialog).not.toBeInTheDocument();
+    expect(review).toHaveFocus();
+  });
+
+  it("preserves a delegate draft across theme and density changes", async () => {
+    const user = userEvent.setup();
+    renderDelegates();
+    await screen.findByText("delegate@primary.example");
+    const input = screen.getByLabelText("Delegate primary email or alias");
+    await user.type(input, "draft@primary.example");
+    document.documentElement.dataset.theme = "cobalt-ice";
+    document.documentElement.dataset.density = "compact";
+    expect(input).toHaveValue("draft@primary.example");
+  });
+
   it("disables every write control for a read-only viewer", async () => {
     renderDelegates({ canMutate: false });
 
     expect(await screen.findByText("delegate@primary.example")).toBeVisible();
     expect(screen.getByRole("button", { name: "Remove" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Review delegate" })).toBeDisabled();
-    expect(screen.getByLabelText("Add delegate by primary email or alias")).toBeDisabled();
+    expect(screen.getByLabelText("Delegate primary email or alias")).toBeDisabled();
     expect(screen.getByText(/Administrator access is required/)).toBeVisible();
   });
 
@@ -242,7 +272,7 @@ describe("MailboxDelegates", () => {
     renderDelegates();
     await screen.findByText("delegate@primary.example");
 
-    await user.type(screen.getByLabelText("Add delegate by primary email or alias"), "invalid");
+    await user.type(screen.getByLabelText("Delegate primary email or alias"), "invalid");
     await user.click(screen.getByRole("button", { name: "Review delegate" }));
 
     expect(screen.getByText("Enter a valid full email address.")).toBeVisible();
@@ -287,7 +317,7 @@ describe("MailboxDelegates", () => {
     await screen.findByText("delegate@primary.example");
 
     await user.type(
-      screen.getByLabelText("Add delegate by primary email or alias"),
+      screen.getByLabelText("Delegate primary email or alias"),
       "canonical@primary.example"
     );
     await user.click(screen.getByRole("button", { name: "Review delegate" }));
@@ -335,7 +365,7 @@ describe("MailboxDelegates", () => {
     await screen.findByText("delegate@primary.example");
 
     await user.type(
-      screen.getByLabelText("Add delegate by primary email or alias"),
+      screen.getByLabelText("Delegate primary email or alias"),
       "canonical@primary.example"
     );
     await user.click(screen.getByRole("button", { name: "Review delegate" }));
@@ -395,7 +425,7 @@ describe("MailboxDelegates", () => {
     await screen.findByText("delegate@primary.example");
 
     await user.type(
-      screen.getByLabelText("Add delegate by primary email or alias"),
+      screen.getByLabelText("Delegate primary email or alias"),
       "canonical@primary.example"
     );
     await user.click(screen.getByRole("button", { name: "Review delegate" }));
@@ -425,7 +455,7 @@ describe("MailboxDelegates", () => {
     const { rerender } = renderDelegates();
     await screen.findByText("delegate@primary.example");
     await user.type(
-      screen.getByLabelText("Add delegate by primary email or alias"),
+      screen.getByLabelText("Delegate primary email or alias"),
       "canonical@primary.example"
     );
     await user.click(screen.getByRole("button", { name: "Review delegate" }));
