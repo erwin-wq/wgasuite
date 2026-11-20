@@ -68,6 +68,29 @@ describe("App URL routing", () => {
     expect(screen.getByRole("button", { name: "Inloggen" })).toBeVisible();
   });
 
+  it("enforces platform authorization on a direct URL", async () => {
+    api.getCurrentUser.mockResolvedValue({
+      id: "user-2",
+      email: "customer-user@example.test",
+      full_name: "Customer User",
+      role: "customer_user",
+      is_active: true,
+      created_at: "2026-11-14T08:00:00Z",
+      customer_memberships: [{
+        customer_id: "customer-1",
+        customer_name: "Example Customer",
+        role: "customer_user",
+        is_active: true
+      }]
+    });
+
+    render(<MemoryRouter initialEntries={["/platform"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Access unavailable" })).toBeVisible();
+    expect(api.getPlatformAdminOverview).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: "Read-only support overview" })).not.toBeInTheDocument();
+  });
+
   it("falls back safely when a tenant switch invalidates route access", async () => {
     api.getCurrentUser.mockResolvedValue({
       id: "user-2",

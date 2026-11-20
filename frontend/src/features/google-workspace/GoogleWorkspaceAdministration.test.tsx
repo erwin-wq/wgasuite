@@ -1,9 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ConnectorConfig } from "../../types";
-import { GoogleWorkspaceAdministration } from "./GoogleWorkspaceAdministration";
+import {
+  GoogleWorkspaceAdministration,
+  WorkspaceConnectionOverview
+} from "./GoogleWorkspaceAdministration";
 
 const connectedConfig: ConnectorConfig = {
   id: "connector-1",
@@ -49,12 +52,14 @@ describe("GoogleWorkspaceAdministration", () => {
     renderAdministration();
 
     expect(screen.getByText("Connected")).toBeVisible();
-    expect(screen.getByText("Directory users, groups & OUs")).toBeVisible();
+    expect(screen.getByText("Primary domain")).toBeVisible();
+    expect(screen.getByText("example.test")).toBeVisible();
     expect(screen.getByTestId("user-lookup")).toBeVisible();
-    expect(screen.queryByTestId("connection-wizard")).not.toBeInTheDocument();
+    expect(screen.getByText("Advanced configuration").closest("details")).not.toHaveAttribute("open");
 
     await user.click(screen.getByRole("button", { name: "Manage connection" }));
     expect(screen.getByTestId("connection-wizard")).toHaveTextContent("Preserved connector name");
+    expect(screen.getByText("Advanced configuration").closest("details")).toHaveAttribute("open");
     expect(screen.getByRole("button", { name: "Close configuration" })).toHaveAttribute(
       "aria-expanded",
       "true"
@@ -124,5 +129,26 @@ describe("GoogleWorkspaceAdministration", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Google denied");
     await user.click(screen.getByRole("button", { name: "Inspect configuration" }));
     expect(screen.getByTestId("connection-wizard")).toBeVisible();
+  });
+
+  it("keeps connector API failures distinct from an unconfigured tenant", async () => {
+    const user = userEvent.setup();
+    const onReload = vi.fn();
+    render(
+      <WorkspaceConnectionOverview
+        organizationId="organization-1"
+        organizationName="Northstar Workspace"
+        connectorConfig={null}
+        canManageConnection
+        hasLoadError
+        onReload={onReload}
+        connectionWizard={<div data-testid="connection-wizard" />}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Connection status unavailable" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Connect Google Workspace" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onReload).toHaveBeenCalledOnce();
   });
 });

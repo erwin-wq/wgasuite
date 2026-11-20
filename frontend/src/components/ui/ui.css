@@ -98,7 +98,7 @@
 .ui-tooltip:hover .ui-tooltip__content, .ui-tooltip:focus-within .ui-tooltip__content { opacity: 1; visibility: visible; }
 
 .ui-field { display: grid; gap: var(--density-inline-gap); min-width: 0; }
-.ui-field__label { color: var(--color-text-primary); font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); }
+.ui-field__label { color: var(--color-text-primary); display: block; font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); }
 .ui-field__label--required::after { color: var(--color-error-text); content: " *"; }
 .ui-field__optional { color: var(--color-text-tertiary); font-weight: var(--font-weight-regular); }
 .ui-field__control { display: block; position: relative; }

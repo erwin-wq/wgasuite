@@ -1,8 +1,8 @@
 import {
   AlertTriangle,
   Building2,
+  Cable,
   CheckCircle2,
-  Clock3,
   FolderTree,
   KeyRound,
   Settings2,
@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 
+import { Button } from "../../components/ui/Button";
+import { Badge, ErrorState, Skeleton } from "../../components/ui/Feedback";
 import type { ConnectorConfig } from "../../types";
 
 interface GoogleWorkspaceAdministrationProps {
@@ -18,6 +20,12 @@ interface GoogleWorkspaceAdministrationProps {
   organizationName: string | null;
   connectorConfig: ConnectorConfig | null;
   canManageConnection: boolean;
+  canTestConnection?: boolean;
+  isLoading?: boolean;
+  hasLoadError?: boolean;
+  isTesting?: boolean;
+  onReload?: () => void;
+  onTest?: () => void;
   connectionWizard: ReactNode;
   gmailAuthorization?: ReactNode;
   userLookup: ReactNode;
@@ -31,6 +39,12 @@ interface WorkspaceConnectionOverviewProps {
   organizationName: string | null;
   connectorConfig: ConnectorConfig | null;
   canManageConnection: boolean;
+  canTestConnection?: boolean;
+  isLoading?: boolean;
+  hasLoadError?: boolean;
+  isTesting?: boolean;
+  onReload?: () => void;
+  onTest?: () => void;
   connectionWizard: ReactNode;
   gmailAuthorization?: ReactNode;
 }
@@ -48,6 +62,12 @@ export function GoogleWorkspaceAdministration({
   organizationName,
   connectorConfig,
   canManageConnection,
+  canTestConnection = canManageConnection,
+  isLoading = false,
+  hasLoadError = false,
+  isTesting = false,
+  onReload,
+  onTest,
   connectionWizard,
   gmailAuthorization,
   userLookup,
@@ -62,6 +82,12 @@ export function GoogleWorkspaceAdministration({
         organizationName={organizationName}
         connectorConfig={connectorConfig}
         canManageConnection={canManageConnection}
+        canTestConnection={canTestConnection}
+        isLoading={isLoading}
+        hasLoadError={hasLoadError}
+        isTesting={isTesting}
+        onReload={onReload}
+        onTest={onTest}
         connectionWizard={connectionWizard}
         gmailAuthorization={gmailAuthorization}
       />
@@ -81,6 +107,12 @@ export function WorkspaceConnectionOverview({
   organizationName,
   connectorConfig,
   canManageConnection,
+  canTestConnection = canManageConnection,
+  isLoading = false,
+  hasLoadError = false,
+  isTesting = false,
+  onReload,
+  onTest,
   connectionWizard,
   gmailAuthorization
 }: WorkspaceConnectionOverviewProps) {
@@ -99,7 +131,19 @@ export function WorkspaceConnectionOverview({
 
   return (
     <div className="workspace-connection-overview">
-      {!organizationId ? (
+      {isLoading ? (
+        <section className="connection-loading" role="status" aria-label="Loading connection configuration">
+          <Skeleton lines={5} />
+        </section>
+      ) : hasLoadError ? (
+        <ErrorState
+          title="Connection status unavailable"
+          actionLabel={onReload ? "Try again" : undefined}
+          onAction={onReload}
+        >
+          The connector configuration could not be loaded. This is not the same as an unconfigured connection.
+        </ErrorState>
+      ) : !organizationId ? (
         <section className="workspace-setup-callout" aria-label="Google Workspace setup unavailable">
           <Building2 aria-hidden="true" />
           <div>
@@ -108,83 +152,87 @@ export function WorkspaceConnectionOverview({
           </div>
         </section>
       ) : needsSetup ? (
-        <section className="workspace-setup-callout" aria-label="Google Workspace setup required">
-          <KeyRound aria-hidden="true" />
-          <div>
-            <h2>Connect Google Workspace</h2>
-            <p>
-              Complete the setup and manually verify read-only Directory access for{" "}
-              {organizationName}.
-            </p>
-          </div>
-        </section>
-      ) : (
-        <section
-          className={`workspace-connection-status ${isFailed ? "connection-failed" : ""}`}
-          aria-label="Google Workspace connection status"
-        >
-          <div className="connection-status-item">
-            <Building2 aria-hidden="true" />
-            <span>Organization</span>
-            <strong>{organizationName ?? "Selected organization"}</strong>
-          </div>
-          <div className="connection-status-item">
-            {isConnected ? (
-              <CheckCircle2 className="success" aria-hidden="true" />
-            ) : (
-              <AlertTriangle className="failed" aria-hidden="true" />
-            )}
-            <span>Connection state</span>
-            <strong className={isConnected ? "connected" : "failed"}>
-              {isConnected ? "Connected" : "Connection failed"}
-            </strong>
-          </div>
-          <div className="connection-status-item">
-            <Clock3 aria-hidden="true" />
-            <span>{isConnected ? "Last successful test" : "Last attempted test"}</span>
-            <strong>{formatTestTime(connectorConfig?.last_tested_at ?? null)}</strong>
-          </div>
-          <div className="connection-status-item">
+        <>
+          <section className="workspace-setup-callout" aria-label="Google Workspace setup required">
             <KeyRound aria-hidden="true" />
-            <span>API capability</span>
-            <strong>Directory users, groups & OUs</strong>
-          </div>
-          {canManageConnection && (
-            <button
-              type="button"
-              className="secondary-button manage-connection-button"
-              onClick={() => setShowWizard((current) => !current)}
-              aria-expanded={showWizard}
-              aria-controls="workspace-connection-settings"
-            >
-              <Settings2 aria-hidden="true" />
-              {showWizard
-                ? "Close configuration"
-                : isFailed
-                  ? "Inspect configuration"
-                  : "Manage connection"}
-            </button>
-          )}
-          {isFailed && connectorConfig?.last_error && (
-            <p className="connection-status-error" role="alert">
-              {connectorConfig.last_error}
-            </p>
-          )}
-        </section>
-      )}
-      {showWizard && organizationId && (
-        <section id="workspace-connection-settings" className="workspace-settings-panel">
-          <div className="workspace-section-heading">
             <div>
-              <h2>Connection settings</h2>
-              <p>Configure credentials, delegation and the manual connection test.</p>
+              <h2>Connect Google Workspace</h2>
+              <p>
+                {connectorConfig
+                  ? `Complete and verify the existing configuration for ${organizationName}.`
+                  : `No connector is configured for ${organizationName}. Complete the guided setup to establish one.`}
+              </p>
             </div>
-          </div>
-          {connectionWizard}
-          {gmailAuthorization}
-        </section>
-      )}
+          </section>
+          {organizationId ? (
+            <section id="workspace-connection-settings" className="workspace-settings-panel setup-required">
+              {connectionWizard}
+              {gmailAuthorization}
+            </section>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <section
+            className={`workspace-connection-status ${isFailed ? "connection-failed" : ""}`}
+            aria-label="Google Workspace connection status"
+          >
+            <div className="connection-status-heading">
+              <span className="connection-status-icon"><Cable aria-hidden="true" /></span>
+              <div>
+                <h2>{connectorConfig?.display_name ?? "Google Workspace"}</h2>
+                <p>{organizationName ?? "Selected organization"}</p>
+              </div>
+              <Badge variant={isConnected ? "success" : "danger"}>
+                {isConnected ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
+                {isConnected ? "Connected" : "Connection failed"}
+              </Badge>
+            </div>
+            <dl className="connection-facts">
+              <div><dt>Primary domain</dt><dd>{connectorConfig?.primary_domain ?? "Unavailable"}</dd></div>
+              <div><dt>Delegated administrator</dt><dd>{connectorConfig?.admin_subject_email ?? "Not configured"}</dd></div>
+              <div><dt>Credential source</dt><dd>{connectorConfig?.credentials_configured ? "Configured" : "Not configured"}</dd></div>
+              <div><dt>{isConnected ? "Last successful test" : "Last attempted test"}</dt><dd>{formatTestTime(connectorConfig?.last_tested_at ?? null)}</dd></div>
+            </dl>
+            {isFailed && connectorConfig?.last_error ? (
+              <p className="connection-status-error" role="alert">{connectorConfig.last_error}</p>
+            ) : null}
+            <div className="connection-status-actions">
+              {!showWizard && canTestConnection && onTest ? (
+                <Button loading={isTesting} loadingLabel="Testing connection" onClick={onTest}>
+                  <CheckCircle2 aria-hidden="true" /> Test connection
+                </Button>
+              ) : null}
+              {canManageConnection ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowWizard((current) => !current)}
+                  aria-expanded={showWizard}
+                  aria-controls="workspace-connection-settings"
+                >
+                  <Settings2 aria-hidden="true" />
+                  {showWizard ? "Close configuration" : isFailed ? "Inspect configuration" : "Manage connection"}
+                </Button>
+              ) : null}
+            </div>
+          </section>
 
+          {canManageConnection ? (
+            <details className="connection-disclosure" open={showWizard} onToggle={(event) => setShowWizard(event.currentTarget.open)}>
+              <summary><Settings2 aria-hidden="true" /><span><strong>Advanced configuration</strong><small>Credentials, delegated administrator, and connection test settings.</small></span></summary>
+              <section id="workspace-connection-settings" className="workspace-settings-panel">
+                {connectionWizard}
+              </section>
+            </details>
+          ) : null}
+          {gmailAuthorization ? (
+            <details className="connection-disclosure">
+              <summary><KeyRound aria-hidden="true" /><span><strong>Troubleshooting &amp; authorization</strong><small>Review Gmail delegation authorization guidance when needed.</small></span></summary>
+              <section className="workspace-settings-panel authorization-panel">{gmailAuthorization}</section>
+            </details>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
