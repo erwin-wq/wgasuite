@@ -94,7 +94,7 @@ export function Modal({
   }
 
   return (
-    <div className="ui-modal-backdrop" onMouseDown={handleBackdrop}>
+    <div className="ui-modal-backdrop" data-state="open" onMouseDown={handleBackdrop}>
       <div
         ref={dialogRef}
         className={cx("ui-modal", className)}
@@ -102,6 +102,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
+        data-state="open"
         tabIndex={-1}
       >
         <header className="ui-modal__header">

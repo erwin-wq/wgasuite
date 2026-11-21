@@ -46,7 +46,8 @@ button {
     background var(--motion-fast) var(--ease-standard),
     border-color var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard),
-    color var(--motion-fast) var(--ease-standard);
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
 }
 
 button:hover:not(:disabled) {
@@ -64,6 +65,7 @@ button:focus-visible {
 button:active:not(:disabled) {
   background: var(--color-action-primary-active);
   border-color: var(--color-action-primary-active);
+  transform: translateY(1px);
 }
 
 button:disabled {
@@ -5105,7 +5107,8 @@ h4 {
   text-decoration: none;
   transition:
     background var(--motion-fast) var(--ease-standard),
-    color var(--motion-fast) var(--ease-standard);
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
 }
 
 .premium-navigation a::before {
@@ -5116,12 +5119,20 @@ h4 {
   left: -0.85rem;
   opacity: 0;
   position: absolute;
+  transform: scaleY(0.45);
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
   width: 0.2rem;
 }
 
 .premium-navigation a:hover {
   background: var(--color-nav-item-hover);
   color: var(--color-nav-text-active);
+}
+
+.premium-navigation a:active {
+  transform: translateX(1px);
 }
 
 .premium-navigation a:focus-visible {
@@ -5136,6 +5147,7 @@ h4 {
 
 .premium-navigation a.active::before {
   opacity: 1;
+  transform: scaleY(1);
 }
 
 .premium-navigation svg {
@@ -5295,6 +5307,14 @@ h4 {
   white-space: nowrap;
 }
 
+.workspace-switcher-chevron {
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.workspace-switcher[data-state="open"] .workspace-switcher-chevron {
+  transform: rotate(180deg);
+}
+
 .workspace-switcher-trigger strong {
   font-size: 0.83rem;
 }
@@ -5307,6 +5327,7 @@ h4 {
 }
 
 .workspace-switcher-panel {
+  animation: premium-popover-in var(--motion-base) var(--ease-standard);
   background: var(--color-surface-primary);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
@@ -5406,6 +5427,7 @@ h4 {
 }
 
 .account-menu-panel {
+  animation: premium-popover-in var(--motion-base) var(--ease-standard);
   background: var(--color-surface-primary);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
@@ -5682,6 +5704,7 @@ h4 {
   }
 
   .sidebar-backdrop {
+    animation: premium-backdrop-in var(--motion-base) var(--ease-standard);
     background: var(--color-backdrop);
     border-radius: 0;
     bottom: 0;
@@ -5698,6 +5721,24 @@ h4 {
 
   .premium-content {
     padding-inline: clamp(1rem, 4vw, 2rem);
+  }
+}
+
+@keyframes premium-popover-in {
+  from { opacity: 0; transform: translateY(-0.25rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes premium-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-switcher-panel,
+  .account-menu-panel,
+  .sidebar-backdrop {
+    animation: none;
   }
 }
 

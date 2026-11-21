@@ -88,7 +88,10 @@ describe("enterprise UI components", () => {
     const user = userEvent.setup();
     render(<Dropdown label="Actions" trigger="Actions" items={[{ id: "edit", label: "Edit", onSelect }]} />);
     const trigger = screen.getByRole("button", { name: "Actions" });
+    expect(trigger.closest(".ui-dropdown")).toHaveAttribute("data-state", "closed");
     await user.click(trigger);
+    expect(trigger.closest(".ui-dropdown")).toHaveAttribute("data-state", "open");
+    expect(screen.getByRole("menu")).toHaveAttribute("data-state", "open");
     await user.click(screen.getByRole("menuitem", { name: "Edit" }));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(trigger).toHaveFocus();
@@ -116,7 +119,8 @@ describe("enterprise UI components", () => {
     render(<ModalFixture />);
     const trigger = screen.getByRole("button", { name: "Open modal" });
     await user.click(trigger);
-    expect(screen.getByRole("dialog", { name: "Review change" })).toBeVisible();
+    expect(screen.getByRole("dialog", { name: "Review change" })).toHaveAttribute("data-state", "open");
+    expect(screen.getByRole("dialog", { name: "Review change" }).parentElement).toHaveAttribute("data-state", "open");
     expect(screen.getByRole("button", { name: "Close dialog" })).toHaveFocus();
     await user.keyboard("{Shift>}{Tab}{/Shift}");
     expect(screen.getByRole("button", { name: "Confirm" })).toHaveFocus();
