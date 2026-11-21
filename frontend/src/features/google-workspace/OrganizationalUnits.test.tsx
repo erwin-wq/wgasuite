@@ -107,6 +107,7 @@ describe("OrganizationalUnits", () => {
     renderOrganizationalUnits();
 
     expect(await screen.findByRole("tree", { name: "Organizational Units hierarchy" })).toBeVisible();
+    expect(screen.getByRole("tree").firstElementChild).toHaveAttribute("role", "treeitem");
     expect(screen.getByText("3 organizational units")).toBeVisible();
     expect(screen.getByRole("treeitem", { name: "Example Workspace (/)" })).toHaveAttribute(
       "aria-expanded",

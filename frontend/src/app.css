@@ -3471,7 +3471,7 @@ h4 {
 }
 
 .ou-tree-item:hover,
-.ou-tree-item:focus-visible,
+.ou-tree-row:focus-visible .ou-tree-item,
 .ou-tree-item.selected {
   background: var(--color-primary-soft);
   border-color: var(--color-line-strong);
@@ -4471,6 +4471,7 @@ h4 {
 .overview-action-list > a > span:nth-child(2) {
   display: grid;
   gap: var(--space-1);
+  min-width: 0;
 }
 
 .overview-action-list strong,
@@ -4554,6 +4555,11 @@ h4 {
 @media (max-width: 600px) {
   .overview-action-list > a {
     align-items: start;
+  }
+
+  .overview-action-list strong,
+  .overview-action-list small {
+    overflow-wrap: anywhere;
   }
 
   .overview-action-list > a > svg {
@@ -5698,13 +5704,17 @@ h4 {
 @media (max-width: 600px) {
   .premium-header {
     gap: 0.55rem;
+    flex-wrap: wrap;
     min-height: 4.35rem;
     padding: 0.55rem 0.75rem;
   }
 
   .workspace-switcher {
+    flex-basis: 100%;
     flex: 1;
     max-width: none;
+    min-width: 0;
+    order: 3;
     width: auto;
   }
 
@@ -5722,6 +5732,14 @@ h4 {
   .account-menu-trigger {
     min-height: 2.65rem;
     padding: 0.6rem;
+  }
+
+  .header-spacer {
+    display: none;
+  }
+
+  .account-menu {
+    margin-left: auto;
   }
 
   .account-menu-panel {
