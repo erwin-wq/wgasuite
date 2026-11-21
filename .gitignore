@@ -25,6 +25,8 @@ build/
 **/dist/
 **/build/
 coverage/
+playwright-report/
+test-results/
 
 .DS_Store
 *.log
