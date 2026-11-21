@@ -1,16 +1,23 @@
 import {
   AlertCircle,
+  ArrowLeft,
   Building2,
   ChevronDown,
   ChevronRight,
+  Folder,
   FolderTree,
+  Info,
+  ListTree,
   Loader2,
   RefreshCw,
+  ShieldAlert,
   ShieldCheck
 } from "lucide-react";
 import { CSSProperties, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, listGoogleWorkspaceOrganizationalUnits } from "../../api/client";
+import { Button } from "../../components/ui/Button";
+import { Alert, Badge } from "../../components/ui/Feedback";
 import type {
   ConnectorConfig,
   GoogleWorkspaceOrganizationalUnitTreeNode
@@ -33,6 +40,8 @@ interface VisibleUnit {
   unit: GoogleWorkspaceOrganizationalUnitTreeNode;
   depth: number;
 }
+
+type MobileView = "hierarchy" | "details";
 
 const WORKSPACE_GUESTS_PATH = "/Workspace Guests";
 
@@ -95,6 +104,13 @@ function findUnit(
   return null;
 }
 
+function findParent(
+  roots: GoogleWorkspaceOrganizationalUnitTreeNode[],
+  unit: GoogleWorkspaceOrganizationalUnitTreeNode | null
+): GoogleWorkspaceOrganizationalUnitTreeNode | null {
+  return unit?.parent_id ? findUnit(roots, unit.parent_id) : null;
+}
+
 function flattenVisible(
   roots: GoogleWorkspaceOrganizationalUnitTreeNode[],
   expanded: Set<string>
@@ -121,6 +137,7 @@ export function OrganizationalUnits({
   const [total, setTotal] = useState(0);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<MobileView>("hierarchy");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const requestSequence = useRef(0);
@@ -174,6 +191,7 @@ export function OrganizationalUnits({
     setTotal(0);
     setExpanded(new Set());
     setSelectedId(null);
+    setMobileView("hierarchy");
     setError(null);
     setIsLoading(false);
     if (organizationId && connectorReady && canRead) void loadHierarchy();
@@ -182,6 +200,10 @@ export function OrganizationalUnits({
 
   const visibleUnits = useMemo(() => flattenVisible(roots, expanded), [expanded, roots]);
   const selectedUnit = useMemo(() => findUnit(roots, selectedId), [roots, selectedId]);
+  const selectedParent = useMemo(
+    () => findParent(roots, selectedUnit),
+    [roots, selectedUnit]
+  );
 
   function toggle(unit: GoogleWorkspaceOrganizationalUnitTreeNode) {
     if (unit.children.length === 0) return;
@@ -234,19 +256,15 @@ export function OrganizationalUnits({
   return (
     <section className="organizational-units" aria-labelledby="organizational-units-heading">
       <div className="workspace-section-heading ou-heading">
-        <div>
-          <span className="eyebrow">Directory hierarchy</span>
-          <h2 id="organizational-units-heading">Organizational Units</h2>
-          <p>Inspect the complete hierarchy for the verified Workspace customer.</p>
-        </div>
-        <button
-          type="button"
-          className="secondary-button"
+        <h2 id="organizational-units-heading" className="sr-only">Organizational Units explorer</h2>
+        <p>Verified Google Directory hierarchy</p>
+        <Button
+          variant="secondary"
           disabled={isLoading || !connectorReady || !canRead}
           onClick={() => void loadHierarchy()}
         >
           <RefreshCw className={isLoading ? "spin" : ""} aria-hidden="true" /> Refresh
-        </button>
+        </Button>
       </div>
 
       {!organizationId ? (
@@ -277,23 +295,50 @@ export function OrganizationalUnits({
           <FolderTree aria-hidden="true" /> Google returned no Organizational Units.
         </div>
       ) : (
+        <>
+          <div className="ou-mobile-view-switch" aria-label="Organizational Unit view">
+            <button
+              type="button"
+              className={mobileView === "hierarchy" ? "active" : ""}
+              aria-pressed={mobileView === "hierarchy"}
+              onClick={() => setMobileView("hierarchy")}
+            >
+              <ListTree aria-hidden="true" /> Hierarchy
+            </button>
+            <button
+              type="button"
+              className={mobileView === "details" ? "active" : ""}
+              aria-pressed={mobileView === "details"}
+              disabled={!selectedUnit}
+              onClick={() => setMobileView("details")}
+            >
+              <Info aria-hidden="true" /> Details
+            </button>
+          </div>
+
         <div className="ou-layout">
-          <section className="ou-tree-panel" aria-labelledby="ou-tree-heading">
+          <section
+            className={`ou-tree-panel ${mobileView === "hierarchy" ? "ou-mobile-active" : ""}`}
+            aria-labelledby="ou-tree-heading"
+          >
             <div className="ou-panel-heading">
               <div>
                 <h3 id="ou-tree-heading">Hierarchy</h3>
                 <p>{total} organizational {total === 1 ? "unit" : "units"}</p>
               </div>
-              <span className="readonly-badge"><ShieldCheck aria-hidden="true" /> Read only</span>
+              <Badge variant="info" icon={<ShieldCheck aria-hidden="true" />}>Verified hierarchy</Badge>
             </div>
             <div className="ou-tree" role="tree" aria-label="Organizational Units hierarchy">
               {visibleUnits.map(({ unit, depth }) => {
                 const hasChildren = unit.children.length > 0;
                 const isExpanded = expanded.has(unit.id);
                 const isSelected = selectedId === unit.id;
+                const isRoot = unit.path === "/";
+                const isProtected = isCreationProtected(unit);
+                const UnitIcon = isRoot ? Building2 : isProtected ? ShieldAlert : Folder;
                 return (
                   <div
-                    className="ou-tree-row"
+                    className={`ou-tree-row ${isRoot ? "ou-tree-row--root" : ""} ${isProtected ? "ou-tree-row--protected" : ""}`}
                     key={unit.id}
                     style={{ "--ou-depth": depth } as CSSProperties}
                   >
@@ -321,11 +366,19 @@ export function OrganizationalUnits({
                         if (element) itemRefs.current.set(unit.id, element);
                         else itemRefs.current.delete(unit.id);
                       }}
-                      onClick={() => setSelectedId(unit.id)}
+                      onClick={() => {
+                        setSelectedId(unit.id);
+                        setMobileView("details");
+                      }}
                       onKeyDown={(event) => handleTreeKeyDown(event, unit)}
                     >
-                      <FolderTree aria-hidden="true" />
-                      <span><strong>{unit.name}</strong><small>{unit.path}</small></span>
+                      <UnitIcon aria-hidden="true" />
+                      <span>
+                        <strong>{unit.name}</strong>
+                        <small>{unit.path}</small>
+                      </span>
+                      {isRoot ? <em>Root</em> : null}
+                      {isProtected ? <em>Protected</em> : null}
                     </button>
                   </div>
                 );
@@ -333,12 +386,29 @@ export function OrganizationalUnits({
             </div>
           </section>
 
-          <aside className="ou-detail-panel" aria-live="polite">
+          <aside
+            className={`ou-detail-panel ${mobileView === "details" ? "ou-mobile-active" : ""}`}
+            aria-live="polite"
+          >
             {selectedUnit ? (
               <>
+                <button
+                  type="button"
+                  className="ou-mobile-back"
+                  onClick={() => setMobileView("hierarchy")}
+                >
+                  <ArrowLeft aria-hidden="true" /> Back to hierarchy
+                </button>
+                <div className="ou-current-path">
+                  <FolderTree aria-hidden="true" />
+                  <span><strong>Current path</strong>{selectedUnit.path}</span>
+                </div>
                 <div className="ou-panel-heading">
-                  <div><span className="eyebrow">Selected unit</span><h3>{selectedUnit.name}</h3></div>
-                  <span className="readonly-badge"><ShieldCheck aria-hidden="true" /> Verified tenant</span>
+                  <div className="ou-selected-heading">
+                    {selectedUnit.path === "/" ? <Building2 aria-hidden="true" /> : <Folder aria-hidden="true" />}
+                    <div><span className="eyebrow">Selected unit</span><h3>{selectedUnit.name}</h3></div>
+                  </div>
+                  <Badge variant="success" icon={<ShieldCheck aria-hidden="true" />}>Verified tenant</Badge>
                 </div>
                 {canCreate && (
                   <div className="ou-detail-actions">
@@ -372,21 +442,37 @@ export function OrganizationalUnits({
                 )}
                 <dl className="ou-details">
                   <div><dt>Full path</dt><dd>{selectedUnit.path}</dd></div>
-                  <div><dt>Parent path</dt><dd>{selectedUnit.parent_path ?? "Top level"}</dd></div>
+                  <div><dt>Parent</dt><dd>{selectedParent ? <><strong>{selectedParent.name}</strong><span>{selectedUnit.parent_path}</span></> : "Top level"}</dd></div>
                   <div><dt>Immutable ID</dt><dd><code>{selectedUnit.id}</code></dd></div>
                   <div><dt>Description</dt><dd>{selectedUnit.description ?? "No description provided."}</dd></div>
-                  <div><dt>Direct children</dt><dd>{selectedUnit.children.length}</dd></div>
                   <div><dt>Access</dt><dd>{canCreate ? "Guarded administration" : "Read only"}</dd></div>
                 </dl>
-                <p className="ou-readonly-note">
-                  Rename, reparent, delete, and device movement are not available. Child creation and description updates require customer administrator access, an explicit confirmation, and the separately authorized Google write scope.
-                </p>
+                <section className="ou-children" aria-labelledby="ou-children-heading">
+                  <div>
+                    <h4 id="ou-children-heading">Direct children</h4>
+                    <span>{selectedUnit.children.length}</span>
+                  </div>
+                  {selectedUnit.children.length > 0 ? (
+                    <ul>
+                      {selectedUnit.children.map((child) => (
+                        <li key={child.id}><Folder aria-hidden="true" /> {child.name}</li>
+                      ))}
+                    </ul>
+                  ) : <p>No direct child units.</p>}
+                </section>
+                <Alert variant="warning" title="Effective inherited policies are unknown.">
+                  Google Directory does not expose the effective inherited policy configuration in this view.
+                </Alert>
+                <Alert variant="info" title="Unsupported operations">
+                  Rename, reparent, delete, and device movement are not available. Supported writes retain explicit preview and confirmation safeguards.
+                </Alert>
               </>
             ) : (
               <div className="ou-state" role="status">Select an Organizational Unit to inspect it.</div>
             )}
           </aside>
         </div>
+        </>
       )}
     </section>
   );

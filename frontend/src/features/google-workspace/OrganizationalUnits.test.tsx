@@ -120,6 +120,8 @@ describe("OrganizationalUnits", () => {
     expect(screen.getByRole("treeitem", { name: "Platform (/Engineering/Platform)" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Engineering" })).toBeVisible();
     expect(screen.getByText("Product builders")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Direct children" })).toBeVisible();
+    expect(screen.getByText("Effective inherited policies are unknown.")).toBeVisible();
     expect(screen.getByText(/Rename, reparent, delete/)).toBeVisible();
     expect(listGoogleWorkspaceOrganizationalUnits).toHaveBeenCalledWith(
       "organization-1",
@@ -138,6 +140,33 @@ describe("OrganizationalUnits", () => {
       expect(screen.getByRole("treeitem", { name: "Engineering (/Engineering)" })).toHaveFocus()
     );
     expect(screen.getByRole("heading", { name: "Engineering" })).toBeVisible();
+  });
+
+  it("preserves selection while switching between mobile hierarchy and details views", async () => {
+    const user = userEvent.setup();
+    renderOrganizationalUnits();
+
+    await user.click(
+      await screen.findByRole("treeitem", { name: "Engineering (/Engineering)" })
+    );
+
+    expect(screen.getByRole("button", { name: "Details" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByRole("complementary")).toHaveClass("ou-mobile-active");
+    expect(screen.getAllByText("/Engineering").length).toBeGreaterThan(1);
+
+    await user.click(screen.getByRole("button", { name: "Back to hierarchy" }));
+
+    expect(screen.getByRole("button", { name: "Hierarchy" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByRole("treeitem", { name: "Engineering (/Engineering)" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
   });
 
   it("preserves the selected parent when a refreshed hierarchy still contains it", async () => {
@@ -254,6 +283,7 @@ describe("OrganizationalUnits", () => {
     renderOrganizationalUnits({ canCreate: true });
 
     await user.click(await screen.findByRole("treeitem", { name: "Workspace Guests (/Workspace Guests)" }));
+    expect(screen.getByRole("treeitem", { name: "Workspace Guests (/Workspace Guests)" }).closest(".ou-tree-row")).toHaveClass("ou-tree-row--protected");
     expect(screen.queryByRole("button", { name: "Create child OU" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit description" })).not.toBeInTheDocument();
     expect(screen.getByText(/Workspace Guests and its descendants are protected/)).toBeVisible();
