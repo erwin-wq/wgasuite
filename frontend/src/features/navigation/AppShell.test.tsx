@@ -170,5 +170,40 @@ describe("premium AppShell", () => {
     expect(openButton).toHaveAttribute("aria-expanded", "true");
     await userEvents.keyboard("{Escape}");
     expect(openButton).toHaveAttribute("aria-expanded", "false");
+    expect(openButton).toHaveFocus();
+  });
+
+  it("contains focus inside the mobile drawer and restores it after dismissal", async () => {
+    const userEvents = userEvent.setup();
+    const { container } = renderShell();
+    const openButton = screen.getByRole("button", { name: "Open navigation" });
+    await userEvents.click(openButton);
+    const closeButton = container.querySelector<HTMLButtonElement>(".mobile-sidebar-close");
+    const collapseButton = screen.getByRole("button", { name: "Collapse sidebar" });
+    expect(closeButton).toHaveFocus();
+
+    await userEvents.tab({ shift: true });
+    expect(collapseButton).toHaveFocus();
+    await userEvents.tab();
+    expect(closeButton).toHaveFocus();
+
+    const backdrop = container.querySelector<HTMLButtonElement>(".sidebar-backdrop");
+    expect(backdrop).not.toBeNull();
+    await userEvents.click(backdrop!);
+    expect(openButton).toHaveFocus();
+  });
+
+  it("restores focus when the workspace switcher closes", async () => {
+    const userEvents = userEvent.setup();
+    renderShell();
+    const trigger = screen.getByRole("button", { name: /Active workspace/i });
+    await userEvents.click(trigger);
+    await userEvents.click(screen.getByLabelText("Customer"));
+    await userEvents.keyboard("{Escape}");
+    expect(trigger).toHaveFocus();
+
+    await userEvents.click(trigger);
+    await userEvents.selectOptions(screen.getByLabelText("Organization"), "organization-1");
+    expect(trigger).toHaveFocus();
   });
 });

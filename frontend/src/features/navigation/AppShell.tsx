@@ -8,7 +8,7 @@ import {
   ShieldCheck,
   X
 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 
 import {
@@ -45,6 +45,7 @@ function WorkspaceSwitcher({
 }: WorkspaceSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId);
   const selectedOrganization = organizations.find(
     (organization) => organization.id === selectedOrganizationId
@@ -56,7 +57,9 @@ function WorkspaceSwitcher({
       if (!panelRef.current?.contains(event.target as Node)) setIsOpen(false);
     }
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setIsOpen(false);
+      if (event.key !== "Escape") return;
+      setIsOpen(false);
+      triggerRef.current?.focus();
     }
     document.addEventListener("mousedown", closeOnOutsideClick);
     document.addEventListener("keydown", closeOnEscape);
@@ -69,6 +72,7 @@ function WorkspaceSwitcher({
   return (
     <div className="workspace-switcher" ref={panelRef}>
       <Button
+        ref={triggerRef}
         variant="ghost"
         className="workspace-switcher-trigger"
         onClick={() => setIsOpen((current) => !current)}
@@ -104,6 +108,7 @@ function WorkspaceSwitcher({
             onChange={(event) => {
               onOrganizationChange(event.target.value);
               setIsOpen(false);
+              triggerRef.current?.focus();
             }}
             disabled={isLoading || organizations.length === 0}
             options={[
@@ -147,6 +152,12 @@ export function AppShell({
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const mobileToggleRef = useRef<HTMLButtonElement>(null);
   const mobileCloseRef = useRef<HTMLButtonElement>(null);
+  const mobileDrawerRef = useRef<HTMLElement>(null);
+
+  const closeMobileNavigation = useCallback((restoreFocus = true) => {
+    setIsMobileOpen(false);
+    if (restoreFocus) mobileToggleRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     setIsMobileOpen(false);
@@ -155,14 +166,31 @@ export function AppShell({
   useEffect(() => {
     if (!isMobileOpen) return;
     mobileCloseRef.current?.focus();
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      setIsMobileOpen(false);
-      mobileToggleRef.current?.focus();
+    function handleDrawerKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeMobileNavigation();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        mobileDrawerRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      ).filter((element) => !element.hidden);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [isMobileOpen]);
+    document.addEventListener("keydown", handleDrawerKeyDown);
+    return () => document.removeEventListener("keydown", handleDrawerKeyDown);
+  }, [closeMobileNavigation, isMobileOpen]);
 
   const groupedRoutes = navigationRoutes.reduce(
     (groups, route) => {
@@ -179,10 +207,11 @@ export function AppShell({
           type="button"
           className="sidebar-backdrop"
           aria-label="Close navigation"
-          onClick={() => setIsMobileOpen(false)}
+          onClick={() => closeMobileNavigation()}
         />
       )}
       <aside
+        ref={mobileDrawerRef}
         className={`premium-sidebar ${isMobileOpen ? "mobile-open" : ""}`}
         aria-label="Primary navigation"
       >
@@ -199,10 +228,7 @@ export function AppShell({
             className="mobile-sidebar-close"
             label="Close navigation"
             icon={<X aria-hidden="true" />}
-            onClick={() => {
-              setIsMobileOpen(false);
-              mobileToggleRef.current?.focus();
-            }}
+            onClick={() => closeMobileNavigation()}
           />
         </div>
 
@@ -218,6 +244,9 @@ export function AppShell({
                     to={route.path}
                     className={({ isActive }) => (isActive ? "active" : undefined)}
                     title={isCollapsed ? route.shortTitle : undefined}
+                    onClick={() => {
+                      if (isMobileOpen) closeMobileNavigation();
+                    }}
                   >
                     <Icon aria-hidden="true" />
                     <span>{route.shortTitle}</span>

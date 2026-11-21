@@ -142,7 +142,7 @@ export function OrganizationalUnits({
   const [isLoading, setIsLoading] = useState(false);
   const requestSequence = useRef(0);
   const requestController = useRef<AbortController | null>(null);
-  const itemRefs = useRef(new Map<string, HTMLButtonElement>());
+  const itemRefs = useRef(new Map<string, HTMLDivElement>());
   const connectorReady = connectorConfig?.status === "connected";
 
   const loadHierarchy = useCallback(async () => {
@@ -225,7 +225,7 @@ export function OrganizationalUnits({
   }
 
   function handleTreeKeyDown(
-    event: KeyboardEvent<HTMLButtonElement>,
+    event: KeyboardEvent<HTMLDivElement>,
     unit: GoogleWorkspaceOrganizationalUnitTreeNode
   ) {
     const index = visibleUnits.findIndex((item) => item.unit.id === unit.id);
@@ -340,37 +340,40 @@ export function OrganizationalUnits({
                   <div
                     className={`ou-tree-row ${isRoot ? "ou-tree-row--root" : ""} ${isProtected ? "ou-tree-row--protected" : ""}`}
                     key={unit.id}
+                    role="treeitem"
+                    aria-label={`${unit.name} (${unit.path})`}
+                    aria-level={depth}
+                    aria-selected={isSelected}
+                    aria-expanded={hasChildren ? isExpanded : undefined}
+                    tabIndex={isSelected ? 0 : -1}
+                    ref={(element) => {
+                      if (element) itemRefs.current.set(unit.id, element);
+                      else itemRefs.current.delete(unit.id);
+                    }}
                     style={{ "--ou-depth": depth } as CSSProperties}
+                    onClick={() => {
+                      setSelectedId(unit.id);
+                      setMobileView("details");
+                    }}
+                    onKeyDown={(event) => handleTreeKeyDown(event, unit)}
                   >
                     <button
                       type="button"
                       className="ou-expand-button"
                       aria-label={`${isExpanded ? "Collapse" : "Expand"} ${unit.name}`}
                       disabled={!hasChildren}
-                      onClick={() => toggle(unit)}
+                      tabIndex={-1}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggle(unit);
+                      }}
                     >
                       {hasChildren ? (
                         isExpanded ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />
                       ) : <span aria-hidden="true" />}
                     </button>
-                    <button
-                      type="button"
+                    <div
                       className={`ou-tree-item ${isSelected ? "selected" : ""}`}
-                      role="treeitem"
-                      aria-label={`${unit.name} (${unit.path})`}
-                      aria-level={depth}
-                      aria-selected={isSelected}
-                      aria-expanded={hasChildren ? isExpanded : undefined}
-                      tabIndex={isSelected ? 0 : -1}
-                      ref={(element) => {
-                        if (element) itemRefs.current.set(unit.id, element);
-                        else itemRefs.current.delete(unit.id);
-                      }}
-                      onClick={() => {
-                        setSelectedId(unit.id);
-                        setMobileView("details");
-                      }}
-                      onKeyDown={(event) => handleTreeKeyDown(event, unit)}
                     >
                       <UnitIcon aria-hidden="true" />
                       <span>
@@ -379,7 +382,7 @@ export function OrganizationalUnits({
                       </span>
                       {isRoot ? <em>Root</em> : null}
                       {isProtected ? <em>Protected</em> : null}
-                    </button>
+                    </div>
                   </div>
                 );
               })}
