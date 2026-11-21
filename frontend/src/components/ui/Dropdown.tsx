@@ -76,7 +76,7 @@ export function Dropdown({
   }
 
   return (
-    <div className={cx("ui-dropdown", className)} ref={containerRef}>
+    <div className={cx("ui-dropdown", className)} ref={containerRef} data-state={open ? "open" : "closed"}>
       <Button
         ref={triggerRef}
         variant={variant}
@@ -88,7 +88,7 @@ export function Dropdown({
         onClick={() => setOpen((current) => !current)}
       >
         {trigger}
-        <ChevronDown aria-hidden="true" />
+        <ChevronDown className="ui-dropdown__chevron" aria-hidden="true" />
       </Button>
       {open ? (
         <div
@@ -96,6 +96,7 @@ export function Dropdown({
           className={cx("ui-dropdown__menu", `ui-dropdown__menu--${align}`)}
           role="menu"
           aria-label={label}
+          data-state="open"
           onKeyDown={handleMenuKeyDown}
         >
           {items.map((item, index) => (

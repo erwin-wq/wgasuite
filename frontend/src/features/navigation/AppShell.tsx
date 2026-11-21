@@ -70,7 +70,7 @@ function WorkspaceSwitcher({
   }, [isOpen]);
 
   return (
-    <div className="workspace-switcher" ref={panelRef}>
+    <div className="workspace-switcher" ref={panelRef} data-state={isOpen ? "open" : "closed"}>
       <Button
         ref={triggerRef}
         variant="ghost"
@@ -88,10 +88,10 @@ function WorkspaceSwitcher({
           </strong>
           <em>{selectedCustomer?.name ?? "No customer selected"}</em>
         </span>
-        <ChevronDown aria-hidden="true" />
+        <ChevronDown className="workspace-switcher-chevron" aria-hidden="true" />
       </Button>
       {isOpen && (
-        <div id="workspace-switcher-panel" className="workspace-switcher-panel">
+        <div id="workspace-switcher-panel" className="workspace-switcher-panel" data-state="open">
           <Select
             label="Customer"
             value={selectedCustomerId}

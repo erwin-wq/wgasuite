@@ -68,7 +68,7 @@ export function AccountThemeMenu({
   }
 
   return (
-    <div className="account-menu" ref={containerRef}>
+    <div className="account-menu" ref={containerRef} data-state={isOpen ? "open" : "closed"}>
       <Button
         ref={triggerRef}
         variant="secondary"
@@ -94,6 +94,7 @@ export function AccountThemeMenu({
           className="account-menu-panel"
           role="menu"
           aria-label="Account and appearance"
+          data-state="open"
           onKeyDown={handleMenuKeyDown}
         >
           <div className="account-menu-heading">
