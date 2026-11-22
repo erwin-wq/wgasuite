@@ -534,7 +534,7 @@ h4 {
 }
 
 .eyebrow {
-  color: var(--color-action-primary);
+  color: var(--color-text-link);
   display: block;
   font-size: var(--font-size-xs);
   font-weight: 900;
@@ -3478,7 +3478,7 @@ h4 {
   background: var(--color-primary-soft);
   border-color: var(--color-line-strong);
   box-shadow: none;
-  color: var(--color-primary-strong);
+  color: var(--color-text-link);
   transform: none;
 }
 
@@ -3498,6 +3498,12 @@ h4 {
   font-weight: 800;
   padding: 0.16rem 0.4rem;
   text-transform: uppercase;
+}
+
+.ou-tree-item:hover > em,
+.ou-tree-row:focus-visible .ou-tree-item > em,
+.ou-tree-item.selected > em {
+  color: var(--color-text-secondary);
 }
 
 .ou-tree-row--protected .ou-tree-item > em {
@@ -3697,7 +3703,7 @@ h4 {
 .ou-create-warning {
   background: var(--color-amber-soft);
   border-radius: var(--radius-sm);
-  color: #7c4a03;
+  color: var(--color-warning-text);
   font-size: var(--font-size-sm);
   padding: var(--space-3);
 }
@@ -4407,7 +4413,7 @@ h4 {
 }
 
 .overview-connection-link {
-  color: var(--color-primary-strong);
+  color: var(--color-text-link);
   font-weight: 720;
   justify-self: end;
   text-decoration: none;

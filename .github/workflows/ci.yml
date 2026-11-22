@@ -68,5 +68,7 @@ jobs:
         run: npm run lint
       - name: Run frontend tests
         run: npm test
+      - name: Run frontend release-gate browser tests
+        run: npm run test:e2e
       - name: Build frontend
         run: npm run build
