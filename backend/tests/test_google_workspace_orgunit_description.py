@@ -9,13 +9,16 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 from googleapiclient.errors import HttpError
+from googleapiclient.model import JsonModel
 from httplib2 import Response
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.connectors.google_workspace_credentials import DIRECTORY_ORGUNIT_WRITE_SCOPE
 from app.connectors.google_workspace_errors import GoogleWorkspaceError, GoogleWorkspaceErrorCode
 from app.models import AuditEvent, GoogleWorkspaceOrgUnitDescriptionConfirmation
+from app.schemas.google_workspace_orgunit import OrganizationalUnitDescriptionPreviewRequest
 from app.services.google_workspace_mutation_safety import (
     confirmation_token_digest,
     consume_confirmation,
@@ -189,7 +192,9 @@ def test_update_uses_immutable_id_minimal_body_and_exactly_one_nonretried_patch(
     assert saved.token_digest != preview.confirmation_token
 
 
-def test_empty_description_clears_with_only_empty_description_body(db_session: Session) -> None:
+def test_empty_description_clears_with_only_json_null_description_body(
+    db_session: Session,
+) -> None:
     description, factory, _, connector, actor = service(
         db_session, write_response=response(None)
     )
@@ -205,7 +210,24 @@ def test_empty_description_clears_with_only_empty_description_body(db_session: S
         organization_id=connector.organization_id,
         confirmation_token=preview.confirmation_token,
     )
-    assert factory.client.calls[0]["kwargs"]["body"] == {"description": ""}
+    body = factory.client.calls[0]["kwargs"]["body"]
+    assert body == {"description": None}
+    assert "description" in body
+    assert JsonModel().serialize(body) == '{"description": null}'
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"org_unit_id": TARGET.id},
+        {"org_unit_id": TARGET.id, "description": None},
+    ],
+)
+def test_public_preview_request_still_requires_a_string_description(
+    payload: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        OrganizationalUnitDescriptionPreviewRequest.model_validate(payload)
 
 
 @pytest.mark.parametrize("value", ["Original", " Original "])
@@ -385,6 +407,11 @@ def google_error(status: int, reason: str) -> HttpError:
     ("write_error", "code", "confirmation_status"),
     [
         (
+            google_error(400, "badRequest"),
+            GoogleWorkspaceErrorCode.GOOGLE_API_ERROR,
+            "failed",
+        ),
+        (
             google_error(403, "insufficientPermissions"),
             GoogleWorkspaceErrorCode.MISSING_SCOPE_OR_PERMISSION,
             "failed",
@@ -403,6 +430,11 @@ def google_error(status: int, reason: str) -> HttpError:
             google_error(429, "rateLimitExceeded"),
             GoogleWorkspaceErrorCode.GOOGLE_RATE_LIMITED,
             "failed",
+        ),
+        (
+            google_error(500, "backendError"),
+            GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE,
+            "unknown",
         ),
         (
             google_error(503, "backendError"),
@@ -440,6 +472,46 @@ def test_google_errors_map_without_retry_or_duplicate_write(
     assert factory.client.calls[0]["execute_kwargs"] == {"num_retries": 0}
     row = db_session.scalar(select(GoogleWorkspaceOrgUnitDescriptionConfirmation))
     assert row is not None and row.status == confirmation_status
+
+
+def test_clear_response_with_original_description_stays_unknown_without_second_write(
+    db_session: Session,
+) -> None:
+    description, factory, _, connector, actor = service(
+        db_session, write_response=response(TARGET.description)
+    )
+    preview = description.preview_update(
+        actor=actor,
+        organization_id=connector.organization_id,
+        org_unit_id=TARGET.id,
+        description="",
+    )
+
+    with pytest.raises(OrgUnitDescriptionAmbiguousError) as error:
+        description.execute_update(
+            actor=actor,
+            organization_id=connector.organization_id,
+            confirmation_token=preview.confirmation_token,
+        )
+    assert error.value.code == GoogleWorkspaceErrorCode.GOOGLE_API_ERROR
+    row = db_session.scalar(select(GoogleWorkspaceOrgUnitDescriptionConfirmation))
+    assert row is not None and row.status == "unknown"
+
+    result = GoogleWorkspaceOrgUnitDescriptionReconciliationService(
+        db_session,
+        description,
+        poll_delays=(0.0,),
+        sleeper=lambda _: None,
+    ).reconcile_update(
+        actor=actor,
+        organization_id=connector.organization_id,
+        confirmation_token=preview.confirmation_token,
+    )
+    assert result.status == "unknown"
+    assert row.status == "unknown"
+    assert len(factory.client.calls) == 1
+    assert factory.client.calls[0]["kwargs"]["body"] == {"description": None}
+    assert factory.client.calls[0]["execute_kwargs"] == {"num_retries": 0}
 
 
 def test_ambiguous_timeout_reconciles_read_only(db_session: Session) -> None:
@@ -564,6 +636,53 @@ def test_preview_and_success_audits_exclude_description_and_confirmation(
     assert token not in audit_text
     assert "Sensitive original" not in audit_text
     assert "Sensitive proposed" not in audit_text
+
+
+def test_ambiguous_update_audit_is_sanitized(
+    client: TestClient, auth_headers: dict[str, str], db_session: Session
+) -> None:
+    organization = create_organization(client, auth_headers, None, "OU Description Unknown")
+    token = "private-confirmation-token-123456789012345"
+    correlation_id = uuid4()
+
+    def raise_ambiguous(**kwargs: Any) -> None:
+        raise OrgUnitDescriptionAmbiguousError(
+            GoogleWorkspaceErrorCode.GOOGLE_API_ERROR,
+            correlation_id,
+            TARGET.id,
+        )
+
+    ambiguous_service = type(
+        "AmbiguousService",
+        (),
+        {"execute_update": lambda self, **kwargs: raise_ambiguous(**kwargs)},
+    )()
+    with patch(
+        "app.api.v1.router.GoogleWorkspaceOrgUnitDescriptionService.from_settings",
+        return_value=ambiguous_service,
+    ):
+        response_value = client.post(
+            f"/api/v1/organizations/{organization['id']}/google-workspace/orgunits/description",
+            json={"confirmation_token": token},
+            headers=auth_headers,
+        )
+
+    assert response_value.status_code == 502
+    event = db_session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.action == "google_workspace.orgunit.description_updated"
+        )
+    )
+    assert event is not None
+    assert event.outcome == "unknown"
+    assert event.reason == GoogleWorkspaceErrorCode.GOOGLE_API_ERROR.value
+    assert event.metadata_json == {
+        "correlation_id": str(correlation_id),
+        "reconciliation_available": True,
+    }
+    audit_text = str(event.metadata_json)
+    assert token not in audit_text
+    assert TARGET.description not in audit_text
 
 
 def test_non_admin_cannot_preview_description(
