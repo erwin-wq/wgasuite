@@ -15,7 +15,7 @@ scoping, Google Workspace mutation safeguards, and the capability catalog remain
 | Comfortable and compact density contracts | [UX-105](UX-105_DENSITY_MODES.md) | `data-density` and semantic density tokens |
 | Responsive and accessibility baseline | [UX-113](UX-113_RESPONSIVE_ACCESSIBILITY_AUDIT.md) | AppShell, shared components and route-specific layouts |
 | Motion and interaction policy | [UX-114](UX-114_PREMIUM_MICRO_INTERACTIONS.md) | shared motion tokens and `prefers-reduced-motion` rules |
-| Final cross-route release acceptance | [UX-115](UX-115_PREMIUM_UX_RELEASE_GATE.md) | CI browser suite and release review |
+| Final cross-route release acceptance | [UX-115](UX-115_FINAL_RELEASE_ACCEPTANCE.md) | CI browser suite and release review |
 
 Route-specific records for Overview, Gmail Delegations, administration, enterprise tables/forms,
 and Organizational Units supplement these foundations. When a route record conflicts with a

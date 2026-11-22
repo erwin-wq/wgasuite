@@ -93,6 +93,7 @@ const platformOverview = {
 export interface ApiHarness {
   calls: Array<{ method: string; path: string }>;
   rejectedWrites: string[];
+  releaseDelayedUsers: () => void;
 }
 
 export async function installApiHarness(
@@ -105,6 +106,10 @@ export async function installApiHarness(
 ): Promise<ApiHarness> {
   const calls: ApiHarness["calls"] = [];
   const rejectedWrites: string[] = [];
+  let releaseDelayedUsers: () => void = () => undefined;
+  const delayedUsers = new Promise<void>((resolve) => {
+    releaseDelayedUsers = resolve;
+  });
 
   await page.route("**/api/v1/**", async (route: Route) => {
     const request = route.request();
@@ -139,7 +144,7 @@ export async function installApiHarness(
     }
     if (path === "/api/v1/connectors/google-workspace/checks") return respond([]);
     if (path.endsWith("/google-workspace/users/list")) {
-      if (options.usersState === "delayed") await new Promise((resolve) => setTimeout(resolve, 1_500));
+      if (options.usersState === "delayed") await delayedUsers;
       if (options.usersState === "error") return respond({ detail: { code: "google_service_unavailable", message: "Directory temporarily unavailable." } }, 503);
       if (options.usersState === "empty") return respond({ users: [], next_page_token: null });
       const user = path.includes(organizations[1].id) ? { ...directoryUser, id: "user-summit", full_name: "Sam Summit", primary_email: "sam@summit.example.invalid", aliases: [] } : directoryUser;
@@ -154,15 +159,14 @@ export async function installApiHarness(
     if (path.endsWith("/google-workspace/gmail-delegates/list")) return respond({ owner_primary_email: directoryUser.primary_email, delegates: [] });
     if (path === "/api/v1/platform-admin/overview") return respond(platformOverview);
 
-    const mutationPath = /(\/create$|\/remove$|\/description$|\/status$|\/orgunit$|\/credentials|\/test$|\/connector-configs\/google-workspace$)/.test(path);
-    if (method !== "GET" && mutationPath) {
+    if (method !== "GET") {
       rejectedWrites.push(`${method} ${path}`);
       return respond({ detail: { code: "e2e_write_blocked", message: "Release-gate fixtures reject writes." } }, 409);
     }
-    return respond([]);
+    return respond({ detail: "No release-gate fixture exists for this request." }, 404);
   });
 
-  return { calls, rejectedWrites };
+  return { calls, rejectedWrites, releaseDelayedUsers };
 }
 
 export async function authenticate(page: Page): Promise<void> {

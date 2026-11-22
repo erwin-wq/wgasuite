@@ -1,10 +1,10 @@
 # UX-115: Premium UX release gate
 
-Status: **release candidate pending protected-branch CI and publication**
+Verdict: **PASS WITH LIMITATIONS**
 
 Baseline: `63aa77591af4ba1ac6ace6da94384201e6243c70`
 
-Assessment date: 2026-11-21
+Assessment finalized: 2026-11-22
 
 UX-115 evaluates the UX-101 through UX-114 and UX-118 work as one product. It introduces a
 reproducible browser release suite and consolidates documentation; it does not redesign a route,
@@ -98,17 +98,24 @@ text and warning tokens resolved those findings, and the complete automated matr
 Screenshots and machine-readable visual results remained under `/tmp` and are not repository or PR
 artifacts because production browser captures can contain tenant context.
 
+Protected Backend and Frontend CI passed on PR #43 at commit
+`55612a95f935046a26792cd85d06257a44915a5d`. A documentation/test-fixture hardening follow-up
+requires those checks to pass again on the final pull-request head before merge.
+
 ## Release decision and limitations
 
-Local acceptance requires the complete backend/frontend suites, lint, Python compilation,
-TypeScript, production build, dependency audits, parity validation, Docker health, isolated smoke
-test, secret review and the browser suite to pass. Protected Backend and Frontend CI must then pass
-on the exact pull-request head before this record can be published as accepted.
+The gate is **PASS WITH LIMITATIONS** because every mandatory automated, rendered and security
+boundary check passed and the identified contrast defects were corrected, while manual validation
+with NVDA, JAWS, VoiceOver, TalkBack and Windows High Contrast was not performed. That limitation
+prevents a formal accessibility-conformance claim but does not block this release under the
+approved acceptance criteria. Protected Backend and Frontend CI must pass on the exact final
+pull-request head before merge.
 
 Known limitations do not block this presentation release:
 
 - development login is explicitly not production SSO;
-- automated WCAG checks do not replace screen-reader and disabled-user research;
+- automated axe and keyboard checks do not replace manual NVDA, JAWS, VoiceOver, TalkBack,
+  Windows High Contrast or disabled-user research;
 - the browser harness proves product integration against deterministic contracts, while prior
   feature acceptance records and the parity catalog remain the source for live Google verification;
 - no UX release test submits a Google Workspace write.

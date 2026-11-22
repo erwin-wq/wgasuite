@@ -189,7 +189,10 @@ test("directory loading, empty and recoverable error states remain distinct", as
     await authenticate(page);
     const api = await installApiHarness(page, { usersState: state });
     const navigation = page.goto("/directory/users");
-    if (state === "delayed") await expect(page.getByLabel("Loading Workspace directory users")).toBeVisible();
+    if (state === "delayed") {
+      await expect(page.getByLabel("Loading Workspace directory users")).toBeVisible();
+      api.releaseDelayedUsers();
+    }
     await navigation;
     if (state === "delayed") await expect(page.getByText("alex@northstar.example.invalid")).toBeVisible();
     if (state === "empty") await expect(page.getByText("No users on this page")).toBeVisible();
