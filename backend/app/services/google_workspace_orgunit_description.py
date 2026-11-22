@@ -389,7 +389,7 @@ class GoogleWorkspaceOrgUnitDescriptionService:
                 .patch(
                     customerId=google_customer_id,
                     orgUnitPath=target.id,
-                    body={"description": description or ""},
+                    body={"description": description},
                     fields=ORGUNIT_FIELDS,
                 )
                 .execute(num_retries=0)

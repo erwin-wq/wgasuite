@@ -5,6 +5,22 @@ decisions. It is intentionally a curated history rather than a transcript of ind
 sessions. DREAD references describe the risk-assessment methodology and compatibility-sensitive
 data model; WGASuite is the current product name.
 
+## 2026-11-22 — DIR-003.4 description clearing correction
+
+- Live acceptance verified one guarded nonempty OU description update, but the separately
+  authorized restoration sent JSON `{"description": ""}` and Google returned the original
+  description unchanged. WGASuite correctly kept the consumed confirmation `unknown`, made no
+  retry and limited follow-up to bounded read-only reconciliation.
+- Corrected the description-only PATCH so the already-normalized clearing value is preserved as
+  Python `None`, which google-api-python-client serializes as JSON
+  `{"description": null}`. The public required-string request, tenant and immutable-identity
+  checks, protected OUs, confirmation contract, zero retries, audit redaction and reconciliation
+  behavior are unchanged.
+- Added regression coverage for exact null serialization, required request validation, unchanged
+  Google responses, failed/unknown error classes, one-write enforcement and sanitized ambiguous
+  audits. JSON-null clearing remains mocked and is not live-verified; DIR-003.4 stays open and a
+  new read-only preflight plus separate authorization are required before another restoration.
+
 ## 2026-11-13 — DIR-003.4 guarded Organizational Unit description editing
 
 - Added a tenant-scoped, description-only OU patch workflow using immutable target identity,
