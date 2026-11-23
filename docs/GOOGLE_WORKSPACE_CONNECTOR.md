@@ -2,8 +2,9 @@
 
 WGASuite provides a five-step wizard, a real read-only connection test, a paginated read-only
 Directory, exact user lookup by primary email or user alias, and guarded Gmail mailbox delegate
-management using a service account with Domain-Wide Delegation (DWD). It also provides customer-scoped Google Groups
-discovery, a read-only Organizational Units tree, and guarded direct-user membership changes.
+management using a service account with Domain-Wide Delegation (DWD). It also provides
+customer-scoped Google Groups discovery, a read-only Domains inventory, a read-only Organizational
+Units tree, and guarded direct-user membership changes.
 Customer administrators can also perform
 guarded suspension and safe reactivation from the central user detail. The security-check catalog
 remains mock-only as documented in the README.
@@ -36,6 +37,7 @@ and any sanitized error. It never restores or reveals credential content.
 
    ```text
    https://www.googleapis.com/auth/admin.directory.user.readonly
+   https://www.googleapis.com/auth/admin.directory.domain.readonly
    https://www.googleapis.com/auth/admin.directory.orgunit.readonly
    ```
 
@@ -191,6 +193,27 @@ Directory responses and filter values are not persisted, and audit metadata reco
 filter categories, request shape and result count—not queries, emails, profile data or page tokens.
 Selecting a row passes its canonical primary email to the existing exact lookup, which remains the
 only user-details path. This feature performs no Google Workspace mutations.
+
+## Read-only domains and domain aliases
+
+The **Domains** page resolves the immutable Google customer ID through the configured delegated
+administrator and makes two bounded, non-retried reads:
+
+```text
+POST:       /api/v1/organizations/{organization_id}/google-workspace/domains/list
+Methods:    domains.list + domainAliases.list
+customer:   verified customerId (never my_customer)
+Scope:      https://www.googleapis.com/auth/admin.directory.domain.readonly
+Retries:    0
+```
+
+The response preserves Google's primary/secondary classification, verification state and creation
+time when supplied. Aliases embedded in domain records are reconciled with the dedicated alias
+list by case-insensitive alias name. Conflicting duplicates and aliases whose parent is absent from
+the returned customer domain set fail closed. Results and search terms are not persisted; audit
+metadata contains only aggregate domain and alias counts. This workflow cannot create, update or
+delete a domain or alias, and the standard connection test does not prove this separate scope is
+authorized.
 
 ## Read-only Organizational Units
 

@@ -20,6 +20,7 @@ from app.connectors.google_workspace import (
 )
 from app.connectors.google_workspace_client import VerifiedMailboxOwner
 from app.connectors.google_workspace_credentials import (
+    DIRECTORY_DOMAIN_READONLY_SCOPE,
     DIRECTORY_GROUP_MEMBER_SCOPE,
     DIRECTORY_GROUP_READONLY_SCOPE,
     DIRECTORY_ORGUNIT_READONLY_SCOPE,
@@ -388,6 +389,50 @@ def test_directory_orgunit_credentials_reject_write_or_combined_scopes(
 
     with pytest.raises(GoogleWorkspaceError) as error:
         factory.create_for_directory_orgunits(connector_config(uuid4()), scopes)
+
+    assert_error_code(error, "missing_scope_or_permission")
+
+
+def test_directory_domain_credentials_accept_only_readonly_scope(tmp_path: Path) -> None:
+    organization_id = uuid4()
+    credential_info = fake_service_account_info()
+    write_credential_file(tmp_path, organization_id, credential_info)
+    factory = DelegatedCredentialFactory(
+        CredentialProviderRegistry([FileCredentialProvider(tmp_path)])
+    )
+    base_credentials = FakeBaseCredentials()
+
+    with patch(
+        "app.connectors.google_workspace_credentials."
+        "service_account.Credentials.from_service_account_info",
+        return_value=base_credentials,
+    ):
+        delegated, scopes = factory.create_for_directory_domains(
+            connector_config(organization_id), [DIRECTORY_DOMAIN_READONLY_SCOPE]
+        )
+
+    assert delegated is base_credentials
+    assert base_credentials.subject == "admin@example.com"
+    assert scopes == (DIRECTORY_DOMAIN_READONLY_SCOPE,)
+
+
+@pytest.mark.parametrize(
+    "scopes",
+    [
+        ["https://www.googleapis.com/auth/admin.directory.domain"],
+        [DIRECTORY_DOMAIN_READONLY_SCOPE, DIRECTORY_USER_READONLY_SCOPE],
+        [DIRECTORY_ORGUNIT_READONLY_SCOPE],
+    ],
+)
+def test_directory_domain_credentials_reject_write_or_combined_scopes(
+    tmp_path: Path, scopes: list[str]
+) -> None:
+    factory = DelegatedCredentialFactory(
+        CredentialProviderRegistry([FileCredentialProvider(tmp_path)])
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as error:
+        factory.create_for_directory_domains(connector_config(uuid4()), scopes)
 
     assert_error_code(error, "missing_scope_or_permission")
 

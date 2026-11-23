@@ -68,6 +68,11 @@ from app.schemas.google_workspace_delegate import (
     GmailDelegateRead,
     GmailDelegateReconciliationRead,
 )
+from app.schemas.google_workspace_domain import (
+    GoogleWorkspaceDomainAliasRead,
+    GoogleWorkspaceDomainInventoryRead,
+    GoogleWorkspaceDomainRead,
+)
 from app.schemas.google_workspace_group import (
     GoogleWorkspaceGroupRead,
     GroupMemberListRead,
@@ -149,6 +154,7 @@ from app.services.google_workspace_credential_import import (
     GoogleWorkspaceCredentialImporter,
     ManagedCredentialStore,
 )
+from app.services.google_workspace_domains import GoogleWorkspaceDomains
 from app.services.google_workspace_gmail_delegation import (
     DelegateOperation,
     GmailDelegateMutationAmbiguousError,
@@ -1630,6 +1636,89 @@ ORGANIZATIONAL_UNIT_HTTP_STATUS = {
         status.HTTP_409_CONFLICT
     ),
 }
+
+
+def require_domain_read(
+    *, db: Session, current_user: User, organization: Organization, action: str
+) -> None:
+    try:
+        require_customer_connector_operation_access(current_user, organization.customer_id)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_domain_inventory",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected",
+            reason="organization_access_denied",
+        )
+        raise
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/domains/list",
+    response_model=GoogleWorkspaceDomainInventoryRead,
+    tags=["google-workspace"],
+)
+def list_google_workspace_domains(
+    organization_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GoogleWorkspaceDomainInventoryRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.domain_inventory.listed"
+    require_domain_read(
+        db=db,
+        current_user=current_user,
+        organization=organization,
+        action=action,
+    )
+    try:
+        result = GoogleWorkspaceDomains.from_settings(db).list_inventory(
+            actor=current_user,
+            organization_id=organization.id,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_domain_inventory",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+            metadata={
+                "read_only": True,
+                **({"google_reason": error.google_reason} if error.google_reason else {}),
+            },
+        )
+        raise HTTPException(
+            status_code=GOOGLE_USER_LOOKUP_HTTP_STATUS.get(error.code, status.HTTP_502_BAD_GATEWAY),
+            detail={"code": error.code.value, "message": str(error)},
+        ) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_domain_inventory",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "domain_count": len(result.domains),
+            "alias_count": len(result.aliases),
+            "read_only": True,
+        },
+    )
+    return GoogleWorkspaceDomainInventoryRead(
+        domains=[GoogleWorkspaceDomainRead(**domain.__dict__) for domain in result.domains],
+        aliases=[GoogleWorkspaceDomainAliasRead(**alias.__dict__) for alias in result.aliases],
+        domain_count=len(result.domains),
+        alias_count=len(result.aliases),
+    )
 
 
 def require_orgunit_read(

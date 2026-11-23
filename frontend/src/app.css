@@ -3149,6 +3149,84 @@ h4 {
   min-width: 0;
 }
 
+.domains-inventory {
+  display: grid;
+  gap: var(--density-section-gap);
+  min-width: 0;
+}
+
+.domains-heading {
+  align-items: center;
+}
+
+.domains-heading h2 {
+  font-size: var(--font-size-xl);
+  margin: 0;
+}
+
+.domains-heading p {
+  color: var(--color-text-secondary);
+  margin: var(--space-1) 0 0;
+}
+
+.domain-summary {
+  display: grid;
+  gap: var(--density-inline-gap);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.domain-summary .ui-card {
+  align-items: center;
+  display: flex;
+  gap: var(--density-inline-gap);
+}
+
+.domain-summary svg {
+  color: var(--color-action-primary);
+  height: var(--icon-size-lg);
+  width: var(--icon-size-lg);
+}
+
+.domain-summary span {
+  color: var(--color-text-secondary);
+  display: grid;
+  font-size: var(--font-size-sm);
+}
+
+.domain-summary strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+}
+
+.domains-search {
+  max-width: 36rem;
+}
+
+.domain-name {
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.domain-muted {
+  color: var(--color-text-tertiary);
+}
+
+@media (max-width: 600px) {
+  .domain-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .domains-heading {
+    align-items: stretch;
+  }
+
+  .domains-heading .ui-button,
+  .domains-search {
+    max-width: none;
+    width: 100%;
+  }
+}
+
 .workspace-administration {
   display: grid;
   gap: var(--space-5);

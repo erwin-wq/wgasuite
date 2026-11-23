@@ -8,7 +8,10 @@ import {
 } from "../../api/client";
 import type { ConnectorConfig } from "../../types";
 import { ConnectionWizard, DIRECTORY_USER_READONLY_SCOPE } from "./ConnectionWizard";
-import { DIRECTORY_ORGUNIT_READONLY_SCOPE } from "./scopes";
+import {
+  DIRECTORY_DOMAIN_READONLY_SCOPE,
+  DIRECTORY_ORGUNIT_READONLY_SCOPE
+} from "./scopes";
 
 vi.mock("../../api/client", () => ({
   importGoogleWorkspaceCredential: vi.fn(),
@@ -77,11 +80,14 @@ describe("ConnectionWizard", () => {
 
     expect(screen.getByRole("heading", { name: "Authorize domain-wide delegation" })).toBeVisible();
     expect(screen.getByText(DIRECTORY_USER_READONLY_SCOPE)).toBeVisible();
+    expect(screen.getByText(DIRECTORY_DOMAIN_READONLY_SCOPE)).toBeVisible();
     expect(screen.getByText(DIRECTORY_ORGUNIT_READONLY_SCOPE)).toBeVisible();
     expect(screen.getByText(baseConfig.service_account_client_id!)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Copy User Directory scope" }));
 
     expect(writeText).toHaveBeenCalledWith(DIRECTORY_USER_READONLY_SCOPE);
+    await user.click(screen.getByRole("button", { name: "Copy Domains scope" }));
+    expect(writeText).toHaveBeenCalledWith(DIRECTORY_DOMAIN_READONLY_SCOPE);
     await user.click(screen.getByRole("button", { name: "Copy Organizational Units scope" }));
     expect(writeText).toHaveBeenCalledWith(DIRECTORY_ORGUNIT_READONLY_SCOPE);
   });

@@ -3,3 +3,6 @@ export const DIRECTORY_USER_READONLY_SCOPE =
 
 export const DIRECTORY_ORGUNIT_READONLY_SCOPE =
   "https://www.googleapis.com/auth/admin.directory.orgunit.readonly";
+
+export const DIRECTORY_DOMAIN_READONLY_SCOPE =
+  "https://www.googleapis.com/auth/admin.directory.domain.readonly";

@@ -10,6 +10,7 @@ an admin console or custom script.
 > **Project status:** early development / pre-release. The current repository provides a working
 > local foundation, service-account authentication/client infrastructure, a real read-only
 > Google Workspace connection test, paginated user directory, exact user and alias lookup,
+> read-only domains and domain aliases,
 > Organizational Units hierarchy with guarded creation, description editing and single-user OU
 > moves, verified user-to-group
 > context, and guarded Gmail
@@ -53,6 +54,8 @@ Implemented today:
   authorization and safe account details;
 - read-only, customer-scoped Directory user listing with server-side search and filters, supported
   sorting, opaque-token pagination, and selection into the exact user detail workflow;
+- read-only, customer-scoped domain and domain-alias inventory with primary/secondary/alias
+  classification, verification metadata and duplicate-safe alias reconciliation;
 - read-only, customer-scoped Organizational Units hierarchy and identifier-based details, with
   fail-closed parent/cycle validation and no persisted Directory data;
 - guarded, single-user Organizational Unit moves between verified existing units, with immutable
@@ -173,6 +176,13 @@ state. This capability requires separately authorizing
 `https://www.googleapis.com/auth/admin.directory.user`; the existing read-only connection test does
 not verify write permission. Suspension restricts service access without deleting data and license
 charges may continue. Reactivation is not deleted-user recovery.
+
+The **Domains** tool uses the independently verified immutable Google customer ID for both
+`domains.list` and `domainAliases.list` with only the
+`admin.directory.domain.readonly` scope. It keeps primary, secondary and alias records distinct,
+reconciles aliases that Google returns through both resources, and fails closed on conflicting or
+orphaned relationships. Domain data is displayed read-only and is not persisted. Domain and alias
+creation, update, deletion, single-record detail and bulk export are not implemented.
 
 See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup, scope,
 security and live-verification instructions, and [mutation safety](docs/MUTATION_SAFETY.md) for the
