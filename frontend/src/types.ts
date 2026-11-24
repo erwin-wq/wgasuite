@@ -374,6 +374,31 @@ export interface GoogleWorkspaceOrganizationalUnitHierarchy {
   total: number;
 }
 
+export type GoogleWorkspaceDomainKind = "primary" | "secondary" | "domain";
+
+export interface GoogleWorkspaceDomain {
+  name: string;
+  kind: GoogleWorkspaceDomainKind;
+  verified: boolean | null;
+  creation_time: number | null;
+}
+
+export interface GoogleWorkspaceDomainAlias {
+  name: string;
+  parent_domain: string;
+  kind: "alias";
+  verified: boolean | null;
+  creation_time: number | null;
+}
+
+export interface GoogleWorkspaceDomainInventory {
+  domains: GoogleWorkspaceDomain[];
+  aliases: GoogleWorkspaceDomainAlias[];
+  domain_count: number;
+  alias_count: number;
+  read_only: true;
+}
+
 export interface GoogleWorkspaceOrganizationalUnitCreatePreview {
   parent_org_unit_id: string;
   parent_path: string;

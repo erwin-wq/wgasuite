@@ -387,3 +387,59 @@ class GoogleWorkspaceClientFactory:
                 connector_config.id,
             )
             raise map_google_api_error(error) from None
+
+    def for_directory_domains(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        scopes: Sequence[str],
+        request_timeout_seconds: float | None = None,
+    ) -> Any:
+        """Build a fresh, least-privilege Directory domains client."""
+
+        organization = self.db.get(Organization, organization_id)
+        if organization is None:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.ORGANIZATION_NOT_FOUND)
+        if not user_can_operate_customer_connector(actor, organization.customer_id):
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.ORGANIZATION_ACCESS_DENIED)
+        connector_config = self.db.scalar(
+            select(ConnectorConfig).where(
+                ConnectorConfig.organization_id == organization_id,
+                ConnectorConfig.connector_type == "google_workspace",
+            )
+        )
+        if connector_config is None:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.CONNECTOR_NOT_CONFIGURED)
+        credentials, normalized_scopes = self.credential_factory.create_for_directory_domains(
+            connector_config, scopes
+        )
+        timeout_seconds = self.request_timeout_seconds
+        if request_timeout_seconds is not None:
+            timeout_seconds = max(0.1, min(request_timeout_seconds, timeout_seconds))
+        logger.info(
+            "Creating Directory domains client organization_id=%s connector_id=%s scopes=%s",
+            organization_id,
+            connector_config.id,
+            list(normalized_scopes),
+        )
+        try:
+            authorized_http = AuthorizedHttp(
+                credentials,
+                http=httplib2.Http(timeout=timeout_seconds),
+            )
+            return self.client_builder(
+                "admin",
+                "directory_v1",
+                http=authorized_http,
+                cache_discovery=False,
+            )
+        except GoogleWorkspaceError:
+            raise
+        except Exception as error:
+            logger.warning(
+                "Directory domains client creation failed organization_id=%s connector_id=%s",
+                organization_id,
+                connector_config.id,
+            )
+            raise map_google_api_error(error) from None

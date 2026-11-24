@@ -18,6 +18,7 @@ import {
 } from "../../api/client";
 import type { ConnectorConfig } from "../../types";
 import {
+  DIRECTORY_DOMAIN_READONLY_SCOPE,
   DIRECTORY_ORGUNIT_READONLY_SCOPE,
   DIRECTORY_USER_READONLY_SCOPE
 } from "./scopes";
@@ -95,7 +96,9 @@ export function ConnectionWizard({
   const [credentialFile, setCredentialFile] = useState<File | null>(null);
   const [externalReference, setExternalReference] = useState("");
   const [isCredentialSaving, setIsCredentialSaving] = useState(false);
-  const [copied, setCopied] = useState<"client" | "user-scope" | "orgunit-scope" | null>(null);
+  const [copied, setCopied] = useState<
+    "client" | "user-scope" | "domain-scope" | "orgunit-scope" | null
+  >(null);
   const initializedConfigId = useRef<string | null>(connectorConfig?.id ?? null);
 
   useEffect(() => {
@@ -156,7 +159,7 @@ export function ConnectionWizard({
 
   async function copy(
     value: string,
-    target: "client" | "user-scope" | "orgunit-scope"
+    target: "client" | "user-scope" | "domain-scope" | "orgunit-scope"
   ) {
     try {
       await navigator.clipboard.writeText(value);
@@ -310,6 +313,13 @@ export function ConnectionWizard({
               <code>{DIRECTORY_USER_READONLY_SCOPE}</code>
               <button type="button" className="secondary-button" aria-label="Copy User Directory scope" onClick={() => copy(DIRECTORY_USER_READONLY_SCOPE, "user-scope")}>
                 <Clipboard aria-hidden="true" />{copied === "user-scope" ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <div className="copy-field">
+              <span>Domains scope (exact value)</span>
+              <code>{DIRECTORY_DOMAIN_READONLY_SCOPE}</code>
+              <button type="button" className="secondary-button" aria-label="Copy Domains scope" onClick={() => copy(DIRECTORY_DOMAIN_READONLY_SCOPE, "domain-scope")}>
+                <Clipboard aria-hidden="true" />{copied === "domain-scope" ? "Copied" : "Copy"}
               </button>
             </div>
             <div className="copy-field">

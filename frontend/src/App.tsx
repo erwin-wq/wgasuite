@@ -60,6 +60,7 @@ import type {
   User
 } from "./types";
 import { ConnectionWizard } from "./features/google-workspace/ConnectionWizard";
+import { DomainsInventory } from "./features/google-workspace/DomainsInventory";
 import { GmailDelegationAuthorization } from "./features/google-workspace/GmailDelegationAuthorization";
 import { GmailDelegationManagement } from "./features/google-workspace/GmailDelegationManagement";
 import { GroupManagement } from "./features/google-workspace/GroupManagement";
@@ -1563,6 +1564,14 @@ function App() {
                   canMutate={canManageConnectorCredentials}
                   initialGroupEmail={activeGroupNavigation?.groupEmail}
                   navigationRequestId={activeGroupNavigation?.requestId}
+                />
+            ) : currentRoute.id === "domains" ? (
+                <DomainsInventory
+                  key={`${selectedOrganizationId}:${tenantEpoch}:domains`}
+                  organizationId={selectedOrganizationId}
+                  organizationName={selectedOrganization?.name ?? null}
+                  connectorConfig={googleWorkspaceConnectorConfig}
+                  canRead={canOperateConnector}
                 />
             ) : currentRoute.id === "orgUnits" ? (
                 <OrganizationalUnits

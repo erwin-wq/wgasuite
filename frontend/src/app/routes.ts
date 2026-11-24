@@ -4,6 +4,7 @@ import {
   Cable,
   Database,
   FolderTree,
+  Globe2,
   LayoutDashboard,
   MailCheck,
   SearchCheck,
@@ -16,6 +17,7 @@ export type AppRouteId =
   | "users"
   | "userLookup"
   | "groups"
+  | "domains"
   | "orgUnits"
   | "delegations"
   | "connections"
@@ -81,6 +83,17 @@ export const appRoutes = {
     breadcrumb: ["Directory", "Groups"],
     group: "directory",
     icon: UsersRound,
+    access: "tenant-operator"
+  },
+  domains: {
+    id: "domains",
+    path: "/directory/domains",
+    title: "Domains",
+    shortTitle: "Domains",
+    description: "Review tenant domains and domain aliases from Google Directory.",
+    breadcrumb: ["Directory", "Domains"],
+    group: "directory",
+    icon: Globe2,
     access: "tenant-operator"
   },
   orgUnits: {

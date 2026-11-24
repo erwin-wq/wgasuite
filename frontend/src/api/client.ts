@@ -19,6 +19,7 @@ import type {
   GoogleWorkspaceGroup,
   GoogleWorkspaceGroupMemberList,
   GoogleWorkspaceGroupSearchResult,
+  GoogleWorkspaceDomainInventory,
   GoogleWorkspaceOrganizationalUnit,
   GoogleWorkspaceOrganizationalUnitHierarchy,
   GoogleWorkspaceCheck,
@@ -411,6 +412,16 @@ export function listGoogleWorkspaceOrganizationalUnits(
 ): Promise<GoogleWorkspaceOrganizationalUnitHierarchy> {
   return request<GoogleWorkspaceOrganizationalUnitHierarchy>(
     `/api/v1/organizations/${organizationId}/google-workspace/orgunits/list`,
+    { method: "POST", signal }
+  );
+}
+
+export function listGoogleWorkspaceDomains(
+  organizationId: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceDomainInventory> {
+  return request<GoogleWorkspaceDomainInventory>(
+    `/api/v1/organizations/${organizationId}/google-workspace/domains/list`,
     { method: "POST", signal }
   );
 }

@@ -82,6 +82,19 @@ export const hierarchy = {
   }]
 };
 
+export const domainInventory = {
+  domains: [
+    { name: "northstar.example.invalid", kind: "primary", verified: true, creation_time: 1700000000 },
+    { name: "research.northstar.example.invalid", kind: "secondary", verified: false, creation_time: null }
+  ],
+  aliases: [
+    { name: "alias.northstar.example.invalid", parent_domain: "northstar.example.invalid", kind: "alias", verified: true, creation_time: 1700000100 }
+  ],
+  domain_count: 2,
+  alias_count: 1,
+  read_only: true
+};
+
 const platformOverview = {
   totals: { customers_count: 2, organizations_count: 2, assessments_count: 0, connector_configs_count: 1, scan_runs_count: 0, audit_events_count: 1 },
   customers: customers.map((customer) => ({ id: customer.id, name: customer.name, slug: customer.slug, status: customer.status, organization_count: 1, connector_config_count: customer.id === customers[0].id ? 1 : 0, last_scan_run_at: null, last_audit_event_at: now })),
@@ -155,6 +168,7 @@ export async function installApiHarness(
     if (path.endsWith("/google-workspace/groups/search")) return respond({ groups: [group], next_page_token: null });
     if (path.endsWith("/google-workspace/groups/get")) return respond(group);
     if (path.endsWith("/google-workspace/groups/members/list")) return respond({ group, members: [], next_page_token: null });
+    if (path.endsWith("/google-workspace/domains/list")) return respond(domainInventory);
     if (path.endsWith("/google-workspace/orgunits/list")) return respond(hierarchy);
     if (path.endsWith("/google-workspace/gmail-delegates/list")) return respond({ owner_primary_email: directoryUser.primary_email, delegates: [] });
     if (path === "/api/v1/platform-admin/overview") return respond(platformOverview);

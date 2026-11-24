@@ -8,6 +8,7 @@ const routes = [
   { path: "/directory/users", title: "User directory", marker: ".user-directory" },
   { path: "/directory/users/lookup", title: "Exact user lookup", marker: ".user-lookup" },
   { path: "/directory/groups", title: "Groups", marker: ".group-management" },
+  { path: "/directory/domains", title: "Domains", marker: ".domains-inventory" },
   { path: "/directory/org-units", title: "Organizational units", marker: ".organizational-units" },
   { path: "/gmail/delegations", title: "Gmail delegations", marker: ".gmail-mailbox-lookup" },
   { path: "/settings/connections", title: "Connections", marker: ".workspace-connection-overview" },
@@ -166,6 +167,30 @@ test("user alias, Groups, Gmail and connector workflows render authoritative rea
 
   await page.getByRole("link", { name: "Connections", exact: true }).click();
   await expect(page.getByLabel("Google Workspace connection status")).toContainText("Connected");
+  expect(api.rejectedWrites).toEqual([]);
+});
+
+test("Domains inventory search and refresh remain read-only", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "One desktop flow is sufficient for domain interactions.");
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  await authenticate(page);
+  const api = await installApiHarness(page);
+  await page.goto("/directory/domains");
+  await expect(page.getByText("alias.northstar.example.invalid")).toBeVisible();
+
+  await page.getByRole("searchbox", { name: "Search domains and aliases" }).fill("research");
+  await expect(page.getByText("research.northstar.example.invalid")).toBeVisible();
+  await expect(page.getByText("alias.northstar.example.invalid")).toHaveCount(0);
+  await page.getByRole("button", { name: "Clear search" }).click();
+  await expect(page.getByText("alias.northstar.example.invalid")).toBeVisible();
+
+  const callsBeforeRefresh = api.calls.filter((call) => call.path.endsWith("/google-workspace/domains/list")).length;
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await expect.poll(() => api.calls.filter((call) => call.path.endsWith("/google-workspace/domains/list")).length).toBe(callsBeforeRefresh + 1);
+  expect(consoleErrors).toEqual([]);
   expect(api.rejectedWrites).toEqual([]);
 });
 

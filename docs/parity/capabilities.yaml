@@ -88,6 +88,18 @@
       "title": "Admin SDK Directory API orgunits.patch reference",
       "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/orgunits/patch"
     },
+    "google.directory.domains.list": {
+      "title": "Admin SDK Directory API domains.list reference",
+      "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/domains/list"
+    },
+    "google.directory.domainaliases.list": {
+      "title": "Admin SDK Directory API domainAliases.list reference",
+      "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/domainAliases/list"
+    },
+    "wgasuite.dir0041.task": {
+      "title": "DIR-004.1 read-only domains and domain aliases implementation task",
+      "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220817393755879"
+    },
     "wgasuite.dir0031.task": {
       "title": "DIR-003.1 read-only Organizational Units implementation task",
       "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220045481580599"
@@ -32130,7 +32142,7 @@
           "DomainAliases.List"
         ],
         "scopes": [
-          "https://www.googleapis.com/auth/admin.directory.domain"
+          "https://www.googleapis.com/auth/admin.directory.domain.readonly"
         ],
         "auth_context": "PSGSuite service-account DWD or user OAuth as documented by the pinned upstream function",
         "feasibility": "direct"
@@ -32147,11 +32159,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "implemented",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_domains.py",
+          "backend/app/api/v1/router.py",
+          "frontend/src/features/google-workspace/DomainsInventory.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.dir0041.task",
+          "google.directory.domainaliases.list"
+        ],
+        "limitations": "Tenant-scoped read-only inventory is implemented and covered by mocked API tests. Live Google acceptance is still required; single-alias lookup and bulk export are not provided."
       },
       "roadmap": {
         "epic": "DIR-004",
@@ -32159,9 +32178,11 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716"
       },
       "verification": {
-        "automated_tests": false,
+        "automated_tests": true,
         "live_google": false,
-        "evidence_refs": []
+        "evidence_refs": [
+          "wgasuite.dir0041.task"
+        ]
       },
       "evidence_refs": [
         "upstream.psgsuite.source",
@@ -32365,7 +32386,7 @@
           "Domains.List"
         ],
         "scopes": [
-          "https://www.googleapis.com/auth/admin.directory.domain"
+          "https://www.googleapis.com/auth/admin.directory.domain.readonly"
         ],
         "auth_context": "PSGSuite service-account DWD or user OAuth as documented by the pinned upstream function",
         "feasibility": "direct"
@@ -32382,11 +32403,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "implemented",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_domains.py",
+          "backend/app/api/v1/router.py",
+          "frontend/src/features/google-workspace/DomainsInventory.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.dir0041.task",
+          "google.directory.domains.list"
+        ],
+        "limitations": "Tenant-scoped read-only inventory is implemented and covered by mocked API tests. Live Google acceptance is still required; single-domain lookup and bulk export are not provided."
       },
       "roadmap": {
         "epic": "DIR-004",
@@ -32394,9 +32422,11 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716"
       },
       "verification": {
-        "automated_tests": false,
+        "automated_tests": true,
         "live_google": false,
-        "evidence_refs": []
+        "evidence_refs": [
+          "wgasuite.dir0041.task"
+        ]
       },
       "evidence_refs": [
         "upstream.psgsuite.source",
