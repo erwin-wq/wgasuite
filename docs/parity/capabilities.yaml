@@ -92,13 +92,25 @@
       "title": "Admin SDK Directory API domains.list reference",
       "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/domains/list"
     },
+    "google.directory.domains.get": {
+      "title": "Admin SDK Directory API domains.get reference",
+      "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/domains/get"
+    },
     "google.directory.domainaliases.list": {
       "title": "Admin SDK Directory API domainAliases.list reference",
       "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/domainAliases/list"
     },
+    "google.directory.domainaliases.get": {
+      "title": "Admin SDK Directory API domainAliases.get reference",
+      "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/domainAliases/get"
+    },
     "wgasuite.dir0041.task": {
       "title": "DIR-004.1 read-only domains and domain aliases implementation task",
       "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220817393755879"
+    },
+    "wgasuite.dir0042.task": {
+      "title": "DIR-004.2 individual domain and domain alias details implementation task",
+      "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220878871189049"
     },
     "wgasuite.dir0031.task": {
       "title": "DIR-003.1 read-only Organizational Units implementation task",
@@ -14841,11 +14853,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "implemented",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_domains.py",
+          "backend/app/api/v1/router.py",
+          "frontend/src/features/google-workspace/DomainsInventory.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.dir0042.task",
+          "google.directory.domainaliases.get"
+        ],
+        "limitations": "Tenant-scoped single-alias lookup is implemented with automated coverage, but independent live Google Directory acceptance is still pending. Bulk export is not provided."
       },
       "roadmap": {
         "epic": "SEC-001",
@@ -14853,9 +14872,11 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820232182567"
       },
       "verification": {
-        "automated_tests": false,
+        "automated_tests": true,
         "live_google": false,
-        "evidence_refs": []
+        "evidence_refs": [
+          "wgasuite.dir0042.task"
+        ]
       },
       "evidence_refs": [
         "upstream.gam7.grammar",
@@ -14895,11 +14916,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "implemented",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_domains.py",
+          "backend/app/api/v1/router.py",
+          "frontend/src/features/google-workspace/DomainsInventory.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.dir0042.task",
+          "google.directory.domains.get"
+        ],
+        "limitations": "Tenant-scoped single-domain lookup and associated-alias display are implemented with automated coverage, but independent live Google Directory acceptance is still pending. Bulk export is not provided."
       },
       "roadmap": {
         "epic": "SEC-001",
@@ -14907,9 +14935,11 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820232182567"
       },
       "verification": {
-        "automated_tests": false,
+        "automated_tests": true,
         "live_google": false,
-        "evidence_refs": []
+        "evidence_refs": [
+          "wgasuite.dir0042.task"
+        ]
       },
       "evidence_refs": [
         "upstream.gam7.grammar",

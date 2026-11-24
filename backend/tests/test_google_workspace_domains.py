@@ -11,9 +11,11 @@ from sqlalchemy.orm import Session
 from app.connectors.google_workspace_credentials import DIRECTORY_DOMAIN_READONLY_SCOPE
 from app.connectors.google_workspace_errors import GoogleWorkspaceError, GoogleWorkspaceErrorCode
 from app.services.google_workspace_domains import (
+    DOMAIN_FIELDS,
     GoogleWorkspaceDomains,
     WorkspaceDomain,
     WorkspaceDomainAlias,
+    WorkspaceDomainDetail,
     WorkspaceDomainInventory,
 )
 from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookupResult
@@ -40,6 +42,11 @@ class FakeResource:
         self.request: FakeRequest | None = None
 
     def list(self, **kwargs: Any) -> FakeRequest:
+        self.calls.append(kwargs)
+        self.request = FakeRequest(self.response)
+        return self.request
+
+    def get(self, **kwargs: Any) -> FakeRequest:
         self.calls.append(kwargs)
         self.request = FakeRequest(self.response)
         return self.request
@@ -340,6 +347,189 @@ def test_missing_connector_fails_before_google_client_creation(db_session: Sessi
     assert factory.calls == []
 
 
+def test_get_primary_domain_uses_exact_customer_scope_and_returns_aliases(
+    db_session: Session,
+) -> None:
+    service, factory, lookup, organization_id, actor = domain_service(
+        db_session,
+        {
+            "domainName": "example.test",
+            "isPrimary": True,
+            "verified": True,
+            "creationTime": "1700000000",
+            "domainAliases": [
+                {
+                    "domainAliasName": "alias.example.test",
+                    "parentDomainName": "example.test",
+                    "verified": True,
+                    "creationTime": "1700000001",
+                },
+                {
+                    "domainAliasName": "other.example.test",
+                    "parentDomainName": "example.test",
+                },
+            ],
+        },
+        {},
+    )
+
+    result = service.get_domain(
+        actor=actor, organization_id=organization_id, domain_name="Example.Test."
+    )
+
+    assert result == WorkspaceDomainDetail(
+        domain=WorkspaceDomain("example.test", "primary", True, 1700000000),
+        aliases=(
+            WorkspaceDomainAlias("alias.example.test", "example.test", True, 1700000001),
+            WorkspaceDomainAlias("other.example.test", "example.test", None, None),
+        ),
+    )
+    assert lookup.calls[0]["email"] == "admin@example.com"
+    assert factory.calls == [
+        {
+            "actor": actor,
+            "organization_id": organization_id,
+            "scopes": (DIRECTORY_DOMAIN_READONLY_SCOPE,),
+        }
+    ]
+    assert factory.client.domains_resource.calls == [
+        {
+            "customer": "google-customer-1",
+            "domainName": "example.test",
+            "fields": DOMAIN_FIELDS,
+        }
+    ]
+    assert factory.client.domains_resource.request.execute_kwargs == {"num_retries": 0}
+    assert factory.client.closed is True
+
+
+def test_get_secondary_domain_preserves_unknown_optional_metadata(db_session: Session) -> None:
+    service, _, _, organization_id, actor = domain_service(
+        db_session,
+        {"domainName": "secondary.example.test", "isPrimary": False},
+        {},
+    )
+
+    result = service.get_domain(
+        actor=actor,
+        organization_id=organization_id,
+        domain_name="secondary.example.test",
+    )
+
+    assert result.domain == WorkspaceDomain("secondary.example.test", "secondary", None, None)
+    assert result.aliases == ()
+
+
+def test_get_alias_uses_resource_specific_method_and_parent(db_session: Session) -> None:
+    service, factory, _, organization_id, actor = domain_service(
+        db_session,
+        {},
+        {
+            "domainAliasName": "alias.example.test",
+            "parentDomainName": "example.test",
+            "verified": False,
+            "creationTime": "1700000002",
+        },
+    )
+
+    result = service.get_alias(
+        actor=actor, organization_id=organization_id, alias_name="ALIAS.EXAMPLE.TEST"
+    )
+
+    assert result == WorkspaceDomainAlias("alias.example.test", "example.test", False, 1700000002)
+    assert factory.client.aliases_resource.calls == [
+        {
+            "customer": "google-customer-1",
+            "domainAliasName": "alias.example.test",
+            "fields": "domainAliasName,parentDomainName,verified,creationTime",
+        }
+    ]
+    assert factory.client.aliases_resource.request.execute_kwargs == {"num_retries": 0}
+
+
+@pytest.mark.parametrize("name", ["", "not a domain", "/example.test", "example", "-bad.test"])
+def test_detail_rejects_invalid_domain_names_before_google(db_session: Session, name: str) -> None:
+    service, factory, _, organization_id, actor = domain_service(db_session, {}, {})
+
+    with pytest.raises(GoogleWorkspaceError) as error:
+        service.get_domain(actor=actor, organization_id=organization_id, domain_name=name)
+
+    assert error.value.code == GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NAME_INVALID
+    assert factory.calls == []
+
+
+@pytest.mark.parametrize(
+    ("method", "response", "expected"),
+    [
+        (
+            "domain",
+            GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NOT_FOUND),
+            GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NOT_FOUND,
+        ),
+        (
+            "alias",
+            GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_ALIAS_NOT_FOUND),
+            GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_ALIAS_NOT_FOUND,
+        ),
+        (
+            "domain",
+            GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_FORBIDDEN),
+            GoogleWorkspaceErrorCode.GOOGLE_FORBIDDEN,
+        ),
+        (
+            "alias",
+            GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_RATE_LIMITED),
+            GoogleWorkspaceErrorCode.GOOGLE_RATE_LIMITED,
+        ),
+        (
+            "domain",
+            GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE),
+            GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE,
+        ),
+        (
+            "alias",
+            GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_NETWORK_ERROR),
+            GoogleWorkspaceErrorCode.GOOGLE_NETWORK_ERROR,
+        ),
+    ],
+)
+def test_detail_google_failures_are_sanitized_and_closed(
+    db_session: Session,
+    method: str,
+    response: GoogleWorkspaceError,
+    expected: GoogleWorkspaceErrorCode,
+) -> None:
+    service, factory, _, organization_id, actor = domain_service(
+        db_session,
+        response if method == "domain" else {},
+        response if method == "alias" else {},
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as error:
+        if method == "domain":
+            service.get_domain(
+                actor=actor, organization_id=organization_id, domain_name="example.test"
+            )
+        else:
+            service.get_alias(
+                actor=actor, organization_id=organization_id, alias_name="alias.example.test"
+            )
+
+    assert error.value.code == expected
+    assert factory.client.closed is True
+
+
+def test_detail_mismatched_google_identity_fails_closed(db_session: Session) -> None:
+    service, _, _, organization_id, actor = domain_service(
+        db_session, {"domainName": "other.example.test"}, {}
+    )
+
+    with pytest.raises(GoogleWorkspaceError) as error:
+        service.get_domain(actor=actor, organization_id=organization_id, domain_name="example.test")
+
+    assert error.value.code == GoogleWorkspaceErrorCode.GOOGLE_API_ERROR
+
+
 def test_endpoint_returns_inventory_and_records_only_aggregate_metadata(
     client: TestClient,
     db_session: Session,
@@ -426,6 +616,137 @@ def test_unrelated_customer_actor_cannot_reach_domain_service(
         response = client.post(
             f"/api/v1/organizations/{connector.organization_id}/google-workspace/domains/list",
             headers=outsider_headers,
+        )
+
+    assert response.status_code == 403
+    service_factory.assert_not_called()
+
+
+def test_domain_and_alias_detail_endpoints_return_safe_contracts_and_audit_aggregates(
+    client: TestClient,
+    db_session: Session,
+    auth_headers: dict[str, str],
+) -> None:
+    connector, _ = create_connector(db_session)
+    service = MagicMock()
+    service.get_domain.return_value = WorkspaceDomainDetail(
+        domain=WorkspaceDomain("example.test", "primary", True, 1700000000),
+        aliases=(WorkspaceDomainAlias("alias.example.test", "example.test", True, None),),
+    )
+    service.get_alias.return_value = WorkspaceDomainAlias(
+        "alias.example.test", "example.test", True, None
+    )
+
+    with patch("app.api.v1.router.GoogleWorkspaceDomains.from_settings", return_value=service):
+        domain_response = client.post(
+            f"/api/v1/organizations/{connector.organization_id}/google-workspace/domains/get",
+            headers=auth_headers,
+            json={"name": "example.test"},
+        )
+        alias_response = client.post(
+            f"/api/v1/organizations/{connector.organization_id}/google-workspace/domain-aliases/get",
+            headers=auth_headers,
+            json={"name": "alias.example.test"},
+        )
+
+    assert domain_response.status_code == 200
+    assert domain_response.json() == {
+        "domain": {
+            "name": "example.test",
+            "kind": "primary",
+            "verified": True,
+            "creation_time": 1700000000,
+        },
+        "aliases": [
+            {
+                "name": "alias.example.test",
+                "parent_domain": "example.test",
+                "kind": "alias",
+                "verified": True,
+                "creation_time": None,
+            }
+        ],
+        "read_only": True,
+    }
+    assert alias_response.status_code == 200
+    assert alias_response.json()["alias"]["parent_domain"] == "example.test"
+
+    from app.models import AuditEvent
+
+    events = (
+        db_session.query(AuditEvent)
+        .filter(
+            AuditEvent.action.in_(
+                [
+                    "google_workspace.domain.viewed",
+                    "google_workspace.domain_alias.viewed",
+                ]
+            )
+        )
+        .all()
+    )
+    assert len(events) == 2
+    assert all(event.outcome == "success" for event in events)
+    assert all(event.object_id == str(connector.organization_id) for event in events)
+    assert all("name" not in (event.metadata_json or {}) for event in events)
+
+
+@pytest.mark.parametrize(
+    ("path", "service_method", "code", "expected_status"),
+    [
+        ("domains/get", "get_domain", GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NAME_INVALID, 422),
+        ("domains/get", "get_domain", GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NOT_FOUND, 404),
+        (
+            "domain-aliases/get",
+            "get_alias",
+            GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_ALIAS_NOT_FOUND,
+            404,
+        ),
+        ("domains/get", "get_domain", GoogleWorkspaceErrorCode.GOOGLE_FORBIDDEN, 403),
+        ("domain-aliases/get", "get_alias", GoogleWorkspaceErrorCode.GOOGLE_RATE_LIMITED, 429),
+        ("domains/get", "get_domain", GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE, 503),
+        ("domain-aliases/get", "get_alias", GoogleWorkspaceErrorCode.GOOGLE_NETWORK_ERROR, 503),
+    ],
+)
+def test_detail_endpoints_map_resource_specific_and_google_failures(
+    client: TestClient,
+    db_session: Session,
+    auth_headers: dict[str, str],
+    path: str,
+    service_method: str,
+    code: GoogleWorkspaceErrorCode,
+    expected_status: int,
+) -> None:
+    connector, _ = create_connector(db_session)
+    service = MagicMock()
+    getattr(service, service_method).side_effect = GoogleWorkspaceError(code)
+
+    with patch("app.api.v1.router.GoogleWorkspaceDomains.from_settings", return_value=service):
+        response = client.post(
+            f"/api/v1/organizations/{connector.organization_id}/google-workspace/{path}",
+            headers=auth_headers,
+            json={"name": "example.test"},
+        )
+
+    assert response.status_code == expected_status
+    assert response.json()["detail"]["code"] == code.value
+
+
+@pytest.mark.parametrize("path", ["domains/get", "domain-aliases/get"])
+def test_unrelated_customer_actor_cannot_reach_detail_services(
+    client: TestClient,
+    db_session: Session,
+    path: str,
+) -> None:
+    connector, _ = create_connector(db_session)
+    add_user(db_session, "detail-outsider@example.local")
+    outsider_headers = login_headers(client, "detail-outsider@example.local")
+
+    with patch("app.api.v1.router.GoogleWorkspaceDomains.from_settings") as service_factory:
+        response = client.post(
+            f"/api/v1/organizations/{connector.organization_id}/google-workspace/{path}",
+            headers=outsider_headers,
+            json={"name": "example.test"},
         )
 
     assert response.status_code == 403

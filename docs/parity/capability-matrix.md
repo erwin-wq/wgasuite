@@ -16,7 +16,8 @@ The canonical source is [`capabilities.yaml`](capabilities.yaml). Run `python sc
 
 | Status | Count |
 |---|---:|
-| missing | 688 |
+| implemented | 2 |
+| missing | 686 |
 | partial | 3 |
 | verified | 18 |
 
@@ -24,8 +25,8 @@ The canonical source is [`capabilities.yaml`](capabilities.yaml). Run `python sc
 
 | Parity | Count |
 |---|---:|
-| missing | 688 |
-| partial | 21 |
+| missing | 686 |
+| partial | 23 |
 
 ### Access classification
 
@@ -146,8 +147,8 @@ The canonical source is [`capabilities.yaml`](capabilities.yaml). Run `python sc
 
 | Capability | Service | Action | Access | API feasibility | WGASuite | Parity | Roadmap |
 |---|---|---|---|---|---|---|---|
-| `access_context.caalevel.create` | access_context | `create` | write | unknown | missing | missing | [SEC-001](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820232182567) |
-| `access_context.caalevel.delete` | access_context | `delete` | destructive | unknown | missing | missing | [SEC-001](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820232182567) |
+| `access_context.caalevel.create` | access_context | `create` | write | unknown | implemented | partial | [SEC-001](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820232182567) |
+| `access_context.caalevel.delete` | access_context | `delete` | destructive | unknown | implemented | partial | [SEC-001](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820232182567) |
 | `access_context.caalevel.update` | access_context | `update` | write | unknown | missing | missing | [SEC-001](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820232182567) |
 | `access_context.caalevels.list` | access_context | `list` | read | unknown | missing | missing | [SEC-001](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820232182567) |
 | `access_context.gcporgid.get` | access_context | `get` | read | unknown | missing | missing | [SEC-001](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820232182567) |

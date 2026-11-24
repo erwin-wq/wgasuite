@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import UUID
@@ -28,6 +29,10 @@ DOMAIN_LIST_FIELDS = f"domains({DOMAIN_FIELDS})"
 DOMAIN_ALIAS_FIELDS = "domainAliasName,parentDomainName,verified,creationTime"
 DOMAIN_ALIAS_LIST_FIELDS = f"domainAliases({DOMAIN_ALIAS_FIELDS})"
 MAX_DOMAIN_RECORDS = 10_000
+DOMAIN_LOOKUP_PATTERN = re.compile(
+    r"^(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$"
+)
 
 
 @dataclass(frozen=True)
@@ -49,6 +54,12 @@ class WorkspaceDomainAlias:
 @dataclass(frozen=True)
 class WorkspaceDomainInventory:
     domains: tuple[WorkspaceDomain, ...]
+    aliases: tuple[WorkspaceDomainAlias, ...]
+
+
+@dataclass(frozen=True)
+class WorkspaceDomainDetail:
+    domain: WorkspaceDomain
     aliases: tuple[WorkspaceDomainAlias, ...]
 
 
@@ -105,6 +116,93 @@ class GoogleWorkspaceDomains:
             raise map_google_api_error(error) from None
         finally:
             self._close_client(client, organization_id)
+
+    def get_domain(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        domain_name: str,
+        request_timeout_seconds: float | None = None,
+    ) -> WorkspaceDomainDetail:
+        requested_name = self._lookup_name(domain_name)
+        customer_id = self._verified_customer_id(actor, organization_id)
+        client: Any | None = None
+        try:
+            client = self._domain_client(
+                actor=actor,
+                organization_id=organization_id,
+                request_timeout_seconds=request_timeout_seconds,
+            )
+            response = (
+                client.domains()
+                .get(customer=customer_id, domainName=requested_name, fields=DOMAIN_FIELDS)
+                .execute(num_retries=0)
+            )
+            return self._normalize_domain_detail(response, requested_name)
+        except GoogleWorkspaceError:
+            raise
+        except Exception as error:
+            raise self._detail_error(
+                error, GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NOT_FOUND
+            ) from None
+        finally:
+            self._close_client(client, organization_id)
+
+    def get_alias(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        alias_name: str,
+        request_timeout_seconds: float | None = None,
+    ) -> WorkspaceDomainAlias:
+        requested_name = self._lookup_name(alias_name)
+        customer_id = self._verified_customer_id(actor, organization_id)
+        client: Any | None = None
+        try:
+            client = self._domain_client(
+                actor=actor,
+                organization_id=organization_id,
+                request_timeout_seconds=request_timeout_seconds,
+            )
+            response = (
+                client.domainAliases()
+                .get(
+                    customer=customer_id,
+                    domainAliasName=requested_name,
+                    fields=DOMAIN_ALIAS_FIELDS,
+                )
+                .execute(num_retries=0)
+            )
+            alias = self._alias(response)
+            if alias.name.casefold() != requested_name.casefold():
+                self._invalid_response()
+            return alias
+        except GoogleWorkspaceError:
+            raise
+        except Exception as error:
+            raise self._detail_error(
+                error, GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_ALIAS_NOT_FOUND
+            ) from None
+        finally:
+            self._close_client(client, organization_id)
+
+    def _domain_client(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        request_timeout_seconds: float | None,
+    ) -> Any:
+        arguments: dict[str, Any] = {
+            "actor": actor,
+            "organization_id": organization_id,
+            "scopes": (DIRECTORY_DOMAIN_READONLY_SCOPE,),
+        }
+        if request_timeout_seconds is not None:
+            arguments["request_timeout_seconds"] = request_timeout_seconds
+        return self.client_factory.for_directory_domains(**arguments)
 
     def _verified_customer_id(self, actor: User, organization_id: UUID) -> str:
         connector = self.db.scalar(
@@ -179,6 +277,46 @@ class GoogleWorkspaceDomains:
         return WorkspaceDomainInventory(domains=ordered_domains, aliases=ordered_aliases)
 
     @classmethod
+    def _normalize_domain_detail(cls, response: Any, requested_name: str) -> WorkspaceDomainDetail:
+        if not isinstance(response, dict):
+            cls._invalid_response()
+        name = cls._name(response.get("domainName"))
+        if name.casefold() != requested_name.casefold():
+            cls._invalid_response()
+        is_primary = cls._optional_bool(response.get("isPrimary"))
+        domain = WorkspaceDomain(
+            name=name,
+            kind=(
+                "primary"
+                if is_primary is True
+                else "secondary"
+                if is_primary is False
+                else "domain"
+            ),
+            verified=cls._optional_bool(response.get("verified")),
+            creation_time=cls._optional_timestamp(response.get("creationTime")),
+        )
+        embedded = response.get("domainAliases", [])
+        if embedded is None:
+            embedded = []
+        if not isinstance(embedded, list) or len(embedded) > MAX_DOMAIN_RECORDS:
+            cls._invalid_response()
+        aliases: dict[str, WorkspaceDomainAlias] = {}
+        for value in embedded:
+            alias = cls._alias(value)
+            if alias.parent_domain.casefold() != name.casefold():
+                cls._invalid_response()
+            key = alias.name.casefold()
+            existing = aliases.get(key)
+            if existing is not None and not cls._aliases_compatible(existing, alias):
+                cls._invalid_response()
+            aliases[key] = cls._merge_alias(existing, alias) if existing else alias
+        return WorkspaceDomainDetail(
+            domain=domain,
+            aliases=tuple(sorted(aliases.values(), key=lambda item: item.name.casefold())),
+        )
+
+    @classmethod
     def _alias(cls, value: Any) -> WorkspaceDomainAlias:
         if not isinstance(value, dict):
             cls._invalid_response()
@@ -233,6 +371,24 @@ class GoogleWorkspaceDomains:
         if not normalized or len(normalized) > 253 or any(ord(char) < 33 for char in normalized):
             cls._invalid_response()
         return normalized
+
+    @classmethod
+    def _lookup_name(cls, value: Any) -> str:
+        if not isinstance(value, str):
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NAME_INVALID)
+        normalized = value.strip().rstrip(".")
+        if not DOMAIN_LOOKUP_PATTERN.fullmatch(normalized):
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NAME_INVALID)
+        return normalized.lower()
+
+    @staticmethod
+    def _detail_error(
+        error: Exception, not_found_code: GoogleWorkspaceErrorCode
+    ) -> GoogleWorkspaceError:
+        mapped = map_google_api_error(error)
+        if mapped.code == GoogleWorkspaceErrorCode.GOOGLE_SUBJECT_NOT_FOUND:
+            return GoogleWorkspaceError(not_found_code)
+        return mapped
 
     @classmethod
     def _optional_bool(cls, value: Any) -> bool | None:

@@ -69,9 +69,12 @@ from app.schemas.google_workspace_delegate import (
     GmailDelegateReconciliationRead,
 )
 from app.schemas.google_workspace_domain import (
+    GoogleWorkspaceDomainAliasDetailRead,
     GoogleWorkspaceDomainAliasRead,
+    GoogleWorkspaceDomainDetailRead,
     GoogleWorkspaceDomainInventoryRead,
     GoogleWorkspaceDomainRead,
+    GoogleWorkspaceDomainReferenceRequest,
 )
 from app.schemas.google_workspace_group import (
     GoogleWorkspaceGroupRead,
@@ -1465,6 +1468,9 @@ GOOGLE_USER_LOOKUP_HTTP_STATUS = {
     GoogleWorkspaceErrorCode.GOOGLE_SERVICE_UNAVAILABLE: status.HTTP_503_SERVICE_UNAVAILABLE,
     GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH: status.HTTP_403_FORBIDDEN,
     GoogleWorkspaceErrorCode.GOOGLE_PAGE_TOKEN_INVALID: status.HTTP_400_BAD_REQUEST,
+    GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_ALIAS_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NAME_INVALID: status.HTTP_422_UNPROCESSABLE_CONTENT,
 }
 
 GMAIL_DELEGATE_HTTP_STATUS = {
@@ -1718,6 +1724,122 @@ def list_google_workspace_domains(
         aliases=[GoogleWorkspaceDomainAliasRead(**alias.__dict__) for alias in result.aliases],
         domain_count=len(result.domains),
         alias_count=len(result.aliases),
+    )
+
+
+def domain_detail_failure(
+    *,
+    db: Session,
+    current_user: User,
+    organization: Organization,
+    action: str,
+    object_type: str,
+    error: GoogleWorkspaceError,
+) -> HTTPException:
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type=object_type,
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        outcome="failure",
+        reason=error.code.value,
+        metadata={
+            "read_only": True,
+            **({"google_reason": error.google_reason} if error.google_reason else {}),
+        },
+    )
+    return HTTPException(
+        status_code=GOOGLE_USER_LOOKUP_HTTP_STATUS.get(error.code, status.HTTP_502_BAD_GATEWAY),
+        detail={"code": error.code.value, "message": str(error)},
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/domains/get",
+    response_model=GoogleWorkspaceDomainDetailRead,
+    tags=["google-workspace"],
+)
+def get_google_workspace_domain(
+    organization_id: UUID,
+    payload: GoogleWorkspaceDomainReferenceRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GoogleWorkspaceDomainDetailRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.domain.viewed"
+    require_domain_read(db=db, current_user=current_user, organization=organization, action=action)
+    try:
+        result = GoogleWorkspaceDomains.from_settings(db).get_domain(
+            actor=current_user,
+            organization_id=organization.id,
+            domain_name=payload.name,
+        )
+    except GoogleWorkspaceError as error:
+        raise domain_detail_failure(
+            db=db,
+            current_user=current_user,
+            organization=organization,
+            action=action,
+            object_type="google_workspace_domain",
+            error=error,
+        ) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_domain",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={"alias_count": len(result.aliases), "read_only": True},
+    )
+    return GoogleWorkspaceDomainDetailRead(
+        domain=GoogleWorkspaceDomainRead(**result.domain.__dict__),
+        aliases=[GoogleWorkspaceDomainAliasRead(**alias.__dict__) for alias in result.aliases],
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/domain-aliases/get",
+    response_model=GoogleWorkspaceDomainAliasDetailRead,
+    tags=["google-workspace"],
+)
+def get_google_workspace_domain_alias(
+    organization_id: UUID,
+    payload: GoogleWorkspaceDomainReferenceRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GoogleWorkspaceDomainAliasDetailRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.domain_alias.viewed"
+    require_domain_read(db=db, current_user=current_user, organization=organization, action=action)
+    try:
+        result = GoogleWorkspaceDomains.from_settings(db).get_alias(
+            actor=current_user,
+            organization_id=organization.id,
+            alias_name=payload.name,
+        )
+    except GoogleWorkspaceError as error:
+        raise domain_detail_failure(
+            db=db,
+            current_user=current_user,
+            organization=organization,
+            action=action,
+            object_type="google_workspace_domain_alias",
+            error=error,
+        ) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_domain_alias",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={"read_only": True},
+    )
+    return GoogleWorkspaceDomainAliasDetailRead(
+        alias=GoogleWorkspaceDomainAliasRead(**result.__dict__)
     )
 
 

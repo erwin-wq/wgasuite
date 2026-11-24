@@ -197,7 +197,7 @@ only user-details path. This feature performs no Google Workspace mutations.
 ## Read-only domains and domain aliases
 
 The **Domains** page resolves the immutable Google customer ID through the configured delegated
-administrator and makes two bounded, non-retried reads:
+administrator and makes bounded, non-retried reads:
 
 ```text
 POST:       /api/v1/organizations/{organization_id}/google-workspace/domains/list
@@ -214,6 +214,28 @@ the returned customer domain set fail closed. Results and search terms are not p
 metadata contains only aggregate domain and alias counts. This workflow cannot create, update or
 delete a domain or alias, and the standard connection test does not prove this separate scope is
 authorized.
+
+Selecting a domain or alias uses its validated canonical name in a request body rather than a URL
+path and performs exactly one resource-specific lookup:
+
+```text
+POST:       /api/v1/organizations/{organization_id}/google-workspace/domains/get
+Body:       {"name":"<canonical domain name>"}
+Method:     domains.get
+
+POST:       /api/v1/organizations/{organization_id}/google-workspace/domain-aliases/get
+Body:       {"name":"<canonical alias name>"}
+Method:     domainAliases.get
+
+customer:   verified customerId (never my_customer)
+Scope:      https://www.googleapis.com/auth/admin.directory.domain.readonly
+Retries:    0
+```
+
+Detail responses retain nullable verification and creation metadata instead of inventing values.
+Domain details include aliases whose authoritative parent matches the domain; alias details retain
+the authoritative parent relationship. Names and response data are not written to audit metadata,
+and a tenant switch aborts and invalidates in-flight inventory and detail requests.
 
 ## Read-only Organizational Units
 

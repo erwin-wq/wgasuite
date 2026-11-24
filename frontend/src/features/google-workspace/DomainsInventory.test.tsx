@@ -2,14 +2,29 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, listGoogleWorkspaceDomains } from "../../api/client";
-import type { ConnectorConfig, GoogleWorkspaceDomainInventory } from "../../types";
+import {
+  ApiError,
+  getGoogleWorkspaceDomain,
+  getGoogleWorkspaceDomainAlias,
+  listGoogleWorkspaceDomains
+} from "../../api/client";
+import type {
+  ConnectorConfig,
+  GoogleWorkspaceDomainAliasDetail,
+  GoogleWorkspaceDomainDetail,
+  GoogleWorkspaceDomainInventory
+} from "../../types";
 import { DIRECTORY_DOMAIN_READONLY_SCOPE } from "./scopes";
 import { DomainsInventory } from "./DomainsInventory";
 
 vi.mock("../../api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/client")>();
-  return { ...actual, listGoogleWorkspaceDomains: vi.fn() };
+  return {
+    ...actual,
+    getGoogleWorkspaceDomain: vi.fn(),
+    getGoogleWorkspaceDomainAlias: vi.fn(),
+    listGoogleWorkspaceDomains: vi.fn()
+  };
 });
 
 const connectedConfig: ConnectorConfig = {
@@ -53,6 +68,17 @@ const inventory: GoogleWorkspaceDomainInventory = {
   read_only: true
 };
 
+const domainDetail: GoogleWorkspaceDomainDetail = {
+  domain: inventory.domains[0],
+  aliases: [inventory.aliases[0]],
+  read_only: true
+};
+
+const aliasDetail: GoogleWorkspaceDomainAliasDetail = {
+  alias: inventory.aliases[0],
+  read_only: true
+};
+
 function renderInventory(overrides = {}) {
   return render(
     <DomainsInventory
@@ -69,6 +95,8 @@ describe("DomainsInventory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(listGoogleWorkspaceDomains).mockResolvedValue(inventory);
+    vi.mocked(getGoogleWorkspaceDomain).mockResolvedValue(domainDetail);
+    vi.mocked(getGoogleWorkspaceDomainAlias).mockResolvedValue(aliasDetail);
   });
 
   it("renders domains, aliases, classifications and authoritative metadata", async () => {
@@ -162,5 +190,98 @@ describe("DomainsInventory", () => {
       aliases: [], domain_count: 1, alias_count: 0, read_only: true
     });
     await waitFor(() => expect(screen.queryByText("stale.example.test")).not.toBeInTheDocument());
+  });
+
+  it("loads primary domain details and associated aliases from a keyboard action", async () => {
+    const user = userEvent.setup();
+    renderInventory();
+    const action = await screen.findByRole("button", { name: "View details for example.test" });
+
+    action.focus();
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findByRole("heading", { name: "example.test", level: 3 })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Associated aliases" })).toBeVisible();
+    expect(screen.getAllByText("alias.example.test").length).toBeGreaterThan(0);
+    expect(getGoogleWorkspaceDomain).toHaveBeenCalledWith(
+      "organization-1",
+      "example.test",
+      expect.any(AbortSignal)
+    );
+    expect(action).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("loads alias detail with the authoritative parent relationship", async () => {
+    const user = userEvent.setup();
+    renderInventory();
+
+    await user.click(await screen.findByRole("button", {
+      name: "View details for alias.example.test"
+    }));
+
+    expect(await screen.findByRole("heading", { name: "alias.example.test", level: 3 })).toBeVisible();
+    expect(screen.getAllByText("Parent domain").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("example.test").length).toBeGreaterThan(0);
+    expect(getGoogleWorkspaceDomainAlias).toHaveBeenCalledWith(
+      "organization-1",
+      "alias.example.test",
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("renders missing optional detail metadata without inventing values", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getGoogleWorkspaceDomain).mockResolvedValue({
+      domain: inventory.domains[2], aliases: [], read_only: true
+    });
+    renderInventory();
+
+    await user.click(await screen.findByRole("button", {
+      name: "View details for unknown.example.test"
+    }));
+
+    expect(await screen.findByRole("heading", { name: "unknown.example.test", level: 3 })).toBeVisible();
+    expect(screen.getAllByText("Unknown").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("Unavailable").length).toBeGreaterThan(1);
+    expect(screen.getByText("No aliases were returned for this domain.")).toBeVisible();
+  });
+
+  it("shows a recoverable not-found detail state", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getGoogleWorkspaceDomainAlias).mockRejectedValue(
+      new ApiError("Not found", 404, "google_domain_alias_not_found")
+    );
+    renderInventory();
+
+    await user.click(await screen.findByRole("button", {
+      name: "View details for alias.example.test"
+    }));
+
+    expect(await screen.findByRole("heading", { name: "Domain details unavailable" })).toBeVisible();
+    expect(screen.getByText(/no longer returns this exact domain resource/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
+  });
+
+  it("cancels stale detail requests when the tenant changes", async () => {
+    let resolveFirst!: (value: GoogleWorkspaceDomainDetail) => void;
+    vi.mocked(getGoogleWorkspaceDomain).mockReturnValueOnce(
+      new Promise((resolve) => { resolveFirst = resolve; })
+    );
+    const user = userEvent.setup();
+    const { rerender } = renderInventory();
+    await user.click(await screen.findByRole("button", { name: "View details for example.test" }));
+
+    rerender(
+      <DomainsInventory
+        organizationId="organization-2"
+        organizationName="Current"
+        connectorConfig={{ ...connectedConfig, organization_id: "organization-2" }}
+        canRead
+      />
+    );
+    resolveFirst(domainDetail);
+
+    expect(await screen.findByRole("heading", { name: "Select a domain or alias" })).toBeVisible();
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "example.test", level: 3 })).not.toBeInTheDocument());
   });
 });
