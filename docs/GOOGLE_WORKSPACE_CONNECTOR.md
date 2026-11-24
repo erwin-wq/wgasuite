@@ -233,6 +233,8 @@ Retries:    0
 ```
 
 Detail responses retain nullable verification and creation metadata instead of inventing values.
+Google's int64 domain creation timestamps are normalized from the observed Unix-millisecond wire
+representation into Unix seconds before the frontend formats them as calendar dates.
 Domain details include aliases whose authoritative parent matches the domain; alias details retain
 the authoritative parent relationship. Names and response data are not written to audit metadata,
 and a tenant switch aborts and invalidates in-flight inventory and detail requests.
