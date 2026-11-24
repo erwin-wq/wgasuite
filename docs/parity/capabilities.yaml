@@ -14853,18 +14853,11 @@
         ]
       },
       "wgasuite": {
-        "status": "implemented",
-        "parity": "partial",
-        "backend_or_frontend_paths": [
-          "backend/app/services/google_workspace_domains.py",
-          "backend/app/api/v1/router.py",
-          "frontend/src/features/google-workspace/DomainsInventory.tsx"
-        ],
-        "evidence_refs": [
-          "wgasuite.dir0042.task",
-          "google.directory.domainaliases.get"
-        ],
-        "limitations": "Tenant-scoped single-alias lookup is implemented with automated coverage, but independent live Google Directory acceptance is still pending. Bulk export is not provided."
+        "status": "missing",
+        "parity": "missing",
+        "backend_or_frontend_paths": [],
+        "evidence_refs": [],
+        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
       },
       "roadmap": {
         "epic": "SEC-001",
@@ -14872,11 +14865,9 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820232182567"
       },
       "verification": {
-        "automated_tests": true,
+        "automated_tests": false,
         "live_google": false,
-        "evidence_refs": [
-          "wgasuite.dir0042.task"
-        ]
+        "evidence_refs": []
       },
       "evidence_refs": [
         "upstream.gam7.grammar",
@@ -14916,18 +14907,11 @@
         ]
       },
       "wgasuite": {
-        "status": "implemented",
-        "parity": "partial",
-        "backend_or_frontend_paths": [
-          "backend/app/services/google_workspace_domains.py",
-          "backend/app/api/v1/router.py",
-          "frontend/src/features/google-workspace/DomainsInventory.tsx"
-        ],
-        "evidence_refs": [
-          "wgasuite.dir0042.task",
-          "google.directory.domains.get"
-        ],
-        "limitations": "Tenant-scoped single-domain lookup and associated-alias display are implemented with automated coverage, but independent live Google Directory acceptance is still pending. Bulk export is not provided."
+        "status": "missing",
+        "parity": "missing",
+        "backend_or_frontend_paths": [],
+        "evidence_refs": [],
+        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
       },
       "roadmap": {
         "epic": "SEC-001",
@@ -14935,11 +14919,9 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820232182567"
       },
       "verification": {
-        "automated_tests": true,
+        "automated_tests": false,
         "live_google": false,
-        "evidence_refs": [
-          "wgasuite.dir0042.task"
-        ]
+        "evidence_refs": []
       },
       "evidence_refs": [
         "upstream.gam7.grammar",
@@ -32111,7 +32093,7 @@
           "DomainAliases.List"
         ],
         "scopes": [
-          "https://www.googleapis.com/auth/admin.directory.domain"
+          "https://www.googleapis.com/auth/admin.directory.domain.readonly"
         ],
         "auth_context": "PSGSuite service-account DWD or user OAuth as documented by the pinned upstream function",
         "feasibility": "direct"
@@ -32128,11 +32110,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "verified",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_domains.py",
+          "backend/app/api/v1/router.py",
+          "frontend/src/features/google-workspace/DomainsInventory.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.dir0042.task",
+          "google.directory.domainaliases.get"
+        ],
+        "limitations": "Tenant-scoped single-alias lookup, nullable metadata and authoritative parent-domain reconciliation were independently verified against the live Google Directory API. Bulk export is not provided."
       },
       "roadmap": {
         "epic": "DIR-004",
@@ -32140,9 +32129,11 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716"
       },
       "verification": {
-        "automated_tests": false,
-        "live_google": false,
-        "evidence_refs": []
+        "automated_tests": true,
+        "live_google": true,
+        "evidence_refs": [
+          "wgasuite.dir0042.task"
+        ]
       },
       "evidence_refs": [
         "upstream.psgsuite.source",
@@ -32355,7 +32346,7 @@
           "Domains.List"
         ],
         "scopes": [
-          "https://www.googleapis.com/auth/admin.directory.domain"
+          "https://www.googleapis.com/auth/admin.directory.domain.readonly"
         ],
         "auth_context": "PSGSuite service-account DWD or user OAuth as documented by the pinned upstream function",
         "feasibility": "direct"
@@ -32372,11 +32363,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "verified",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_domains.py",
+          "backend/app/api/v1/router.py",
+          "frontend/src/features/google-workspace/DomainsInventory.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.dir0042.task",
+          "google.directory.domains.get"
+        ],
+        "limitations": "Tenant-scoped primary and secondary domain lookup, nullable metadata, associated aliases and creation-time normalization were independently verified against the live Google Directory API. Bulk export is not provided."
       },
       "roadmap": {
         "epic": "DIR-004",
@@ -32384,9 +32382,11 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716"
       },
       "verification": {
-        "automated_tests": false,
-        "live_google": false,
-        "evidence_refs": []
+        "automated_tests": true,
+        "live_google": true,
+        "evidence_refs": [
+          "wgasuite.dir0042.task"
+        ]
       },
       "evidence_refs": [
         "upstream.gam7.grammar",
