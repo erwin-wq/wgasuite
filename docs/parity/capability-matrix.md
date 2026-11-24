@@ -16,10 +16,9 @@ The canonical source is [`capabilities.yaml`](capabilities.yaml). Run `python sc
 
 | Status | Count |
 |---|---:|
-| implemented | 2 |
 | missing | 688 |
 | partial | 3 |
-| verified | 16 |
+| verified | 18 |
 
 ### Functional parity status
 
@@ -447,11 +446,11 @@ The canonical source is [`capabilities.yaml`](capabilities.yaml). Run `python sc
 | `directory.domain_aliases.create` | directory | `create` | write | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.domain_aliases.delete` | directory | `delete` | destructive | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.domain_aliases.get` | directory | `get` | read | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
-| `directory.domain_aliases.list` | directory | `list` | read | direct | implemented | partial | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
+| `directory.domain_aliases.list` | directory | `list` | read | direct | verified | partial | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.domains.create` | directory | `create` | write | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.domains.delete` | directory | `delete` | destructive | unknown | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.domains.get` | directory | `get` | read | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
-| `directory.domains.list` | directory | `list` | read | direct | implemented | partial | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
+| `directory.domains.list` | directory | `list` | read | direct | verified | partial | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.domains.update` | directory | `update` | write | unknown | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.gcporgid.get` | directory | `get` | read | unknown | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.groups.aliases.add` | directory | `add` | write | direct | missing | missing | [DIR-002](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278584110) |

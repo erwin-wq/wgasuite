@@ -32159,7 +32159,7 @@
         ]
       },
       "wgasuite": {
-        "status": "implemented",
+        "status": "verified",
         "parity": "partial",
         "backend_or_frontend_paths": [
           "backend/app/services/google_workspace_domains.py",
@@ -32170,7 +32170,7 @@
           "wgasuite.dir0041.task",
           "google.directory.domainaliases.list"
         ],
-        "limitations": "Tenant-scoped read-only inventory is implemented and covered by mocked API tests. Live Google acceptance is still required; single-alias lookup and bulk export are not provided."
+        "limitations": "Tenant-scoped read-only listing and alias-parent reconciliation were independently verified against the live Google Directory API. Single-alias lookup and bulk export are not provided."
       },
       "roadmap": {
         "epic": "DIR-004",
@@ -32179,7 +32179,7 @@
       },
       "verification": {
         "automated_tests": true,
-        "live_google": false,
+        "live_google": true,
         "evidence_refs": [
           "wgasuite.dir0041.task"
         ]
@@ -32403,7 +32403,7 @@
         ]
       },
       "wgasuite": {
-        "status": "implemented",
+        "status": "verified",
         "parity": "partial",
         "backend_or_frontend_paths": [
           "backend/app/services/google_workspace_domains.py",
@@ -32414,7 +32414,7 @@
           "wgasuite.dir0041.task",
           "google.directory.domains.list"
         ],
-        "limitations": "Tenant-scoped read-only inventory is implemented and covered by mocked API tests. Live Google acceptance is still required; single-domain lookup and bulk export are not provided."
+        "limitations": "Tenant-scoped read-only listing, primary/secondary classification and verification metadata were independently verified against the live Google Directory API. Single-domain lookup and bulk export are not provided."
       },
       "roadmap": {
         "epic": "DIR-004",
@@ -32423,7 +32423,7 @@
       },
       "verification": {
         "automated_tests": true,
-        "live_google": false,
+        "live_google": true,
         "evidence_refs": [
           "wgasuite.dir0041.task"
         ]
