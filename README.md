@@ -177,12 +177,13 @@ state. This capability requires separately authorizing
 not verify write permission. Suspension restricts service access without deleting data and license
 charges may continue. Reactivation is not deleted-user recovery.
 
-The **Domains** tool uses the independently verified immutable Google customer ID for both
-`domains.list` and `domainAliases.list` with only the
+The **Domains** tool uses the independently verified immutable Google customer ID for
+`domains.list`, `domainAliases.list`, `domains.get` and `domainAliases.get` with only the
 `admin.directory.domain.readonly` scope. It keeps primary, secondary and alias records distinct,
 reconciles aliases that Google returns through both resources, and fails closed on conflicting or
-orphaned relationships. Domain data is displayed read-only and is not persisted. Domain and alias
-creation, update, deletion, single-record detail and bulk export are not implemented.
+orphaned relationships. Operators can select an inventory row to inspect authoritative individual
+metadata and domain-to-alias relationships. Domain data is displayed read-only and is not
+persisted. Domain and alias creation, update, deletion and bulk export are not implemented.
 
 See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup, scope,
 security and live-verification instructions, and [mutation safety](docs/MUTATION_SAFETY.md) for the

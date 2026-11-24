@@ -399,6 +399,17 @@ export interface GoogleWorkspaceDomainInventory {
   read_only: true;
 }
 
+export interface GoogleWorkspaceDomainDetail {
+  domain: GoogleWorkspaceDomain;
+  aliases: GoogleWorkspaceDomainAlias[];
+  read_only: true;
+}
+
+export interface GoogleWorkspaceDomainAliasDetail {
+  alias: GoogleWorkspaceDomainAlias;
+  read_only: true;
+}
+
 export interface GoogleWorkspaceOrganizationalUnitCreatePreview {
   parent_org_unit_id: string;
   parent_path: string;

@@ -20,6 +20,8 @@ import type {
   GoogleWorkspaceGroupMemberList,
   GoogleWorkspaceGroupSearchResult,
   GoogleWorkspaceDomainInventory,
+  GoogleWorkspaceDomainDetail,
+  GoogleWorkspaceDomainAliasDetail,
   GoogleWorkspaceOrganizationalUnit,
   GoogleWorkspaceOrganizationalUnitHierarchy,
   GoogleWorkspaceCheck,
@@ -423,6 +425,28 @@ export function listGoogleWorkspaceDomains(
   return request<GoogleWorkspaceDomainInventory>(
     `/api/v1/organizations/${organizationId}/google-workspace/domains/list`,
     { method: "POST", signal }
+  );
+}
+
+export function getGoogleWorkspaceDomain(
+  organizationId: string,
+  name: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceDomainDetail> {
+  return request<GoogleWorkspaceDomainDetail>(
+    `/api/v1/organizations/${organizationId}/google-workspace/domains/get`,
+    { method: "POST", body: JSON.stringify({ name }), signal }
+  );
+}
+
+export function getGoogleWorkspaceDomainAlias(
+  organizationId: string,
+  name: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceDomainAliasDetail> {
+  return request<GoogleWorkspaceDomainAliasDetail>(
+    `/api/v1/organizations/${organizationId}/google-workspace/domain-aliases/get`,
+    { method: "POST", body: JSON.stringify({ name }), signal }
   );
 }
 

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class GoogleWorkspaceDomainReferenceRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=254)
 
 
 class GoogleWorkspaceDomainRead(BaseModel):
@@ -25,4 +29,15 @@ class GoogleWorkspaceDomainInventoryRead(BaseModel):
     aliases: list[GoogleWorkspaceDomainAliasRead]
     domain_count: int
     alias_count: int
+    read_only: bool = True
+
+
+class GoogleWorkspaceDomainDetailRead(BaseModel):
+    domain: GoogleWorkspaceDomainRead
+    aliases: list[GoogleWorkspaceDomainAliasRead]
+    read_only: bool = True
+
+
+class GoogleWorkspaceDomainAliasDetailRead(BaseModel):
+    alias: GoogleWorkspaceDomainAliasRead
     read_only: bool = True

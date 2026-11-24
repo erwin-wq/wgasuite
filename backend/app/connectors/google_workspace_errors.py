@@ -48,6 +48,9 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_PAGE_TOKEN_INVALID = "google_page_token_invalid"
     GOOGLE_OPERATION_BUDGET_EXCEEDED = "google_operation_budget_exceeded"
     GOOGLE_CONFLICT = "google_conflict"
+    GOOGLE_DOMAIN_NOT_FOUND = "google_domain_not_found"
+    GOOGLE_DOMAIN_ALIAS_NOT_FOUND = "google_domain_alias_not_found"
+    GOOGLE_DOMAIN_NAME_INVALID = "google_domain_name_invalid"
     GOOGLE_USER_ADMIN_PROTECTED = "google_user_admin_protected"
     GOOGLE_USER_SELF_PROTECTED = "google_user_self_protected"
     GOOGLE_USER_SERVICE_ACCOUNT_PROTECTED = "google_user_service_account_protected"
@@ -213,6 +216,15 @@ SAFE_ERROR_MESSAGES = {
     ),
     GoogleWorkspaceErrorCode.GOOGLE_CONFLICT: (
         "Google rejected the change because the account state changed. Refresh and try again."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NOT_FOUND: (
+        "No Google Workspace domain was found for that exact name."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_ALIAS_NOT_FOUND: (
+        "No Google Workspace domain alias was found for that exact name."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NAME_INVALID: (
+        "Enter a valid fully qualified domain name."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_USER_ADMIN_PROTECTED: (
         "Administrator accounts are protected and cannot be suspended or reactivated here."

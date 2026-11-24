@@ -170,8 +170,8 @@ test("user alias, Groups, Gmail and connector workflows render authoritative rea
   expect(api.rejectedWrites).toEqual([]);
 });
 
-test("Domains inventory search and refresh remain read-only", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "One desktop flow is sufficient for domain interactions.");
+test("Domains inventory details, search and refresh remain read-only", async ({ page }, testInfo) => {
+  test.skip(!["desktop", "mobile"].includes(testInfo.project.name), "Desktop and mobile cover domain interactions.");
   const consoleErrors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
@@ -181,6 +181,22 @@ test("Domains inventory search and refresh remain read-only", async ({ page }, t
   await page.goto("/directory/domains");
   await expect(page.getByText("alias.northstar.example.invalid")).toBeVisible();
 
+  await page.getByRole("button", { name: "View details for northstar.example.invalid" }).click();
+  await expect(page.getByRole("heading", { name: "northstar.example.invalid" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Associated aliases" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "northstar.example.invalid" })).toContainText("alias.northstar.example.invalid");
+  const detailCalls = () => api.calls.filter((call) => call.path.endsWith("/google-workspace/domains/get")).length;
+  const callsBeforeDetailRefresh = detailCalls();
+  await page.getByRole("button", { name: "Refresh details" }).click();
+  await expect.poll(detailCalls).toBe(callsBeforeDetailRefresh + 1);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+
+  await page.getByRole("button", { name: "View details for alias.northstar.example.invalid" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "alias.northstar.example.invalid" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "alias.northstar.example.invalid" })).toContainText("northstar.example.invalid");
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+
   await page.getByRole("searchbox", { name: "Search domains and aliases" }).fill("research");
   await expect(page.getByText("research.northstar.example.invalid")).toBeVisible();
   await expect(page.getByText("alias.northstar.example.invalid")).toHaveCount(0);
@@ -188,7 +204,7 @@ test("Domains inventory search and refresh remain read-only", async ({ page }, t
   await expect(page.getByText("alias.northstar.example.invalid")).toBeVisible();
 
   const callsBeforeRefresh = api.calls.filter((call) => call.path.endsWith("/google-workspace/domains/list")).length;
-  await page.getByRole("button", { name: "Refresh" }).click();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect.poll(() => api.calls.filter((call) => call.path.endsWith("/google-workspace/domains/list")).length).toBe(callsBeforeRefresh + 1);
   expect(consoleErrors).toEqual([]);
   expect(api.rejectedWrites).toEqual([]);

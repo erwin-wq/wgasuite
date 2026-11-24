@@ -169,6 +169,21 @@ export async function installApiHarness(
     if (path.endsWith("/google-workspace/groups/get")) return respond(group);
     if (path.endsWith("/google-workspace/groups/members/list")) return respond({ group, members: [], next_page_token: null });
     if (path.endsWith("/google-workspace/domains/list")) return respond(domainInventory);
+    if (path.endsWith("/google-workspace/domains/get")) {
+      const name = String(request.postDataJSON()?.name ?? "");
+      const domain = domainInventory.domains.find((item) => item.name === name);
+      if (!domain) return respond({ detail: { code: "google_domain_not_found", message: "Domain not found." } }, 404);
+      return respond({
+        domain,
+        aliases: domainInventory.aliases.filter((alias) => alias.parent_domain === domain.name)
+      });
+    }
+    if (path.endsWith("/google-workspace/domain-aliases/get")) {
+      const name = String(request.postDataJSON()?.name ?? "");
+      const alias = domainInventory.aliases.find((item) => item.name === name);
+      if (!alias) return respond({ detail: { code: "google_domain_alias_not_found", message: "Domain alias not found." } }, 404);
+      return respond({ alias });
+    }
     if (path.endsWith("/google-workspace/orgunits/list")) return respond(hierarchy);
     if (path.endsWith("/google-workspace/gmail-delegates/list")) return respond({ owner_primary_email: directoryUser.primary_email, delegates: [] });
     if (path === "/api/v1/platform-admin/overview") return respond(platformOverview);

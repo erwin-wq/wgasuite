@@ -3,29 +3,43 @@ import {
   Building2,
   CheckCircle2,
   CircleHelp,
+  Eye,
   Globe2,
   Link2,
   RefreshCw,
-  ShieldCheck
+  ShieldCheck,
+  X
 } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
-import { ApiError, listGoogleWorkspaceDomains } from "../../api/client";
+import {
+  ApiError,
+  getGoogleWorkspaceDomain,
+  getGoogleWorkspaceDomainAlias,
+  listGoogleWorkspaceDomains
+} from "../../api/client";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { DataTable, type DataTableColumn } from "../../components/ui/DataTable";
-import { Badge, EmptyState } from "../../components/ui/Feedback";
+import { Badge, EmptyState, ErrorState, Skeleton } from "../../components/ui/Feedback";
 import { SearchField } from "../../components/ui/FormControls";
 import type {
   ConnectorConfig,
   GoogleWorkspaceDomain,
-  GoogleWorkspaceDomainAlias
+  GoogleWorkspaceDomainAlias,
+  GoogleWorkspaceDomainAliasDetail,
+  GoogleWorkspaceDomainDetail
 } from "../../types";
 import { DIRECTORY_DOMAIN_READONLY_SCOPE } from "./scopes";
 
 type InventoryRow =
   | (GoogleWorkspaceDomain & { parent_domain: null })
   | GoogleWorkspaceDomainAlias;
+
+type DetailSelection = { kind: "domain" | "alias"; name: string };
+type DetailResult =
+  | { kind: "domain"; value: GoogleWorkspaceDomainDetail }
+  | { kind: "alias"; value: GoogleWorkspaceDomainAliasDetail };
 
 interface DomainsInventoryProps {
   organizationId: string;
@@ -62,6 +76,21 @@ function domainsErrorMessage(error: unknown): string {
     return "The Google Workspace connector is not ready. Complete and test the connection first.";
   }
   return error.message;
+}
+
+function domainDetailErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (
+      error.code === "google_domain_not_found" ||
+      error.code === "google_domain_alias_not_found"
+    ) {
+      return "Google no longer returns this exact domain resource. Refresh the inventory.";
+    }
+    if (error.code === "google_domain_name_invalid") {
+      return "The selected domain name is invalid. Refresh the inventory before trying again.";
+    }
+  }
+  return domainsErrorMessage(error);
 }
 
 function verificationBadge(value: boolean | null) {
@@ -104,6 +133,84 @@ const columns: readonly DataTableColumn<InventoryRow>[] = [
   { id: "created", header: "Created", cell: (row) => formatCreationTime(row.creation_time) }
 ];
 
+interface DomainDetailPanelProps {
+  selection: DetailSelection | null;
+  result: DetailResult | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  onClose: () => void;
+}
+
+function DomainDetailPanel({
+  selection,
+  result,
+  loading,
+  error,
+  onRetry,
+  onClose
+}: DomainDetailPanelProps) {
+  if (!selection) {
+    return (
+      <aside className="domain-detail-panel" aria-label="Domain details">
+        <EmptyState title="Select a domain or alias" icon={<Eye aria-hidden="true" />}>
+          Use a View details action to inspect authoritative read-only metadata.
+        </EmptyState>
+      </aside>
+    );
+  }
+  if (loading) {
+    return (
+      <aside className="domain-detail-panel" aria-label="Domain details" aria-busy="true">
+        <span className="sr-only">Loading details for {selection.name}.</span>
+        <Skeleton lines={5} />
+      </aside>
+    );
+  }
+  if (error) {
+    return (
+      <aside className="domain-detail-panel" aria-label="Domain details">
+        <ErrorState title="Domain details unavailable" actionLabel="Try again" onAction={onRetry}>
+          {error}
+        </ErrorState>
+        <Button variant="ghost" size="sm" onClick={onClose}><X aria-hidden="true" /> Close</Button>
+      </aside>
+    );
+  }
+  if (!result) return null;
+
+  const resource = result.kind === "domain" ? result.value.domain : result.value.alias;
+  const aliases = result.kind === "domain" ? result.value.aliases : [];
+  return (
+    <aside className="domain-detail-panel" aria-labelledby="domain-detail-heading">
+      <div className="domain-detail-heading">
+        <div>
+          <span className="eyebrow">Read-only detail</span>
+          <h3 id="domain-detail-heading">{resource.name}</h3>
+        </div>
+        <Button variant="ghost" size="sm" onClick={onClose}><X aria-hidden="true" /> Close</Button>
+      </div>
+      <dl className="domain-detail-list">
+        <div><dt>Classification</dt><dd>{kindBadge(resource.kind)}</dd></div>
+        <div><dt>Verification</dt><dd>{verificationBadge(resource.verified)}</dd></div>
+        <div><dt>Created</dt><dd>{formatCreationTime(resource.creation_time)}</dd></div>
+        {result.kind === "alias" ? (
+          <div><dt>Parent domain</dt><dd className="domain-name">{result.value.alias.parent_domain}</dd></div>
+        ) : null}
+      </dl>
+      {result.kind === "domain" ? (
+        <section className="domain-related-aliases" aria-labelledby="related-aliases-heading">
+          <h4 id="related-aliases-heading">Associated aliases</h4>
+          {aliases.length ? (
+            <ul>{aliases.map((alias) => <li key={alias.name}><Link2 aria-hidden="true" /><span>{alias.name}</span>{verificationBadge(alias.verified)}</li>)}</ul>
+          ) : <p>No aliases were returned for this domain.</p>}
+        </section>
+      ) : null}
+      <Button variant="secondary" size="sm" onClick={onRetry}><RefreshCw aria-hidden="true" /> Refresh details</Button>
+    </aside>
+  );
+}
+
 export function DomainsInventory({
   organizationId,
   organizationName,
@@ -115,9 +222,15 @@ export function DomainsInventory({
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [detailSelection, setDetailSelection] = useState<DetailSelection | null>(null);
+  const [detailResult, setDetailResult] = useState<DetailResult | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const deferredSearch = useDeferredValue(search.trim().toLocaleLowerCase());
   const requestSequence = useRef(0);
   const requestController = useRef<AbortController | null>(null);
+  const detailRequestSequence = useRef(0);
+  const detailRequestController = useRef<AbortController | null>(null);
   const connectorReady = connectorConfig?.status === "connected";
 
   const loadInventory = useCallback(async () => {
@@ -147,6 +260,44 @@ export function DomainsInventory({
     }
   }, [canRead, connectorReady, organizationId]);
 
+  const loadDetail = useCallback(async (selection: DetailSelection) => {
+    if (!organizationId || !connectorReady || !canRead) return;
+    detailRequestController.current?.abort();
+    const controller = new AbortController();
+    detailRequestController.current = controller;
+    const sequence = detailRequestSequence.current + 1;
+    detailRequestSequence.current = sequence;
+    setDetailSelection(selection);
+    setDetailResult(null);
+    setDetailError(null);
+    setIsDetailLoading(true);
+    try {
+      const value = selection.kind === "alias"
+        ? await getGoogleWorkspaceDomainAlias(organizationId, selection.name, controller.signal)
+        : await getGoogleWorkspaceDomain(organizationId, selection.name, controller.signal);
+      if (detailRequestSequence.current !== sequence) return;
+      setDetailResult({ kind: selection.kind, value } as DetailResult);
+    } catch (loadError) {
+      if (controller.signal.aborted || detailRequestSequence.current !== sequence) return;
+      setDetailError(domainDetailErrorMessage(loadError));
+    } finally {
+      if (detailRequestSequence.current === sequence) {
+        detailRequestController.current = null;
+        setIsDetailLoading(false);
+      }
+    }
+  }, [canRead, connectorReady, organizationId]);
+
+  const closeDetail = useCallback(() => {
+    detailRequestSequence.current += 1;
+    detailRequestController.current?.abort();
+    detailRequestController.current = null;
+    setDetailSelection(null);
+    setDetailResult(null);
+    setDetailError(null);
+    setIsDetailLoading(false);
+  }, []);
+
   useEffect(() => {
     requestSequence.current += 1;
     requestController.current?.abort();
@@ -156,9 +307,10 @@ export function DomainsInventory({
     setSearch("");
     setError(null);
     setIsLoading(false);
+    closeDetail();
     if (organizationId && connectorReady && canRead) void loadInventory();
     return () => requestController.current?.abort();
-  }, [canRead, connectorReady, loadInventory, organizationId]);
+  }, [canRead, closeDetail, connectorReady, loadInventory, organizationId]);
 
   const rows = useMemo<InventoryRow[]>(
     () => [
@@ -175,6 +327,29 @@ export function DomainsInventory({
     );
   }, [deferredSearch, rows]);
   const primaryCount = domains.filter((domain) => domain.kind === "primary").length;
+  const detailColumns = useMemo<readonly DataTableColumn<InventoryRow>[]>(() => [
+    ...columns,
+    {
+      id: "actions",
+      header: "Details",
+      cell: (row) => {
+        const kind = row.kind === "alias" ? "alias" : "domain";
+        const selected = detailSelection?.kind === kind &&
+          detailSelection.name.toLocaleLowerCase() === row.name.toLocaleLowerCase();
+        return (
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-label={`View details for ${row.name}`}
+            aria-pressed={selected}
+            onClick={() => void loadDetail({ kind, name: row.name })}
+          >
+            <Eye aria-hidden="true" /> {selected ? "Selected" : "View"}
+          </Button>
+        );
+      }
+    }
+  ], [detailSelection, loadDetail]);
 
   if (!organizationId) {
     return <EmptyState title="Select an organization" icon={<Building2 aria-hidden="true" />}>Choose an organization from the workspace selector to view its domains.</EmptyState>;
@@ -215,7 +390,7 @@ export function DomainsInventory({
 
       <DataTable
         ariaLabel="Google Workspace domains and aliases"
-        columns={columns}
+        columns={detailColumns}
         rows={filteredRows}
         rowKey={(row) => `${row.kind}:${row.name.toLocaleLowerCase()}`}
         loading={isLoading && rows.length === 0}
@@ -226,6 +401,14 @@ export function DomainsInventory({
         emptyDescription={search ? "Try a different search term." : "Google returned an empty domain inventory for this customer."}
         minWidth="48rem"
         className="domains-data-table"
+      />
+      <DomainDetailPanel
+        selection={detailSelection}
+        result={detailResult}
+        loading={isDetailLoading}
+        error={detailError}
+        onRetry={() => detailSelection ? void loadDetail(detailSelection) : undefined}
+        onClose={closeDetail}
       />
     </section>
   );
