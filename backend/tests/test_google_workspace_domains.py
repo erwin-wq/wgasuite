@@ -199,6 +199,28 @@ def test_empty_inventory_and_missing_optional_metadata_are_preserved(
     )
 
 
+@pytest.mark.parametrize(
+    ("google_value", "expected_seconds"),
+    [
+        ("1700000000", 1700000000),
+        ("1700000000000", 1700000000),
+        ("1700000000123", 1700000000),
+    ],
+)
+def test_creation_time_normalizes_google_milliseconds_to_unix_seconds(
+    google_value: str,
+    expected_seconds: int,
+) -> None:
+    assert GoogleWorkspaceDomains._optional_timestamp(google_value) == expected_seconds
+
+
+def test_creation_time_rejects_values_outside_supported_range() -> None:
+    with pytest.raises(GoogleWorkspaceError) as error:
+        GoogleWorkspaceDomains._optional_timestamp("4102444801000")
+
+    assert error.value.code == GoogleWorkspaceErrorCode.GOOGLE_API_ERROR
+
+
 def test_multiple_aliases_and_deduplication_merge_missing_metadata(
     db_session: Session,
 ) -> None:

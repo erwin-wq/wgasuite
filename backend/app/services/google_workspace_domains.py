@@ -29,6 +29,10 @@ DOMAIN_LIST_FIELDS = f"domains({DOMAIN_FIELDS})"
 DOMAIN_ALIAS_FIELDS = "domainAliasName,parentDomainName,verified,creationTime"
 DOMAIN_ALIAS_LIST_FIELDS = f"domainAliases({DOMAIN_ALIAS_FIELDS})"
 MAX_DOMAIN_RECORDS = 10_000
+# Google currently returns domain creationTime values as Unix milliseconds even
+# though the REST schema describes only an int64 Unix timestamp. Keep WGASuite's
+# public contract in seconds and accept legacy second values defensively.
+MAX_REASONABLE_UNIX_SECONDS = 4_102_444_800  # 2100-01-01T00:00:00Z
 DOMAIN_LOOKUP_PATTERN = re.compile(
     r"^(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
     r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$"
@@ -410,6 +414,10 @@ class GoogleWorkspaceDomains:
             cls._invalid_response()
         if timestamp < 0:
             cls._invalid_response()
+        if timestamp > MAX_REASONABLE_UNIX_SECONDS:
+            if timestamp > MAX_REASONABLE_UNIX_SECONDS * 1000 + 999:
+                cls._invalid_response()
+            timestamp //= 1000
         return timestamp
 
     @staticmethod

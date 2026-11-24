@@ -111,6 +111,8 @@ describe("DomainsInventory", () => {
     expect(screen.getByText("alias.example.test")).toBeVisible();
     expect(screen.getByText("Not verified")).toBeVisible();
     expect(screen.getByText("Unknown")).toBeVisible();
+    expect(screen.getAllByText(/2023/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/51825|55840/)).not.toBeInTheDocument();
     expect(listGoogleWorkspaceDomains).toHaveBeenCalledWith(
       "organization-1",
       expect.any(AbortSignal)
@@ -201,6 +203,7 @@ describe("DomainsInventory", () => {
     await user.keyboard("{Enter}");
 
     expect(await screen.findByRole("heading", { name: "example.test", level: 3 })).toBeVisible();
+    expect(screen.getAllByText(/2023/).length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Associated aliases" })).toBeVisible();
     expect(screen.getAllByText("alias.example.test").length).toBeGreaterThan(0);
     expect(getGoogleWorkspaceDomain).toHaveBeenCalledWith(
