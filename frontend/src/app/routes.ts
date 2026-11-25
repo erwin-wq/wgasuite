@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   MailCheck,
   SearchCheck,
+  ShieldCheck,
   UserRoundSearch,
   UsersRound
 } from "lucide-react";
@@ -18,6 +19,7 @@ export type AppRouteId =
   | "userLookup"
   | "groups"
   | "domains"
+  | "adminRoles"
   | "orgUnits"
   | "delegations"
   | "connections"
@@ -94,6 +96,17 @@ export const appRoutes = {
     breadcrumb: ["Directory", "Domains"],
     group: "directory",
     icon: Globe2,
+    access: "tenant-operator"
+  },
+  adminRoles: {
+    id: "adminRoles",
+    path: "/directory/admin-roles",
+    title: "Admin roles & assignments",
+    shortTitle: "Admin roles",
+    description: "Review Directory administrator roles and direct assignments.",
+    breadcrumb: ["Directory", "Admin roles"],
+    group: "directory",
+    icon: ShieldCheck,
     access: "tenant-operator"
   },
   orgUnits: {

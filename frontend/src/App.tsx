@@ -61,6 +61,7 @@ import type {
 } from "./types";
 import { ConnectionWizard } from "./features/google-workspace/ConnectionWizard";
 import { DomainsInventory } from "./features/google-workspace/DomainsInventory";
+import { AdminRolesInventory } from "./features/google-workspace/AdminRolesInventory";
 import { GmailDelegationAuthorization } from "./features/google-workspace/GmailDelegationAuthorization";
 import { GmailDelegationManagement } from "./features/google-workspace/GmailDelegationManagement";
 import { GroupManagement } from "./features/google-workspace/GroupManagement";
@@ -1568,6 +1569,14 @@ function App() {
             ) : currentRoute.id === "domains" ? (
                 <DomainsInventory
                   key={`${selectedOrganizationId}:${tenantEpoch}:domains`}
+                  organizationId={selectedOrganizationId}
+                  organizationName={selectedOrganization?.name ?? null}
+                  connectorConfig={googleWorkspaceConnectorConfig}
+                  canRead={canOperateConnector}
+                />
+            ) : currentRoute.id === "adminRoles" ? (
+                <AdminRolesInventory
+                  key={`${selectedOrganizationId}:${tenantEpoch}:admin-roles`}
                   organizationId={selectedOrganizationId}
                   organizationName={selectedOrganization?.name ?? null}
                   connectorConfig={googleWorkspaceConnectorConfig}

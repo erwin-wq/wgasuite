@@ -4,7 +4,8 @@ WGASuite provides a five-step wizard, a real read-only connection test, a pagina
 Directory, exact user lookup by primary email or user alias, and guarded Gmail mailbox delegate
 management using a service account with Domain-Wide Delegation (DWD). It also provides
 customer-scoped Google Groups discovery, a read-only Domains inventory, a read-only Organizational
-Units tree, and guarded direct-user membership changes.
+Units tree, a read-only administrator roles and direct-assignments inventory, and guarded
+direct-user membership changes.
 Customer administrators can also perform
 guarded suspension and safe reactivation from the central user detail. The security-check catalog
 remains mock-only as documented in the README.
@@ -39,6 +40,7 @@ and any sanitized error. It never restores or reveals credential content.
    https://www.googleapis.com/auth/admin.directory.user.readonly
    https://www.googleapis.com/auth/admin.directory.domain.readonly
    https://www.googleapis.com/auth/admin.directory.orgunit.readonly
+   https://www.googleapis.com/auth/admin.directory.rolemanagement.readonly
    ```
 
 5. Choose an active delegated administrator with permission to read the requested Directory user.
@@ -55,6 +57,17 @@ https://www.googleapis.com/auth/gmail.settings.sharing
 The first scope is used only to list delegates. The second is used only for confirmed create and
 delete calls. WGASuite does not request `mail.google.com`, `gmail.modify`, or `gmail.readonly` as
 shortcuts and never modifies DWD grants automatically.
+
+The administrator roles inventory requests only this separate Directory scope:
+
+```text
+https://www.googleapis.com/auth/admin.directory.rolemanagement.readonly
+```
+
+It uses `roles.list` and unfiltered `roleAssignments.list` for the verified immutable customer ID.
+The resulting assignments are direct assignments only. WGASuite does not calculate effective
+administrator permissions, expand group membership, or resolve opaque assignee IDs to account
+identities. The standard connection test does not prove access to this operation-scoped grant.
 
 For Google Groups, add both Directory scopes below while preserving the user and Gmail scopes:
 

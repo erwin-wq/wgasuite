@@ -56,6 +56,10 @@ DIRECTORY_ORGUNIT_ALLOWED_SCOPE_SETS = {
 }
 DIRECTORY_DOMAIN_READONLY_SCOPE = "https://www.googleapis.com/auth/admin.directory.domain.readonly"
 DIRECTORY_DOMAIN_ALLOWED_SCOPE_SETS = {(DIRECTORY_DOMAIN_READONLY_SCOPE,)}
+DIRECTORY_ROLE_MANAGEMENT_READONLY_SCOPE = (
+    "https://www.googleapis.com/auth/admin.directory.rolemanagement.readonly"
+)
+DIRECTORY_ROLE_MANAGEMENT_ALLOWED_SCOPE_SETS = {(DIRECTORY_ROLE_MANAGEMENT_READONLY_SCOPE,)}
 
 
 class CredentialProvider(Protocol):
@@ -263,6 +267,24 @@ class DelegatedCredentialFactory:
 
         normalized_scopes = normalize_scopes(scopes)
         if normalized_scopes not in DIRECTORY_DOMAIN_ALLOWED_SCOPE_SETS:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.MISSING_SCOPE_OR_PERMISSION)
+        if not is_valid_admin_subject(connector_config.admin_subject_email):
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.INVALID_ADMIN_SUBJECT)
+        return self._create_with_subject(
+            connector_config,
+            normalized_scopes,
+            connector_config.admin_subject_email,
+        )
+
+    def create_for_directory_role_management(
+        self,
+        connector_config: ConnectorConfig,
+        scopes: Sequence[str],
+    ) -> tuple[Credentials, tuple[str, ...]]:
+        """Create a least-privilege Directory role-management client."""
+
+        normalized_scopes = normalize_scopes(scopes)
+        if normalized_scopes not in DIRECTORY_ROLE_MANAGEMENT_ALLOWED_SCOPE_SETS:
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.MISSING_SCOPE_OR_PERMISSION)
         if not is_valid_admin_subject(connector_config.admin_subject_email):
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.INVALID_ADMIN_SUBJECT)

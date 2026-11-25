@@ -57,6 +57,12 @@ from app.schemas.customer_membership import (
     UserCustomerMembershipRead,
 )
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
+from app.schemas.google_workspace_admin_role import (
+    GoogleWorkspaceAdminRoleInventoryRead,
+    GoogleWorkspaceAdminRoleRead,
+    GoogleWorkspaceRoleAssignmentRead,
+    GoogleWorkspaceRolePrivilegeRead,
+)
 from app.schemas.google_workspace_check import GoogleWorkspaceCheckRead
 from app.schemas.google_workspace_delegate import (
     GmailDelegateChangePreviewRead,
@@ -147,6 +153,7 @@ from app.schemas.report import AssessmentReportRead, RiskLevelCounts
 from app.schemas.scan_run import ScanRunRead
 from app.services.audit import record_audit_event
 from app.services.dread import calculate_dread_score
+from app.services.google_workspace_admin_roles import GoogleWorkspaceAdminRoles
 from app.services.google_workspace_connection import (
     CONNECTION_CRITICAL_FIELDS,
     GoogleWorkspaceConnectionTester,
@@ -1460,6 +1467,7 @@ GOOGLE_USER_LOOKUP_HTTP_STATUS = {
     GoogleWorkspaceErrorCode.INVALID_CREDENTIALS: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.INVALID_ADMIN_SUBJECT: status.HTTP_409_CONFLICT,
     GoogleWorkspaceErrorCode.DELEGATION_FAILED: status.HTTP_409_CONFLICT,
+    GoogleWorkspaceErrorCode.DELEGATION_REJECTED: status.HTTP_403_FORBIDDEN,
     GoogleWorkspaceErrorCode.MISSING_SCOPE_OR_PERMISSION: status.HTTP_403_FORBIDDEN,
     GoogleWorkspaceErrorCode.GOOGLE_FORBIDDEN: status.HTTP_403_FORBIDDEN,
     GoogleWorkspaceErrorCode.GOOGLE_RATE_LIMITED: status.HTTP_429_TOO_MANY_REQUESTS,
@@ -1661,6 +1669,109 @@ def require_domain_read(
             reason="organization_access_denied",
         )
         raise
+
+
+def require_admin_role_read(
+    *, db: Session, current_user: User, organization: Organization, action: str
+) -> None:
+    try:
+        require_customer_connector_operation_access(current_user, organization.customer_id)
+    except HTTPException:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_admin_role_inventory",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="rejected",
+            reason="organization_access_denied",
+            metadata={"read_only": True, "direct_assignments_only": True},
+        )
+        raise
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/admin-roles/list",
+    response_model=GoogleWorkspaceAdminRoleInventoryRead,
+    tags=["google-workspace"],
+)
+def list_google_workspace_admin_roles(
+    organization_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GoogleWorkspaceAdminRoleInventoryRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.admin_role_inventory.listed"
+    require_admin_role_read(
+        db=db,
+        current_user=current_user,
+        organization=organization,
+        action=action,
+    )
+    try:
+        result = GoogleWorkspaceAdminRoles.from_settings(db).list_inventory(
+            actor=current_user,
+            organization_id=organization.id,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_admin_role_inventory",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+            metadata={
+                "read_only": True,
+                "direct_assignments_only": True,
+                **({"google_reason": error.google_reason} if error.google_reason else {}),
+            },
+        )
+        raise HTTPException(
+            status_code=GOOGLE_USER_LOOKUP_HTTP_STATUS.get(error.code, status.HTTP_502_BAD_GATEWAY),
+            detail={"code": error.code.value, "message": str(error)},
+        ) from None
+
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_admin_role_inventory",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "role_count": len(result.roles),
+            "assignment_count": len(result.assignments),
+            "direct_assignments_only": True,
+            "effective_permissions_included": False,
+            "read_only": True,
+        },
+    )
+    return GoogleWorkspaceAdminRoleInventoryRead(
+        roles=[
+            GoogleWorkspaceAdminRoleRead(
+                role_id=role.role_id,
+                name=role.name,
+                description=role.description,
+                is_system_role=role.is_system_role,
+                is_super_admin_role=role.is_super_admin_role,
+                privileges=[
+                    GoogleWorkspaceRolePrivilegeRead(**privilege.__dict__)
+                    for privilege in role.privileges
+                ],
+            )
+            for role in result.roles
+        ],
+        assignments=[
+            GoogleWorkspaceRoleAssignmentRead(**assignment.__dict__)
+            for assignment in result.assignments
+        ],
+        role_count=len(result.roles),
+        assignment_count=len(result.assignments),
+    )
 
 
 @api_router.post(

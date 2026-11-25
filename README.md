@@ -185,6 +185,15 @@ orphaned relationships. Operators can select an inventory row to inspect authori
 metadata and domain-to-alias relationships. Domain data is displayed read-only and is not
 persisted. Domain and alias creation, update, deletion and bulk export are not implemented.
 
+The **Admin roles** tool uses `roles.list` and direct `roleAssignments.list` results for the
+independently verified immutable customer ID with only the
+`admin.directory.rolemanagement.readonly` scope. It paginates both resources with bounded
+budgets, disables automatic retries, and never substitutes `my_customer`. The interface shows
+system, custom and super-administrator roles, safe privilege summaries, opaque assignee types and
+IDs, customer/OU scope, and conditions returned by Google. It intentionally does not resolve
+assignee identities or claim to calculate inherited, group-derived or otherwise effective
+administrator permissions. No role or assignment mutation is implemented.
+
 See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup, scope,
 security and live-verification instructions, and [mutation safety](docs/MUTATION_SAFETY.md) for the
 shared confirmation, single-execution, outcome and audit contract. Gmail delegation cannot read or
@@ -192,8 +201,8 @@ modify messages, and Groups management cannot create/delete groups, change roles
 operations.
 
 After a successful connection, the Google Workspace page shows a compact persisted connection
-status and provides **Users & aliases**, **Groups**, and **Organizational Units** administration
-tabs. The users area opens on
+status and provides dedicated **Users & aliases**, **Groups**, **Domains**, **Admin roles**, and
+**Organizational Units** routes. The users area opens on
 the paginated Directory and retains a separate exact lookup view. Select **Manage
 connection** to reopen the existing five-step wizard. Unconfigured organizations show the wizard
 prominently, while failed connectors show their persisted sanitized failure and an inspection

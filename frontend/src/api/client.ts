@@ -20,6 +20,7 @@ import type {
   GoogleWorkspaceGroupMemberList,
   GoogleWorkspaceGroupSearchResult,
   GoogleWorkspaceDomainInventory,
+  GoogleWorkspaceAdminRoleInventory,
   GoogleWorkspaceDomainDetail,
   GoogleWorkspaceDomainAliasDetail,
   GoogleWorkspaceOrganizationalUnit,
@@ -424,6 +425,16 @@ export function listGoogleWorkspaceDomains(
 ): Promise<GoogleWorkspaceDomainInventory> {
   return request<GoogleWorkspaceDomainInventory>(
     `/api/v1/organizations/${organizationId}/google-workspace/domains/list`,
+    { method: "POST", signal }
+  );
+}
+
+export function listGoogleWorkspaceAdminRoles(
+  organizationId: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceAdminRoleInventory> {
+  return request<GoogleWorkspaceAdminRoleInventory>(
+    `/api/v1/organizations/${organizationId}/google-workspace/admin-roles/list`,
     { method: "POST", signal }
   );
 }

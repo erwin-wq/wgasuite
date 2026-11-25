@@ -112,6 +112,10 @@
       "title": "DIR-004.2 individual domain and domain alias details implementation task",
       "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220878871189049"
     },
+    "wgasuite.dir0043.task": {
+      "title": "DIR-004.3 administrator roles and direct assignments live acceptance",
+      "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220879930572675"
+    },
     "wgasuite.dir0031.task": {
       "title": "DIR-003.1 read-only Organizational Units implementation task",
       "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220045481580599"
@@ -36320,11 +36324,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "verified",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_admin_roles.py",
+          "frontend/src/features/google-workspace/AdminRolesInventory.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.source",
+          "wgasuite.tests",
+          "wgasuite.dir0043.task"
+        ],
+        "limitations": "Direct tenant-scoped assignments were independently verified against the live Google Directory API. WGASuite does not calculate effective permissions, resolve opaque assignee IDs, expose single-assignment lookup, or support upstream bulk/CSV behavior."
       },
       "roadmap": {
         "epic": "DIR-004",
@@ -36332,9 +36343,12 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716"
       },
       "verification": {
-        "automated_tests": false,
-        "live_google": false,
-        "evidence_refs": []
+        "automated_tests": true,
+        "live_google": true,
+        "evidence_refs": [
+          "wgasuite.tests",
+          "wgasuite.dir0043.task"
+        ]
       },
       "evidence_refs": [
         "upstream.gam7.grammar",
@@ -36552,7 +36566,7 @@
           "Roles.List"
         ],
         "scopes": [
-          "https://www.googleapis.com/auth/admin.directory.rolemanagement"
+          "https://www.googleapis.com/auth/admin.directory.rolemanagement.readonly"
         ],
         "auth_context": "PSGSuite service-account DWD or user OAuth as documented by the pinned upstream function",
         "feasibility": "direct"
@@ -36569,11 +36583,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "verified",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_admin_roles.py",
+          "frontend/src/features/google-workspace/AdminRolesInventory.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.source",
+          "wgasuite.tests",
+          "wgasuite.dir0043.task"
+        ],
+        "limitations": "Tenant-scoped role listing and role-detail presentation were independently verified against the live Google Directory API. WGASuite does not expose roles.get, bulk/CSV selectors, or role mutations."
       },
       "roadmap": {
         "epic": "DIR-004",
@@ -36581,9 +36602,12 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716"
       },
       "verification": {
-        "automated_tests": false,
-        "live_google": false,
-        "evidence_refs": []
+        "automated_tests": true,
+        "live_google": true,
+        "evidence_refs": [
+          "wgasuite.tests",
+          "wgasuite.dir0043.task"
+        ]
       },
       "evidence_refs": [
         "upstream.gam7.grammar",

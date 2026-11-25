@@ -410,6 +410,40 @@ export interface GoogleWorkspaceDomainAliasDetail {
   read_only: true;
 }
 
+export interface GoogleWorkspaceRolePrivilege {
+  service_id: string;
+  privilege_name: string;
+}
+
+export interface GoogleWorkspaceAdminRole {
+  role_id: string;
+  name: string;
+  description: string | null;
+  is_system_role: boolean;
+  is_super_admin_role: boolean;
+  privileges: GoogleWorkspaceRolePrivilege[];
+}
+
+export interface GoogleWorkspaceRoleAssignment {
+  assignment_id: string;
+  role_id: string;
+  assigned_to: string;
+  assignee_type: "USER" | "GROUP" | "UNKNOWN";
+  scope_type: "CUSTOMER" | "ORG_UNIT" | "UNKNOWN";
+  org_unit_id: string | null;
+  condition: string | null;
+}
+
+export interface GoogleWorkspaceAdminRoleInventory {
+  roles: GoogleWorkspaceAdminRole[];
+  assignments: GoogleWorkspaceRoleAssignment[];
+  role_count: number;
+  assignment_count: number;
+  direct_assignments_only: true;
+  effective_permissions_included: false;
+  read_only: true;
+}
+
 export interface GoogleWorkspaceOrganizationalUnitCreatePreview {
   parent_org_unit_id: string;
   parent_path: string;
