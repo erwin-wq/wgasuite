@@ -64,13 +64,13 @@ The catalog contains 709 canonical capabilities:
 
 | WGASuite status | Count |
 |---|---:|
-| verified | 15 |
-| partial | 2 |
+| verified | 22 |
+| partial | 3 |
 | implemented | 0 |
 | mocked | 0 |
-| missing | 692 |
+| missing | 684 |
 
-All 17 non-missing capabilities have partial, rather than equivalent, parity
+All 25 non-missing capabilities have partial, rather than equivalent, parity
 because WGASuite intentionally lacks upstream bulk selectors/CSV behavior or
 supports a narrower guarded operation. There are 317 read, 281 write and 111
 destructive capabilities. The roadmap maps 139 capabilities to v0.3 Directory

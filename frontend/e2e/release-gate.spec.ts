@@ -9,6 +9,7 @@ const routes = [
   { path: "/directory/users/lookup", title: "Exact user lookup", marker: ".user-lookup" },
   { path: "/directory/groups", title: "Groups", marker: ".group-management" },
   { path: "/directory/domains", title: "Domains", marker: ".domains-inventory" },
+  { path: "/directory/admin-roles", title: "Admin roles & assignments", marker: ".admin-roles-inventory" },
   { path: "/directory/org-units", title: "Organizational units", marker: ".organizational-units" },
   { path: "/gmail/delegations", title: "Gmail delegations", marker: ".gmail-mailbox-lookup" },
   { path: "/settings/connections", title: "Connections", marker: ".workspace-connection-overview" },
@@ -206,6 +207,31 @@ test("Domains inventory details, search and refresh remain read-only", async ({ 
   const callsBeforeRefresh = api.calls.filter((call) => call.path.endsWith("/google-workspace/domains/list")).length;
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect.poll(() => api.calls.filter((call) => call.path.endsWith("/google-workspace/domains/list")).length).toBe(callsBeforeRefresh + 1);
+  expect(consoleErrors).toEqual([]);
+  expect(api.rejectedWrites).toEqual([]);
+});
+
+test("Admin roles expose direct assignments without implying effective access", async ({ page }, testInfo) => {
+  test.skip(!["desktop", "mobile"].includes(testInfo.project.name), "Desktop and mobile cover admin-role interactions.");
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  await authenticate(page);
+  const api = await installApiHarness(page);
+  await page.goto("/directory/admin-roles");
+  await expect(page.getByText("Direct assignments, not effective permissions")).toBeVisible();
+  await page.getByRole("button", { name: "View details for Help Desk" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Help Desk", level: 3 })).toBeVisible();
+  await expect(page.getByText("109000000000000000000")).toBeVisible();
+  await expect(page.getByText(/OU ID:/)).toBeVisible();
+  await page.getByRole("searchbox", { name: "Search roles" }).fill("custom");
+  await expect(page.getByText("Custom Security Reader")).toBeVisible();
+  await expect(page.locator("strong").getByText("Help Desk", { exact: true })).toHaveCount(0);
+  const callsBeforeRefresh = api.calls.filter((call) => call.path.endsWith("/google-workspace/admin-roles/list")).length;
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect.poll(() => api.calls.filter((call) => call.path.endsWith("/google-workspace/admin-roles/list")).length).toBe(callsBeforeRefresh + 1);
   expect(consoleErrors).toEqual([]);
   expect(api.rejectedWrites).toEqual([]);
 });

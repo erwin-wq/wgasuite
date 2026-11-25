@@ -10,6 +10,7 @@ describe("typed application routes", () => {
       "/directory/users/lookup",
       "/directory/groups",
       "/directory/domains",
+      "/directory/admin-roles",
       "/directory/org-units",
       "/gmail/delegations",
       "/settings/connections",

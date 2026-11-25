@@ -16,16 +16,16 @@ The canonical source is [`capabilities.yaml`](capabilities.yaml). Run `python sc
 
 | Status | Count |
 |---|---:|
-| missing | 686 |
+| missing | 684 |
 | partial | 3 |
-| verified | 20 |
+| verified | 22 |
 
 ### Functional parity status
 
 | Parity | Count |
 |---|---:|
-| missing | 686 |
-| partial | 23 |
+| missing | 684 |
+| partial | 25 |
 
 ### Access classification
 
@@ -515,11 +515,11 @@ The canonical source is [`capabilities.yaml`](capabilities.yaml). Run `python sc
 | `directory.role_assignments.create` | directory | `create` | write | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.role_assignments.delete` | directory | `delete` | destructive | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.role_assignments.get` | directory | `get` | read | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
-| `directory.role_assignments.list` | directory | `list` | read | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
+| `directory.role_assignments.list` | directory | `list` | read | direct | verified | partial | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.roles.create` | directory | `create` | write | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.roles.delete` | directory | `delete` | destructive | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.roles.get` | directory | `get` | read | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
-| `directory.roles.list` | directory | `list` | read | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
+| `directory.roles.list` | directory | `list` | read | direct | verified | partial | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.roles.update` | directory | `update` | write | unknown | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.schemas.create` | directory | `create` | write | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |
 | `directory.schemas.delete` | directory | `delete` | destructive | direct | missing | missing | [DIR-004](https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716) |

@@ -95,6 +95,41 @@ export const domainInventory = {
   read_only: true
 };
 
+export const adminRoleInventory = {
+  roles: [
+    {
+      role_id: "role-fictional-helpdesk",
+      name: "Help Desk",
+      description: "Fictional support role",
+      is_system_role: true,
+      is_super_admin_role: false,
+      privileges: [{ service_id: "02", privilege_name: "USERS_RETRIEVE" }]
+    },
+    {
+      role_id: "role-fictional-custom",
+      name: "Custom Security Reader",
+      description: null,
+      is_system_role: false,
+      is_super_admin_role: false,
+      privileges: []
+    }
+  ],
+  assignments: [{
+    assignment_id: "assignment-fictional",
+    role_id: "role-fictional-helpdesk",
+    assigned_to: "109000000000000000000",
+    assignee_type: "USER",
+    scope_type: "ORG_UNIT",
+    org_unit_id: "id:engineering",
+    condition: null
+  }],
+  role_count: 2,
+  assignment_count: 1,
+  direct_assignments_only: true,
+  effective_permissions_included: false,
+  read_only: true
+};
+
 const platformOverview = {
   totals: { customers_count: 2, organizations_count: 2, assessments_count: 0, connector_configs_count: 1, scan_runs_count: 0, audit_events_count: 1 },
   customers: customers.map((customer) => ({ id: customer.id, name: customer.name, slug: customer.slug, status: customer.status, organization_count: 1, connector_config_count: customer.id === customers[0].id ? 1 : 0, last_scan_run_at: null, last_audit_event_at: now })),
@@ -169,6 +204,7 @@ export async function installApiHarness(
     if (path.endsWith("/google-workspace/groups/get")) return respond(group);
     if (path.endsWith("/google-workspace/groups/members/list")) return respond({ group, members: [], next_page_token: null });
     if (path.endsWith("/google-workspace/domains/list")) return respond(domainInventory);
+    if (path.endsWith("/google-workspace/admin-roles/list")) return respond(adminRoleInventory);
     if (path.endsWith("/google-workspace/domains/get")) {
       const name = String(request.postDataJSON()?.name ?? "");
       const domain = domainInventory.domains.find((item) => item.name === name);
