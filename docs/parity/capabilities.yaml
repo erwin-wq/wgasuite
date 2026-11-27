@@ -116,6 +116,18 @@
       "title": "DIR-004.3 administrator roles and direct assignments live acceptance",
       "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220879930572675"
     },
+    "wgasuite.dir0044.task": {
+      "title": "DIR-004.4 individual administrator role and assignment details task",
+      "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220962200418534"
+    },
+    "google.directory.roles.get": {
+      "title": "Admin SDK Directory API roles.get reference",
+      "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/roles/get"
+    },
+    "google.directory.roleassignments.get": {
+      "title": "Admin SDK Directory API roleAssignments.get reference",
+      "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/roleAssignments/get"
+    },
     "wgasuite.dir0031.task": {
       "title": "DIR-003.1 read-only Organizational Units implementation task",
       "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220045481580599"
@@ -36264,11 +36276,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "implemented",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_admin_roles.py",
+          "frontend/src/features/google-workspace/AdminRolesInventory.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.source",
+          "wgasuite.tests",
+          "wgasuite.dir0044.task"
+        ],
+        "limitations": "Tenant-scoped single-assignment lookup is implemented with automated coverage but awaits independent live Google verification. WGASuite does not resolve opaque principals, calculate effective permissions, expand indirect assignments, or support bulk/CSV behavior."
       },
       "roadmap": {
         "epic": "DIR-004",
@@ -36276,13 +36295,16 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716"
       },
       "verification": {
-        "automated_tests": false,
+        "automated_tests": true,
         "live_google": false,
-        "evidence_refs": []
+        "evidence_refs": [
+          "wgasuite.tests"
+        ]
       },
       "evidence_refs": [
         "upstream.psgsuite.source",
-        "google.directory.reference"
+        "google.directory.reference",
+        "google.directory.roleassignments.get"
       ],
       "notes": "Stable administrative result; syntax aliases, print/show forms, and selector variants are linked in source_inventory."
     },
@@ -36502,7 +36524,7 @@
           "Roles.List"
         ],
         "scopes": [
-          "https://www.googleapis.com/auth/admin.directory.rolemanagement"
+          "https://www.googleapis.com/auth/admin.directory.rolemanagement.readonly"
         ],
         "auth_context": "PSGSuite service-account DWD or user OAuth as documented by the pinned upstream function",
         "feasibility": "direct"
@@ -36521,11 +36543,18 @@
         ]
       },
       "wgasuite": {
-        "status": "missing",
-        "parity": "missing",
-        "backend_or_frontend_paths": [],
-        "evidence_refs": [],
-        "limitations": "No matching WGASuite administrative workflow at the frozen baseline."
+        "status": "implemented",
+        "parity": "partial",
+        "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_admin_roles.py",
+          "frontend/src/features/google-workspace/AdminRolesInventory.tsx"
+        ],
+        "evidence_refs": [
+          "wgasuite.source",
+          "wgasuite.tests",
+          "wgasuite.dir0044.task"
+        ],
+        "limitations": "Tenant-scoped role detail lookup is implemented with automated coverage but awaits independent live Google verification. WGASuite preserves opaque service identifiers and does not support upstream bulk/CSV selectors or role mutations."
       },
       "roadmap": {
         "epic": "DIR-004",
@@ -36533,13 +36562,16 @@
         "task_url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1218820278533716"
       },
       "verification": {
-        "automated_tests": false,
+        "automated_tests": true,
         "live_google": false,
-        "evidence_refs": []
+        "evidence_refs": [
+          "wgasuite.tests"
+        ]
       },
       "evidence_refs": [
         "upstream.gam7.grammar",
         "google.directory.reference",
+        "google.directory.roles.get",
         "upstream.psgsuite.source"
       ],
       "notes": "Stable administrative result; syntax aliases, print/show forms, and selector variants are linked in source_inventory."

@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -58,8 +58,11 @@ from app.schemas.customer_membership import (
 )
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
 from app.schemas.google_workspace_admin_role import (
+    GoogleWorkspaceAdminResourceReferenceRequest,
+    GoogleWorkspaceAdminRoleDetailRead,
     GoogleWorkspaceAdminRoleInventoryRead,
     GoogleWorkspaceAdminRoleRead,
+    GoogleWorkspaceRoleAssignmentDetailRead,
     GoogleWorkspaceRoleAssignmentRead,
     GoogleWorkspaceRolePrivilegeRead,
 )
@@ -1479,6 +1482,9 @@ GOOGLE_USER_LOOKUP_HTTP_STATUS = {
     GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_ALIAS_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NAME_INVALID: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    GoogleWorkspaceErrorCode.GOOGLE_ADMIN_ROLE_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    GoogleWorkspaceErrorCode.GOOGLE_ROLE_ASSIGNMENT_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    GoogleWorkspaceErrorCode.GOOGLE_RESOURCE_ID_INVALID: status.HTTP_422_UNPROCESSABLE_CONTENT,
 }
 
 GMAIL_DELEGATE_HTTP_STATUS = {
@@ -1691,6 +1697,65 @@ def require_admin_role_read(
         raise
 
 
+def admin_role_read(role: Any) -> GoogleWorkspaceAdminRoleRead:
+    return GoogleWorkspaceAdminRoleRead(
+        role_id=role.role_id,
+        name=role.name,
+        description=role.description,
+        is_system_role=role.is_system_role,
+        is_super_admin_role=role.is_super_admin_role,
+        privileges=[
+            GoogleWorkspaceRolePrivilegeRead(**privilege.__dict__) for privilege in role.privileges
+        ],
+    )
+
+
+def role_assignment_read(assignment: Any) -> GoogleWorkspaceRoleAssignmentRead:
+    return GoogleWorkspaceRoleAssignmentRead(
+        assignment_id=assignment.assignment_id,
+        role_id=assignment.role_id,
+        assigned_to=assignment.assigned_to,
+        assignee_type=assignment.assignee_type,
+        scope_type=assignment.scope_type,
+        org_unit_id=assignment.org_unit_id,
+        condition=assignment.condition,
+        expires_at=assignment.expires_at,
+        expired=bool(
+            assignment.expires_at is not None and assignment.expires_at <= datetime.now(UTC)
+        ),
+    )
+
+
+def admin_role_detail_failure(
+    *,
+    db: Session,
+    current_user: User,
+    organization: Organization,
+    action: str,
+    object_type: str,
+    error: GoogleWorkspaceError,
+) -> HTTPException:
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type=object_type,
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        outcome="failure",
+        reason=error.code.value,
+        metadata={
+            "read_only": True,
+            "direct_assignments_only": True,
+            **({"google_reason": error.google_reason} if error.google_reason else {}),
+        },
+    )
+    return HTTPException(
+        status_code=GOOGLE_USER_LOOKUP_HTTP_STATUS.get(error.code, status.HTTP_502_BAD_GATEWAY),
+        detail={"code": error.code.value, "message": str(error)},
+    )
+
+
 @api_router.post(
     "/organizations/{organization_id}/google-workspace/admin-roles/list",
     response_model=GoogleWorkspaceAdminRoleInventoryRead,
@@ -1751,27 +1816,111 @@ def list_google_workspace_admin_roles(
         },
     )
     return GoogleWorkspaceAdminRoleInventoryRead(
-        roles=[
-            GoogleWorkspaceAdminRoleRead(
-                role_id=role.role_id,
-                name=role.name,
-                description=role.description,
-                is_system_role=role.is_system_role,
-                is_super_admin_role=role.is_super_admin_role,
-                privileges=[
-                    GoogleWorkspaceRolePrivilegeRead(**privilege.__dict__)
-                    for privilege in role.privileges
-                ],
-            )
-            for role in result.roles
-        ],
-        assignments=[
-            GoogleWorkspaceRoleAssignmentRead(**assignment.__dict__)
-            for assignment in result.assignments
-        ],
+        roles=[admin_role_read(role) for role in result.roles],
+        assignments=[role_assignment_read(assignment) for assignment in result.assignments],
         role_count=len(result.roles),
         assignment_count=len(result.assignments),
     )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/admin-roles/get",
+    response_model=GoogleWorkspaceAdminRoleDetailRead,
+    tags=["google-workspace"],
+)
+def get_google_workspace_admin_role(
+    organization_id: UUID,
+    payload: GoogleWorkspaceAdminResourceReferenceRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GoogleWorkspaceAdminRoleDetailRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.admin_role.viewed"
+    require_admin_role_read(
+        db=db, current_user=current_user, organization=organization, action=action
+    )
+    try:
+        role = GoogleWorkspaceAdminRoles.from_settings(db).get_role(
+            actor=current_user,
+            organization_id=organization.id,
+            role_id=payload.id,
+        )
+    except GoogleWorkspaceError as error:
+        raise admin_role_detail_failure(
+            db=db,
+            current_user=current_user,
+            organization=organization,
+            action=action,
+            object_type="google_workspace_admin_role",
+            error=error,
+        ) from None
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_admin_role",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "read_only": True,
+            "privilege_count": len(role.privileges),
+            "is_system_role": role.is_system_role,
+            "is_super_admin_role": role.is_super_admin_role,
+        },
+    )
+    return GoogleWorkspaceAdminRoleDetailRead(role=admin_role_read(role))
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/admin-role-assignments/get",
+    response_model=GoogleWorkspaceRoleAssignmentDetailRead,
+    tags=["google-workspace"],
+)
+def get_google_workspace_role_assignment(
+    organization_id: UUID,
+    payload: GoogleWorkspaceAdminResourceReferenceRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GoogleWorkspaceRoleAssignmentDetailRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.admin_role_assignment.viewed"
+    require_admin_role_read(
+        db=db, current_user=current_user, organization=organization, action=action
+    )
+    try:
+        assignment = GoogleWorkspaceAdminRoles.from_settings(db).get_assignment(
+            actor=current_user,
+            organization_id=organization.id,
+            assignment_id=payload.id,
+        )
+    except GoogleWorkspaceError as error:
+        raise admin_role_detail_failure(
+            db=db,
+            current_user=current_user,
+            organization=organization,
+            action=action,
+            object_type="google_workspace_admin_role_assignment",
+            error=error,
+        ) from None
+    read = role_assignment_read(assignment)
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_admin_role_assignment",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "read_only": True,
+            "direct_assignment": True,
+            "assignee_type": assignment.assignee_type,
+            "scope_type": assignment.scope_type,
+            "condition_present": assignment.condition is not None,
+            "expiration_present": assignment.expires_at is not None,
+            "expired": read.expired,
+        },
+    )
+    return GoogleWorkspaceRoleAssignmentDetailRead(assignment=read)
 
 
 @api_router.post(

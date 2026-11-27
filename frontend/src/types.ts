@@ -432,6 +432,8 @@ export interface GoogleWorkspaceRoleAssignment {
   scope_type: "CUSTOMER" | "ORG_UNIT" | "UNKNOWN";
   org_unit_id: string | null;
   condition: string | null;
+  expires_at: string | null;
+  expired: boolean;
 }
 
 export interface GoogleWorkspaceAdminRoleInventory {
@@ -440,6 +442,18 @@ export interface GoogleWorkspaceAdminRoleInventory {
   role_count: number;
   assignment_count: number;
   direct_assignments_only: true;
+  effective_permissions_included: false;
+  read_only: true;
+}
+
+export interface GoogleWorkspaceAdminRoleDetail {
+  role: GoogleWorkspaceAdminRole;
+  read_only: true;
+}
+
+export interface GoogleWorkspaceRoleAssignmentDetail {
+  assignment: GoogleWorkspaceRoleAssignment;
+  direct_assignment: true;
   effective_permissions_included: false;
   read_only: true;
 }

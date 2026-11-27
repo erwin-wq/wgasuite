@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -23,13 +25,23 @@ ROLE_FIELDS = (
     "items(roleId,roleName,roleDescription,isSystemRole,isSuperAdminRole,"
     "rolePrivileges(serviceId,privilegeName)),nextPageToken"
 )
+ROLE_DETAIL_FIELDS = (
+    "roleId,roleName,roleDescription,isSystemRole,isSuperAdminRole,"
+    "rolePrivileges(serviceId,privilegeName),etag"
+)
 ASSIGNMENT_FIELDS = (
-    "items(roleAssignmentId,roleId,assignedTo,assigneeType,scopeType,orgUnitId,condition),"
+    "items(roleAssignmentId,roleId,assignedTo,assigneeType,scopeType,orgUnitId,condition,"
+    "expirationDetails(expireTime)),"
     "nextPageToken"
+)
+ASSIGNMENT_DETAIL_FIELDS = (
+    "roleAssignmentId,roleId,assignedTo,assigneeType,scopeType,orgUnitId,condition,"
+    "expirationDetails(expireTime),etag"
 )
 MAX_PAGES = 100
 MAX_RECORDS = 10_000
 MAX_TEXT_LENGTH = 4_096
+RESOURCE_ID_PATTERN = re.compile(r"^[0-9]{1,30}$")
 
 
 @dataclass(frozen=True)
@@ -46,6 +58,7 @@ class WorkspaceAdminRole:
     is_system_role: bool
     is_super_admin_role: bool
     privileges: tuple[WorkspaceRolePrivilege, ...]
+    etag: str | None = None
 
 
 @dataclass(frozen=True)
@@ -57,6 +70,8 @@ class WorkspaceRoleAssignment:
     scope_type: Literal["CUSTOMER", "ORG_UNIT", "UNKNOWN"]
     org_unit_id: str | None
     condition: str | None
+    expires_at: datetime | None = None
+    etag: str | None = None
 
 
 @dataclass(frozen=True)
@@ -117,9 +132,88 @@ class GoogleWorkspaceAdminRoles:
         except Exception as error:
             raise map_google_api_error(error) from None
         finally:
-            close = getattr(getattr(client, "_http", None), "close", None)
-            if callable(close):
-                close()
+            self._close_client(client)
+
+    def get_role(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        role_id: str,
+        request_timeout_seconds: float | None = None,
+    ) -> WorkspaceAdminRole:
+        requested_id = self._resource_id(role_id)
+        customer_id = self._verified_customer_id(actor, organization_id)
+        client: Any | None = None
+        try:
+            client = self._role_client(actor, organization_id, request_timeout_seconds)
+            response = (
+                client.roles()
+                .get(customer=customer_id, roleId=requested_id, fields=ROLE_DETAIL_FIELDS)
+                .execute(num_retries=0)
+            )
+            role = self._role(response)
+            if role.role_id != requested_id:
+                self._invalid_response()
+            return role
+        except GoogleWorkspaceError:
+            raise
+        except Exception as error:
+            raise self._detail_error(
+                error, GoogleWorkspaceErrorCode.GOOGLE_ADMIN_ROLE_NOT_FOUND
+            ) from None
+        finally:
+            self._close_client(client)
+
+    def get_assignment(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        assignment_id: str,
+        request_timeout_seconds: float | None = None,
+    ) -> WorkspaceRoleAssignment:
+        requested_id = self._resource_id(assignment_id)
+        customer_id = self._verified_customer_id(actor, organization_id)
+        client: Any | None = None
+        try:
+            client = self._role_client(actor, organization_id, request_timeout_seconds)
+            response = (
+                client.roleAssignments()
+                .get(
+                    customer=customer_id,
+                    roleAssignmentId=requested_id,
+                    fields=ASSIGNMENT_DETAIL_FIELDS,
+                )
+                .execute(num_retries=0)
+            )
+            assignment = self._assignment(response)
+            if assignment.assignment_id != requested_id:
+                self._invalid_response()
+            return assignment
+        except GoogleWorkspaceError:
+            raise
+        except Exception as error:
+            raise self._detail_error(
+                error, GoogleWorkspaceErrorCode.GOOGLE_ROLE_ASSIGNMENT_NOT_FOUND
+            ) from None
+        finally:
+            self._close_client(client)
+
+    def _role_client(
+        self,
+        actor: User,
+        organization_id: UUID,
+        request_timeout_seconds: float | None,
+    ) -> Any:
+        arguments: dict[str, Any] = {
+            "actor": actor,
+            "organization_id": organization_id,
+            "scopes": (DIRECTORY_ROLE_MANAGEMENT_READONLY_SCOPE,),
+        }
+        if request_timeout_seconds is not None:
+            arguments["request_timeout_seconds"] = request_timeout_seconds
+        return self.client_factory.for_directory_role_management(**arguments)
 
     @classmethod
     def _paginate(
@@ -170,68 +264,84 @@ class GoogleWorkspaceAdminRoles:
     ) -> WorkspaceAdminRoleInventory:
         roles: dict[str, WorkspaceAdminRole] = {}
         for raw in raw_roles:
-            if not isinstance(raw, dict):
+            role = cls._role(raw)
+            if role.role_id in roles:
                 cls._invalid_response()
-            role_id = cls._text(raw.get("roleId"))
-            if role_id in roles:
-                cls._invalid_response()
-            raw_privileges = raw.get("rolePrivileges", [])
-            if raw_privileges is None:
-                raw_privileges = []
-            if not isinstance(raw_privileges, list):
-                cls._invalid_response()
-            privileges: list[WorkspaceRolePrivilege] = []
-            privilege_keys: set[tuple[str, str]] = set()
-            for value in raw_privileges:
-                if not isinstance(value, dict):
-                    cls._invalid_response()
-                privilege = WorkspaceRolePrivilege(
-                    service_id=cls._text(value.get("serviceId")),
-                    privilege_name=cls._text(value.get("privilegeName")),
-                )
-                key = (privilege.service_id, privilege.privilege_name)
-                if key in privilege_keys:
-                    cls._invalid_response()
-                privilege_keys.add(key)
-                privileges.append(privilege)
-            roles[role_id] = WorkspaceAdminRole(
-                role_id=role_id,
-                name=cls._text(raw.get("roleName")),
-                description=cls._optional_text(raw.get("roleDescription")),
-                is_system_role=cls._bool(raw.get("isSystemRole", False)),
-                is_super_admin_role=cls._bool(raw.get("isSuperAdminRole", False)),
-                privileges=tuple(sorted(privileges, key=lambda item: item.privilege_name)),
-            )
+            roles[role.role_id] = role
 
         assignments: dict[str, WorkspaceRoleAssignment] = {}
         for raw in raw_assignments:
-            if not isinstance(raw, dict):
+            assignment = cls._assignment(raw)
+            if assignment.assignment_id in assignments or assignment.role_id not in roles:
                 cls._invalid_response()
-            assignment_id = cls._text(raw.get("roleAssignmentId"))
-            role_id = cls._text(raw.get("roleId"))
-            if assignment_id in assignments or role_id not in roles:
-                cls._invalid_response()
-            assignee_type = raw.get("assigneeType", "UNKNOWN")
-            if assignee_type not in {"USER", "GROUP"}:
-                assignee_type = "UNKNOWN"
-            scope_type = raw.get("scopeType", "UNKNOWN")
-            if scope_type not in {"CUSTOMER", "ORG_UNIT"}:
-                scope_type = "UNKNOWN"
-            org_unit_id = cls._optional_text(raw.get("orgUnitId"))
-            if scope_type == "ORG_UNIT" and org_unit_id is None:
-                cls._invalid_response()
-            assignments[assignment_id] = WorkspaceRoleAssignment(
-                assignment_id=assignment_id,
-                role_id=role_id,
-                assigned_to=cls._text(raw.get("assignedTo")),
-                assignee_type=assignee_type,
-                scope_type=scope_type,
-                org_unit_id=org_unit_id,
-                condition=cls._optional_text(raw.get("condition")),
-            )
+            assignments[assignment.assignment_id] = assignment
         return WorkspaceAdminRoleInventory(
             roles=tuple(sorted(roles.values(), key=lambda item: item.name.casefold())),
             assignments=tuple(sorted(assignments.values(), key=lambda item: item.assignment_id)),
+        )
+
+    @classmethod
+    def _role(cls, raw: Any) -> WorkspaceAdminRole:
+        if not isinstance(raw, dict):
+            cls._invalid_response()
+        raw_privileges = raw.get("rolePrivileges", [])
+        if raw_privileges is None:
+            raw_privileges = []
+        if not isinstance(raw_privileges, list):
+            cls._invalid_response()
+        privileges: list[WorkspaceRolePrivilege] = []
+        privilege_keys: set[tuple[str, str]] = set()
+        for value in raw_privileges:
+            if not isinstance(value, dict):
+                cls._invalid_response()
+            privilege = WorkspaceRolePrivilege(
+                service_id=cls._text(value.get("serviceId")),
+                privilege_name=cls._text(value.get("privilegeName")),
+            )
+            key = (privilege.service_id, privilege.privilege_name)
+            if key in privilege_keys:
+                cls._invalid_response()
+            privilege_keys.add(key)
+            privileges.append(privilege)
+        return WorkspaceAdminRole(
+            role_id=cls._resource_id(raw.get("roleId"), invalid_response=True),
+            name=cls._text(raw.get("roleName")),
+            description=cls._optional_text(raw.get("roleDescription")),
+            is_system_role=cls._bool(raw.get("isSystemRole", False)),
+            is_super_admin_role=cls._bool(raw.get("isSuperAdminRole", False)),
+            privileges=tuple(sorted(privileges, key=lambda item: item.privilege_name)),
+            etag=cls._optional_text(raw.get("etag")),
+        )
+
+    @classmethod
+    def _assignment(cls, raw: Any) -> WorkspaceRoleAssignment:
+        if not isinstance(raw, dict):
+            cls._invalid_response()
+        assignee_type = raw.get("assigneeType", "UNKNOWN")
+        if assignee_type not in {"USER", "GROUP"}:
+            assignee_type = "UNKNOWN"
+        scope_type = raw.get("scopeType", "UNKNOWN")
+        if scope_type not in {"CUSTOMER", "ORG_UNIT"}:
+            scope_type = "UNKNOWN"
+        org_unit_id = cls._optional_text(raw.get("orgUnitId"))
+        if scope_type == "ORG_UNIT" and org_unit_id is None:
+            cls._invalid_response()
+        expiration = raw.get("expirationDetails")
+        expires_at: datetime | None = None
+        if expiration is not None:
+            if not isinstance(expiration, dict) or "expireTime" not in expiration:
+                cls._invalid_response()
+            expires_at = cls._timestamp(expiration.get("expireTime"))
+        return WorkspaceRoleAssignment(
+            assignment_id=cls._resource_id(raw.get("roleAssignmentId"), invalid_response=True),
+            role_id=cls._resource_id(raw.get("roleId"), invalid_response=True),
+            assigned_to=cls._text(raw.get("assignedTo")),
+            assignee_type=assignee_type,
+            scope_type=scope_type,
+            org_unit_id=org_unit_id,
+            condition=cls._optional_text(raw.get("condition")),
+            expires_at=expires_at,
+            etag=cls._optional_text(raw.get("etag")),
         )
 
     def _verified_customer_id(self, actor: User, organization_id: UUID) -> str:
@@ -281,6 +391,43 @@ class GoogleWorkspaceAdminRoles:
         if not isinstance(value, bool):
             cls._invalid_response()
         return value
+
+    @classmethod
+    def _resource_id(cls, value: Any, *, invalid_response: bool = False) -> str:
+        if isinstance(value, str):
+            normalized = value.strip()
+            if RESOURCE_ID_PATTERN.fullmatch(normalized):
+                return normalized
+        if invalid_response:
+            cls._invalid_response()
+        raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_RESOURCE_ID_INVALID)
+
+    @classmethod
+    def _timestamp(cls, value: Any) -> datetime:
+        if not isinstance(value, str) or len(value) > 64:
+            cls._invalid_response()
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            cls._invalid_response()
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            cls._invalid_response()
+        return parsed.astimezone(UTC)
+
+    @staticmethod
+    def _detail_error(
+        error: Exception, not_found_code: GoogleWorkspaceErrorCode
+    ) -> GoogleWorkspaceError:
+        mapped = map_google_api_error(error)
+        if mapped.code == GoogleWorkspaceErrorCode.GOOGLE_SUBJECT_NOT_FOUND:
+            return GoogleWorkspaceError(not_found_code)
+        return mapped
+
+    @staticmethod
+    def _close_client(client: Any | None) -> None:
+        close = getattr(getattr(client, "_http", None), "close", None)
+        if callable(close):
+            close()
 
     @staticmethod
     def _invalid_response() -> None:

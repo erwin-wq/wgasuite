@@ -19,9 +19,7 @@ SAFE_GOOGLE_ERROR_REASONS = frozenset(
         "userRateLimitExceeded",
     }
 )
-RATE_LIMIT_REASONS = frozenset(
-    {"quotaExceeded", "rateLimitExceeded", "userRateLimitExceeded"}
-)
+RATE_LIMIT_REASONS = frozenset({"quotaExceeded", "rateLimitExceeded", "userRateLimitExceeded"})
 
 
 class GoogleWorkspaceErrorCode(StrEnum):
@@ -51,6 +49,9 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_DOMAIN_NOT_FOUND = "google_domain_not_found"
     GOOGLE_DOMAIN_ALIAS_NOT_FOUND = "google_domain_alias_not_found"
     GOOGLE_DOMAIN_NAME_INVALID = "google_domain_name_invalid"
+    GOOGLE_ADMIN_ROLE_NOT_FOUND = "google_admin_role_not_found"
+    GOOGLE_ROLE_ASSIGNMENT_NOT_FOUND = "google_role_assignment_not_found"
+    GOOGLE_RESOURCE_ID_INVALID = "google_resource_id_invalid"
     GOOGLE_USER_ADMIN_PROTECTED = "google_user_admin_protected"
     GOOGLE_USER_SELF_PROTECTED = "google_user_self_protected"
     GOOGLE_USER_SERVICE_ACCOUNT_PROTECTED = "google_user_service_account_protected"
@@ -60,16 +61,12 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_USER_GUEST_STATUS_UNKNOWN = "google_user_guest_status_unknown"
     GOOGLE_USER_ALREADY_SUSPENDED = "google_user_already_suspended"
     GOOGLE_USER_ALREADY_ACTIVE = "google_user_already_active"
-    GOOGLE_USER_SUSPENSION_REASON_UNSUPPORTED = (
-        "google_user_suspension_reason_unsupported"
-    )
+    GOOGLE_USER_SUSPENSION_REASON_UNSUPPORTED = "google_user_suspension_reason_unsupported"
     GOOGLE_USER_STATE_CHANGED = "google_user_state_changed"
     GOOGLE_USER_CONFIRMATION_INVALID = "google_user_confirmation_invalid"
     GOOGLE_USER_CONFIRMATION_EXPIRED = "google_user_confirmation_expired"
     GOOGLE_USER_CONFIRMATION_USED = "google_user_confirmation_used"
-    GOOGLE_USER_RECONCILIATION_NOT_AVAILABLE = (
-        "google_user_reconciliation_not_available"
-    )
+    GOOGLE_USER_RECONCILIATION_NOT_AVAILABLE = "google_user_reconciliation_not_available"
     GOOGLE_USER_RECONCILIATION_EXPIRED = "google_user_reconciliation_expired"
     GMAIL_API_UNAVAILABLE = "gmail_api_unavailable"
     GMAIL_SCOPE_MISSING = "gmail_scope_missing"
@@ -94,9 +91,7 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_ORGUNIT_CONFIRMATION_INVALID = "google_orgunit_confirmation_invalid"
     GOOGLE_ORGUNIT_CONFIRMATION_EXPIRED = "google_orgunit_confirmation_expired"
     GOOGLE_ORGUNIT_CONFIRMATION_USED = "google_orgunit_confirmation_used"
-    GOOGLE_ORGUNIT_RECONCILIATION_NOT_AVAILABLE = (
-        "google_orgunit_reconciliation_not_available"
-    )
+    GOOGLE_ORGUNIT_RECONCILIATION_NOT_AVAILABLE = "google_orgunit_reconciliation_not_available"
     GOOGLE_ORGUNIT_RECONCILIATION_EXPIRED = "google_orgunit_reconciliation_expired"
     GOOGLE_ORGUNIT_NAME_INVALID = "google_orgunit_name_invalid"
     GOOGLE_ORGUNIT_DESCRIPTION_INVALID = "google_orgunit_description_invalid"
@@ -111,9 +106,7 @@ class GoogleWorkspaceErrorCode(StrEnum):
     )
     GOOGLE_ORGUNIT_CREATE_RECONCILIATION_EXPIRED = "google_orgunit_create_reconciliation_expired"
     GOOGLE_ORGUNIT_DESCRIPTION_UNCHANGED = "google_orgunit_description_unchanged"
-    GOOGLE_ORGUNIT_DESCRIPTION_TARGET_PROTECTED = (
-        "google_orgunit_description_target_protected"
-    )
+    GOOGLE_ORGUNIT_DESCRIPTION_TARGET_PROTECTED = "google_orgunit_description_target_protected"
     GOOGLE_ORGUNIT_DESCRIPTION_STATE_CHANGED = "google_orgunit_description_state_changed"
     GOOGLE_ORGUNIT_DESCRIPTION_CONFIRMATION_INVALID = (
         "google_orgunit_description_confirmation_invalid"
@@ -121,9 +114,7 @@ class GoogleWorkspaceErrorCode(StrEnum):
     GOOGLE_ORGUNIT_DESCRIPTION_CONFIRMATION_EXPIRED = (
         "google_orgunit_description_confirmation_expired"
     )
-    GOOGLE_ORGUNIT_DESCRIPTION_CONFIRMATION_USED = (
-        "google_orgunit_description_confirmation_used"
-    )
+    GOOGLE_ORGUNIT_DESCRIPTION_CONFIRMATION_USED = "google_orgunit_description_confirmation_used"
     GOOGLE_ORGUNIT_DESCRIPTION_RECONCILIATION_NOT_AVAILABLE = (
         "google_orgunit_description_reconciliation_not_available"
     )
@@ -225,6 +216,15 @@ SAFE_ERROR_MESSAGES = {
     ),
     GoogleWorkspaceErrorCode.GOOGLE_DOMAIN_NAME_INVALID: (
         "Enter a valid fully qualified domain name."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ADMIN_ROLE_NOT_FOUND: (
+        "Google could not find that administrator role in the configured customer."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_ROLE_ASSIGNMENT_NOT_FOUND: (
+        "Google could not find that direct role assignment in the configured customer."
+    ),
+    GoogleWorkspaceErrorCode.GOOGLE_RESOURCE_ID_INVALID: (
+        "The Google resource identifier is invalid. Refresh the inventory and try again."
     ),
     GoogleWorkspaceErrorCode.GOOGLE_USER_ADMIN_PROTECTED: (
         "Administrator accounts are protected and cannot be suspended or reactivated here."
@@ -463,9 +463,7 @@ class GoogleWorkspaceError(Exception):
     ) -> None:
         self.code = code
         self.retryable = retryable
-        self.google_reason = (
-            google_reason if google_reason in SAFE_GOOGLE_ERROR_REASONS else None
-        )
+        self.google_reason = google_reason if google_reason in SAFE_GOOGLE_ERROR_REASONS else None
         super().__init__(SAFE_ERROR_MESSAGES[code])
 
 

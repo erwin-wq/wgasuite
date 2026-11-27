@@ -64,8 +64,12 @@ The administrator roles inventory requests only this separate Directory scope:
 https://www.googleapis.com/auth/admin.directory.rolemanagement.readonly
 ```
 
-It uses `roles.list` and unfiltered `roleAssignments.list` for the verified immutable customer ID.
-The resulting assignments are direct assignments only. WGASuite does not calculate effective
+It uses `roles.list`, `roles.get`, unfiltered `roleAssignments.list`, and `roleAssignments.get` for
+the verified immutable customer ID. Detail requests accept only immutable numeric resource IDs,
+send no request body to Google, and use `num_retries=0`. Role details preserve Google's privilege
+names and opaque service IDs. Assignment details preserve principal type and immutable ID, scope,
+OU ID, condition, and timezone-aware expiration metadata when returned. The resulting assignments
+are direct assignments only. WGASuite does not calculate effective
 administrator permissions, expand group membership, or resolve opaque assignee IDs to account
 identities. The standard connection test does not prove access to this operation-scoped grant.
 

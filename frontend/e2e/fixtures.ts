@@ -98,7 +98,7 @@ export const domainInventory = {
 export const adminRoleInventory = {
   roles: [
     {
-      role_id: "role-fictional-helpdesk",
+      role_id: "1001",
       name: "Help Desk",
       description: "Fictional support role",
       is_system_role: true,
@@ -106,7 +106,7 @@ export const adminRoleInventory = {
       privileges: [{ service_id: "02", privilege_name: "USERS_RETRIEVE" }]
     },
     {
-      role_id: "role-fictional-custom",
+      role_id: "1002",
       name: "Custom Security Reader",
       description: null,
       is_system_role: false,
@@ -115,13 +115,15 @@ export const adminRoleInventory = {
     }
   ],
   assignments: [{
-    assignment_id: "assignment-fictional",
-    role_id: "role-fictional-helpdesk",
+    assignment_id: "2001",
+    role_id: "1001",
     assigned_to: "109000000000000000000",
     assignee_type: "USER",
     scope_type: "ORG_UNIT",
     org_unit_id: "id:engineering",
-    condition: null
+    condition: null,
+    expires_at: null,
+    expired: false
   }],
   role_count: 2,
   assignment_count: 1,
@@ -205,6 +207,18 @@ export async function installApiHarness(
     if (path.endsWith("/google-workspace/groups/members/list")) return respond({ group, members: [], next_page_token: null });
     if (path.endsWith("/google-workspace/domains/list")) return respond(domainInventory);
     if (path.endsWith("/google-workspace/admin-roles/list")) return respond(adminRoleInventory);
+    if (path.endsWith("/google-workspace/admin-roles/get")) {
+      const id = String(request.postDataJSON()?.id ?? "");
+      const role = adminRoleInventory.roles.find((item) => item.role_id === id);
+      if (!role) return respond({ detail: { code: "google_admin_role_not_found", message: "Role not found." } }, 404);
+      return respond({ role, read_only: true });
+    }
+    if (path.endsWith("/google-workspace/admin-role-assignments/get")) {
+      const id = String(request.postDataJSON()?.id ?? "");
+      const assignment = adminRoleInventory.assignments.find((item) => item.assignment_id === id);
+      if (!assignment) return respond({ detail: { code: "google_role_assignment_not_found", message: "Assignment not found." } }, 404);
+      return respond({ assignment, direct_assignment: true, effective_permissions_included: false, read_only: true });
+    }
     if (path.endsWith("/google-workspace/domains/get")) {
       const name = String(request.postDataJSON()?.name ?? "");
       const domain = domainInventory.domains.find((item) => item.name === name);
