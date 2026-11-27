@@ -8,7 +8,12 @@ import {
 } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
-import { ApiError, listGoogleWorkspaceAdminRoles } from "../../api/client";
+import {
+  ApiError,
+  getGoogleWorkspaceAdminRole,
+  getGoogleWorkspaceRoleAssignment,
+  listGoogleWorkspaceAdminRoles
+} from "../../api/client";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { DataTable, type DataTableColumn } from "../../components/ui/DataTable";
@@ -17,8 +22,10 @@ import { SearchField, Select } from "../../components/ui/FormControls";
 import type {
   ConnectorConfig,
   GoogleWorkspaceAdminRole,
+  GoogleWorkspaceAdminRoleDetail,
   GoogleWorkspaceAdminRoleInventory,
-  GoogleWorkspaceRoleAssignment
+  GoogleWorkspaceRoleAssignment,
+  GoogleWorkspaceRoleAssignmentDetail
 } from "../../types";
 import { DIRECTORY_ROLE_MANAGEMENT_READONLY_SCOPE } from "./scopes";
 
@@ -36,6 +43,25 @@ function errorMessage(error: unknown): string {
   }
   if (error.status === 403) return "You do not have permission to view this tenant's administrator roles.";
   return error.message;
+}
+
+function detailErrorMessage(error: unknown, resource: "role" | "assignment"): string {
+  if (!(error instanceof ApiError)) return `The administrator ${resource} could not be loaded.`;
+  if (error.status === 404) return `This administrator ${resource} no longer exists. Refresh the inventory.`;
+  return errorMessage(error);
+}
+
+function formatExpiration(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Invalid timestamp returned by Google";
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short"
+  }).format(parsed);
 }
 
 function roleBadge(role: GoogleWorkspaceAdminRole) {
@@ -62,10 +88,21 @@ export function AdminRolesInventory({
   const [assignmentFilter, setAssignmentFilter] = useState("all");
   const deferredSearch = useDeferredValue(search.trim().toLocaleLowerCase());
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+  const [roleDetail, setRoleDetail] = useState<GoogleWorkspaceAdminRoleDetail | null>(null);
+  const [roleDetailLoading, setRoleDetailLoading] = useState(false);
+  const [roleDetailError, setRoleDetailError] = useState<string | null>(null);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
+  const [assignmentDetail, setAssignmentDetail] = useState<GoogleWorkspaceRoleAssignmentDetail | null>(null);
+  const [assignmentDetailLoading, setAssignmentDetailLoading] = useState(false);
+  const [assignmentDetailError, setAssignmentDetailError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sequence = useRef(0);
   const controller = useRef<AbortController | null>(null);
+  const roleDetailSequence = useRef(0);
+  const roleDetailController = useRef<AbortController | null>(null);
+  const assignmentDetailSequence = useRef(0);
+  const assignmentDetailController = useRef<AbortController | null>(null);
   const connectorReady = connectorConfig?.status === "connected";
 
   const load = useCallback(async () => {
@@ -92,18 +129,96 @@ export function AdminRolesInventory({
     }
   }, [canRead, connectorReady, organizationId]);
 
+  const loadRoleDetail = useCallback(async (roleId: string) => {
+    const request = ++roleDetailSequence.current;
+    roleDetailController.current?.abort();
+    const nextController = new AbortController();
+    roleDetailController.current = nextController;
+    setRoleDetail(null);
+    setRoleDetailError(null);
+    setRoleDetailLoading(true);
+    try {
+      const result = await getGoogleWorkspaceAdminRole(
+        organizationId,
+        roleId,
+        nextController.signal
+      );
+      if (request !== roleDetailSequence.current || nextController.signal.aborted) return;
+      setRoleDetail(result);
+    } catch (caught) {
+      if (request !== roleDetailSequence.current || nextController.signal.aborted) return;
+      setRoleDetailError(detailErrorMessage(caught, "role"));
+    } finally {
+      if (request === roleDetailSequence.current) setRoleDetailLoading(false);
+    }
+  }, [organizationId]);
+
+  const loadAssignmentDetail = useCallback(async (assignmentId: string) => {
+    const request = ++assignmentDetailSequence.current;
+    assignmentDetailController.current?.abort();
+    const nextController = new AbortController();
+    assignmentDetailController.current = nextController;
+    setAssignmentDetail(null);
+    setAssignmentDetailError(null);
+    setAssignmentDetailLoading(true);
+    try {
+      const result = await getGoogleWorkspaceRoleAssignment(
+        organizationId,
+        assignmentId,
+        nextController.signal
+      );
+      if (request !== assignmentDetailSequence.current || nextController.signal.aborted) return;
+      setAssignmentDetail(result);
+    } catch (caught) {
+      if (request !== assignmentDetailSequence.current || nextController.signal.aborted) return;
+      setAssignmentDetailError(detailErrorMessage(caught, "assignment"));
+    } finally {
+      if (request === assignmentDetailSequence.current) setAssignmentDetailLoading(false);
+    }
+  }, [organizationId]);
+
+  const selectRole = useCallback((roleId: string) => {
+    setSelectedRoleId(roleId);
+    setSelectedAssignmentId(null);
+    setAssignmentDetail(null);
+    setAssignmentDetailError(null);
+    assignmentDetailSequence.current += 1;
+    assignmentDetailController.current?.abort();
+    void loadRoleDetail(roleId);
+  }, [loadRoleDetail]);
+
+  const selectAssignment = useCallback((assignmentId: string) => {
+    setSelectedAssignmentId(assignmentId);
+    void loadAssignmentDetail(assignmentId);
+  }, [loadAssignmentDetail]);
+
   useEffect(() => {
     sequence.current += 1;
     controller.current?.abort();
+    roleDetailSequence.current += 1;
+    roleDetailController.current?.abort();
+    assignmentDetailSequence.current += 1;
+    assignmentDetailController.current?.abort();
     setInventory(null);
     setSelectedRoleId(null);
+    setRoleDetail(null);
+    setRoleDetailError(null);
+    setRoleDetailLoading(false);
+    setSelectedAssignmentId(null);
+    setAssignmentDetail(null);
+    setAssignmentDetailError(null);
+    setAssignmentDetailLoading(false);
     setSearch("");
     setRoleType("all");
     setAssignmentFilter("all");
     setError(null);
     setLoading(false);
     if (organizationId && canRead && connectorReady) void load();
-    return () => controller.current?.abort();
+    return () => {
+      controller.current?.abort();
+      roleDetailController.current?.abort();
+      assignmentDetailController.current?.abort();
+    };
   }, [canRead, connectorReady, load, organizationId]);
 
   const assignmentCountsByRole = useMemo(() => {
@@ -152,13 +267,13 @@ export function AdminRolesInventory({
           size="sm"
           aria-label={`View details for ${role.name}`}
           aria-pressed={role.role_id === selectedRoleId}
-          onClick={() => setSelectedRoleId(role.role_id)}
+          onClick={() => selectRole(role.role_id)}
         >
           {role.role_id === selectedRoleId ? "Selected" : "View"}
         </Button>
       )
     }
-  ], [assignmentCountsByRole, selectedRoleId]);
+  ], [assignmentCountsByRole, selectRole, selectedRoleId]);
 
   if (!organizationId) return <EmptyState title="Select an organization" icon={<Building2 aria-hidden="true" />}>Choose an organization to view administrator roles.</EmptyState>;
   if (!canRead) return <EmptyState title="Access unavailable" icon={<AlertCircle aria-hidden="true" />}>Connector-operation access is required.</EmptyState>;
@@ -217,10 +332,48 @@ export function AdminRolesInventory({
       ) : null}
       {selectedRole ? (
         <aside className="admin-role-detail" aria-labelledby="admin-role-detail-heading">
-          <div><span className="eyebrow">Read-only role detail</span><h3 id="admin-role-detail-heading">{selectedRole.name}</h3><p>{selectedRole.description ?? "No description provided."}</p></div>
-          <div className="admin-role-detail-grid"><div><span>Role type</span>{roleBadge(selectedRole)}</div><div><span>Privilege entries</span><strong>{selectedRole.privileges.length}</strong></div><div><span>Direct assignments</span><strong>{selectedAssignments.length}</strong></div></div>
-          <section aria-labelledby="role-privileges-heading"><h4 id="role-privileges-heading">Privilege summary</h4>{selectedRole.privileges.length ? <ul className="admin-role-privileges">{selectedRole.privileges.map((privilege) => <li key={`${privilege.service_id}:${privilege.privilege_name}`}><span>{privilege.privilege_name}</span><code>{privilege.service_id}</code></li>)}</ul> : <p>No privilege entries were returned.</p>}</section>
-          <section aria-labelledby="direct-assignments-heading"><h4 id="direct-assignments-heading">Direct assignments</h4>{selectedAssignments.length ? <ul className="admin-role-assignments">{selectedAssignments.map((assignment) => <li key={assignment.assignment_id}><div><Badge variant="neutral">{assignment.assignee_type}</Badge>{assignmentScope(assignment)}</div><code>{assignment.assigned_to}</code>{assignment.org_unit_id ? <p>OU ID: <code>{assignment.org_unit_id}</code></p> : null}{assignment.condition ? <p>Condition: {assignment.condition}</p> : null}</li>)}</ul> : <p>No direct assignments were returned for this role.</p>}</section>
+          <div className="admin-role-detail-heading">
+            <div><span className="eyebrow">Authoritative read-only role detail</span><h3 id="admin-role-detail-heading">{selectedRole.name}</h3></div>
+            <Button variant="secondary" size="sm" disabled={roleDetailLoading} onClick={() => void loadRoleDetail(selectedRole.role_id)}><RefreshCw className={roleDetailLoading ? "spin" : ""} aria-hidden="true" /> Refresh role</Button>
+          </div>
+          {roleDetailLoading ? <div aria-busy="true"><span className="sr-only">Loading administrator role detail.</span><Skeleton lines={4} /></div> : null}
+          {roleDetailError ? <ErrorState title="Role detail unavailable" actionLabel="Try again" onAction={() => void loadRoleDetail(selectedRole.role_id)}>{roleDetailError}</ErrorState> : null}
+          {roleDetail?.role.role_id === selectedRole.role_id ? (
+            <>
+              <p>{roleDetail.role.description ?? "No description provided."}</p>
+              <div className="admin-role-detail-grid"><div><span>Role type</span>{roleBadge(roleDetail.role)}</div><div><span>Privilege entries</span><strong>{roleDetail.role.privileges.length}</strong></div><div><span>Direct assignments</span><strong>{selectedAssignments.length}</strong></div></div>
+              <section aria-labelledby="role-privileges-heading"><h4 id="role-privileges-heading">Privilege details</h4>{roleDetail.role.privileges.length ? <ul className="admin-role-privileges">{roleDetail.role.privileges.map((privilege) => <li key={`${privilege.service_id}:${privilege.privilege_name}`}><span>{privilege.privilege_name}</span><code>{privilege.service_id}</code></li>)}</ul> : <p>No privilege entries were returned.</p>}</section>
+            </>
+          ) : null}
+          <section aria-labelledby="direct-assignments-heading">
+            <h4 id="direct-assignments-heading">Direct assignments</h4>
+            {selectedAssignments.length ? <ul className="admin-role-assignments">{selectedAssignments.map((assignment) => <li key={assignment.assignment_id}><div><Badge variant="neutral">{assignment.assignee_type}</Badge>{assignmentScope(assignment)}</div><code>{assignment.assigned_to}</code><Button variant="secondary" size="sm" aria-pressed={assignment.assignment_id === selectedAssignmentId} onClick={() => selectAssignment(assignment.assignment_id)}>{assignment.assignment_id === selectedAssignmentId ? "Selected assignment" : "View assignment"}</Button></li>)}</ul> : <p>No direct assignments were returned for this role.</p>}
+          </section>
+        </aside>
+      ) : null}
+      {selectedAssignmentId ? (
+        <aside className="admin-role-detail admin-assignment-detail" aria-labelledby="admin-assignment-detail-heading">
+          <div className="admin-role-detail-heading">
+            <div><span className="eyebrow">Authoritative direct assignment detail</span><h3 id="admin-assignment-detail-heading">Direct assignment</h3></div>
+            <Button variant="secondary" size="sm" disabled={assignmentDetailLoading} onClick={() => void loadAssignmentDetail(selectedAssignmentId)}><RefreshCw className={assignmentDetailLoading ? "spin" : ""} aria-hidden="true" /> Refresh assignment</Button>
+          </div>
+          <Alert variant="info" title="Scope-aware record">
+            This direct assignment is not a calculation of effective access. Scope, conditions, expiration, and indirect group membership may change where it applies.
+          </Alert>
+          {assignmentDetailLoading ? <div aria-busy="true"><span className="sr-only">Loading direct role assignment detail.</span><Skeleton lines={5} /></div> : null}
+          {assignmentDetailError ? <ErrorState title="Assignment detail unavailable" actionLabel="Try again" onAction={() => void loadAssignmentDetail(selectedAssignmentId)}>{assignmentDetailError}</ErrorState> : null}
+          {assignmentDetail?.assignment.assignment_id === selectedAssignmentId ? (
+            <div className="admin-assignment-detail-body">
+              <div className="admin-role-detail-grid"><div><span>Principal type</span><Badge variant="neutral">{assignmentDetail.assignment.assignee_type}</Badge></div><div><span>Assignment scope</span>{assignmentScope(assignmentDetail.assignment)}</div><div><span>Status</span>{assignmentDetail.assignment.expired ? <Badge variant="warning">Expired</Badge> : <Badge variant="success">Current record</Badge>}</div></div>
+              <dl className="admin-assignment-metadata">
+                <div><dt>Assigned principal ID</dt><dd><code>{assignmentDetail.assignment.assigned_to}</code></dd></div>
+                <div><dt>Referenced role</dt><dd>{selectedRole?.name ?? "Role not present in current inventory"} <code>{assignmentDetail.assignment.role_id}</code></dd></div>
+                <div><dt>Organizational unit ID</dt><dd>{assignmentDetail.assignment.org_unit_id ? <code>{assignmentDetail.assignment.org_unit_id}</code> : "Not OU-scoped"}</dd></div>
+                <div><dt>Condition</dt><dd>{assignmentDetail.assignment.condition ?? "No condition returned"}</dd></div>
+                <div><dt>Expiration</dt><dd>{assignmentDetail.assignment.expires_at ? formatExpiration(assignmentDetail.assignment.expires_at) : "No expiration returned"}</dd></div>
+              </dl>
+            </div>
+          ) : null}
         </aside>
       ) : null}
     </section>

@@ -185,12 +185,14 @@ orphaned relationships. Operators can select an inventory row to inspect authori
 metadata and domain-to-alias relationships. Domain data is displayed read-only and is not
 persisted. Domain and alias creation, update, deletion and bulk export are not implemented.
 
-The **Admin roles** tool uses `roles.list` and direct `roleAssignments.list` results for the
+The **Admin roles** tool uses `roles.list`, `roles.get`, direct `roleAssignments.list`, and
+`roleAssignments.get` results for the
 independently verified immutable customer ID with only the
 `admin.directory.rolemanagement.readonly` scope. It paginates both resources with bounded
 budgets, disables automatic retries, and never substitutes `my_customer`. The interface shows
 system, custom and super-administrator roles, safe privilege summaries, opaque assignee types and
-IDs, customer/OU scope, and conditions returned by Google. It intentionally does not resolve
+IDs, customer/OU scope, conditions, and expiration metadata returned by Google. Individual detail
+reads use immutable numeric resource IDs and remain tenant-scoped. It intentionally does not resolve
 assignee identities or claim to calculate inherited, group-derived or otherwise effective
 administrator permissions. No role or assignment mutation is implemented.
 
