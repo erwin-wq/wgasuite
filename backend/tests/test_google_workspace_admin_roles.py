@@ -10,17 +10,20 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.connectors.google_workspace_credentials import (
+    DIRECTORY_GROUP_READONLY_SCOPE,
     DIRECTORY_ROLE_MANAGEMENT_READONLY_SCOPE,
 )
 from app.connectors.google_workspace_errors import GoogleWorkspaceError, GoogleWorkspaceErrorCode
 from app.models import AuditEvent
 from app.services.google_workspace_admin_roles import (
     GoogleWorkspaceAdminRoles,
+    WorkspaceAdminPrincipal,
     WorkspaceAdminRole,
     WorkspaceAdminRoleInventory,
     WorkspaceRoleAssignment,
     WorkspaceRolePrivilege,
 )
+from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookupResult
 from tests.test_customer_data_scoping import add_user, login_headers
 from tests.test_google_workspace_connection import create_connector
 from tests.test_google_workspace_domains import FakeLookup
@@ -353,9 +356,262 @@ def test_get_details_accepts_absent_optional_metadata_and_unknown_principal(
     )
     assert role.description is None
     assert role.privileges == ()
-    assert assignment.assignee_type == "UNKNOWN"
+    assert assignment.assignee_type == "SERVICE_ACCOUNT"
     assert assignment.scope_type == "UNKNOWN"
-    assert assignment.expires_at is None
+
+
+def test_resolves_verified_user_by_immutable_id_and_customer(db_session: Session) -> None:
+    assignment = {
+        "roleAssignmentId": "2001",
+        "roleId": "1001",
+        "assignedTo": "109999999999999999999",
+        "assigneeType": "USER",
+        "scopeType": "CUSTOMER",
+    }
+    service, _, connector, actor = role_service(
+        db_session, [], [], assignment_detail=assignment
+    )
+    user = GoogleWorkspaceUserLookupResult(
+        id=assignment["assignedTo"],
+        customer_id="customer-immutable-1",
+        full_name="Verified Administrator",
+        primary_email="verified@example.test",
+        aliases=[],
+        non_editable_aliases=[],
+        suspended=True,
+        archived=False,
+        org_unit_path="/",
+        is_mailbox_setup=True,
+        matched_by="immutable_id",
+    )
+    service.user_lookup.lookup_by_id = MagicMock(return_value=user)  # type: ignore[attr-defined]
+
+    resolved_assignment, principal = service.get_assignment_principal(
+        actor=actor,
+        organization_id=connector.organization_id,
+        assignment_id="2001",
+    )
+
+    assert resolved_assignment.assigned_to == assignment["assignedTo"]
+    assert principal == WorkspaceAdminPrincipal(
+        outcome="verified",
+        identity_type="USER",
+        principal_id=assignment["assignedTo"],
+        primary_email="verified@example.test",
+        display_name="Verified Administrator",
+        account_status="SUSPENDED",
+    )
+    service.user_lookup.lookup_by_id.assert_called_once_with(  # type: ignore[attr-defined]
+        actor=actor,
+        organization_id=connector.organization_id,
+        user_id=assignment["assignedTo"],
+    )
+
+
+def test_rejects_cross_tenant_user_resolution(db_session: Session) -> None:
+    assignment = {
+        "roleAssignmentId": "2001",
+        "roleId": "1001",
+        "assignedTo": "109999999999999999999",
+        "assigneeType": "USER",
+        "scopeType": "CUSTOMER",
+    }
+    service, _, connector, actor = role_service(
+        db_session, [], [], assignment_detail=assignment
+    )
+    service.user_lookup.lookup_by_id = MagicMock(  # type: ignore[attr-defined]
+        return_value=GoogleWorkspaceUserLookupResult(
+            id=assignment["assignedTo"],
+            customer_id="different-customer",
+            full_name=None,
+            primary_email="other@example.test",
+            aliases=[],
+            non_editable_aliases=[],
+            suspended=False,
+            archived=False,
+            org_unit_path="/",
+            is_mailbox_setup=True,
+            matched_by="immutable_id",
+        )
+    )
+    with pytest.raises(GoogleWorkspaceError) as error:
+        service.get_assignment_principal(
+            actor=actor,
+            organization_id=connector.organization_id,
+            assignment_id="2001",
+        )
+    assert error.value.code == GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH
+
+
+def test_resolves_group_only_with_customer_scoped_inventory_proof(db_session: Session) -> None:
+    principal_id = "109888888888888888888"
+    assignment = {
+        "roleAssignmentId": "2001",
+        "roleId": "1001",
+        "assignedTo": principal_id,
+        "assigneeType": "GROUP",
+        "scopeType": "CUSTOMER",
+    }
+    service, factory, connector, actor = role_service(
+        db_session, [], [], assignment_detail=assignment
+    )
+    group_resource = PagedResource(
+        [{"groups": [{"id": principal_id, "email": "admins@example.test", "name": "Admins"}]}],
+        {"id": principal_id, "email": "admins@example.test", "name": "Admins"},
+    )
+    group_client = MagicMock()
+    group_client.groups.return_value = group_resource
+    group_client._http = FakeHttp()
+    factory.for_directory_groups = MagicMock(return_value=group_client)  # type: ignore[attr-defined]
+
+    _, principal = service.get_assignment_principal(
+        actor=actor,
+        organization_id=connector.organization_id,
+        assignment_id="2001",
+    )
+
+    assert principal.outcome == "verified"
+    assert principal.identity_type == "GROUP"
+    assert principal.primary_email == "admins@example.test"
+    factory.for_directory_groups.assert_called_once_with(  # type: ignore[attr-defined]
+        actor=actor,
+        organization_id=connector.organization_id,
+        scopes=(DIRECTORY_GROUP_READONLY_SCOPE,),
+    )
+    assert group_resource.get_calls == [{"groupKey": principal_id, "fields": "id,email,name"}]
+    assert group_resource.calls[0]["customer"] == "customer-immutable-1"
+    assert group_resource.calls[0]["maxResults"] == 10
+    assert all(request.execute_kwargs == {"num_retries": 0} for request in group_resource.requests)
+    assert group_client._http.closed is True
+
+
+def test_unknown_and_service_account_principals_are_never_guessed(db_session: Session) -> None:
+    for assignee_type, expected_outcome in [
+        ("FUTURE", "unresolved"),
+        ("SERVICE_ACCOUNT", "unsupported"),
+    ]:
+        service, factory, connector, actor = role_service(
+            db_session,
+            [],
+            [],
+            assignment_detail={
+                "roleAssignmentId": "2001",
+                "roleId": "1001",
+                "assignedTo": "opaque-principal",
+                "assigneeType": assignee_type,
+                "scopeType": "CUSTOMER",
+            },
+        )
+        service.user_lookup.lookup_by_id = MagicMock()  # type: ignore[attr-defined]
+        _, principal = service.get_assignment_principal(
+            actor=actor,
+            organization_id=connector.organization_id,
+            assignment_id="2001",
+        )
+        assert principal.outcome == expected_outcome
+        service.user_lookup.lookup_by_id.assert_not_called()  # type: ignore[attr-defined]
+        assert not hasattr(factory, "for_directory_groups")
+
+
+def test_identity_authorization_failure_is_not_reported_as_not_found(db_session: Session) -> None:
+    service, _, connector, actor = role_service(
+        db_session,
+        [],
+        [],
+        assignment_detail={
+            "roleAssignmentId": "2001",
+            "roleId": "1001",
+            "assignedTo": "109999999999999999999",
+            "assigneeType": "USER",
+            "scopeType": "CUSTOMER",
+        },
+    )
+    service.user_lookup.lookup_by_id = MagicMock(  # type: ignore[attr-defined]
+        side_effect=GoogleWorkspaceError(GoogleWorkspaceErrorCode.MISSING_SCOPE_OR_PERMISSION)
+    )
+    _, principal = service.get_assignment_principal(
+        actor=actor,
+        organization_id=connector.organization_id,
+        assignment_id="2001",
+    )
+    assert principal.outcome == "lookup_unavailable"
+    assert principal.reason == "identity_lookup_permission_unavailable"
+
+
+def test_missing_user_is_unresolved_without_cross_type_guessing(db_session: Session) -> None:
+    service, factory, connector, actor = role_service(
+        db_session,
+        [],
+        [],
+        assignment_detail={
+            "roleAssignmentId": "2001",
+            "roleId": "1001",
+            "assignedTo": "109999999999999999999",
+            "assigneeType": "USER",
+            "scopeType": "CUSTOMER",
+        },
+    )
+    service.user_lookup.lookup_by_id = MagicMock(  # type: ignore[attr-defined]
+        side_effect=GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_USER_NOT_FOUND)
+    )
+    _, principal = service.get_assignment_principal(
+        actor=actor,
+        organization_id=connector.organization_id,
+        assignment_id="2001",
+    )
+    assert principal.outcome == "unresolved"
+    assert principal.reason == "directory_user_not_found"
+    assert not hasattr(factory, "for_directory_groups")
+
+
+@pytest.mark.parametrize(
+    ("inventory_groups", "outcome", "reason"),
+    [
+        ([], "unresolved", "tenant_ownership_not_verified"),
+        (
+            [
+                {"id": "109888888888888888888", "email": "admins@example.test"},
+                {"id": "109888888888888888888", "email": "admins@example.test"},
+            ],
+            "ambiguous",
+            "conflicting_customer_inventory",
+        ),
+    ],
+)
+def test_group_ownership_must_be_unique_in_customer_inventory(
+    db_session: Session,
+    inventory_groups: list[dict[str, str]],
+    outcome: str,
+    reason: str,
+) -> None:
+    principal_id = "109888888888888888888"
+    service, factory, connector, actor = role_service(
+        db_session,
+        [],
+        [],
+        assignment_detail={
+            "roleAssignmentId": "2001",
+            "roleId": "1001",
+            "assignedTo": principal_id,
+            "assigneeType": "GROUP",
+            "scopeType": "CUSTOMER",
+        },
+    )
+    group_resource = PagedResource(
+        [{"groups": inventory_groups}],
+        {"id": principal_id, "email": "admins@example.test", "name": "Admins"},
+    )
+    group_client = MagicMock()
+    group_client.groups.return_value = group_resource
+    group_client._http = FakeHttp()
+    factory.for_directory_groups = MagicMock(return_value=group_client)  # type: ignore[attr-defined]
+    _, principal = service.get_assignment_principal(
+        actor=actor,
+        organization_id=connector.organization_id,
+        assignment_id="2001",
+    )
+    assert principal.outcome == outcome
+    assert principal.reason == reason
 
 
 @pytest.mark.parametrize("resource_id", ["", "role-1", "-1", "1 2", "1" * 31])
@@ -524,9 +780,63 @@ def test_detail_endpoints_return_authoritative_records_and_redacted_audit(
     assert "etag" not in serialized
 
 
+def test_principal_endpoint_returns_verified_identity_and_redacts_audit(
+    client: TestClient,
+    db_session: Session,
+    auth_headers: dict[str, str],
+) -> None:
+    connector, _ = create_connector(db_session)
+    assignment = WorkspaceRoleAssignment(
+        "2001",
+        "1001",
+        "private-principal-id",
+        "USER",
+        "CUSTOMER",
+        None,
+        None,
+    )
+    principal = WorkspaceAdminPrincipal(
+        outcome="verified",
+        identity_type="USER",
+        principal_id="private-principal-id",
+        primary_email="private-admin@example.test",
+        display_name="Private Admin",
+        account_status="ACTIVE",
+    )
+    service = MagicMock()
+    service.get_assignment_principal.return_value = (assignment, principal)
+    with patch("app.api.v1.router.GoogleWorkspaceAdminRoles.from_settings", return_value=service):
+        response = client.post(
+            f"/api/v1/organizations/{connector.organization_id}/google-workspace/"
+            "admin-role-assignments/resolve-principal",
+            headers=auth_headers,
+            json={"id": "2001"},
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["principal"]["outcome"] == "verified"
+    assert body["principal"]["primary_email"] == "private-admin@example.test"
+    assert body["effective_permissions_included"] is False
+    event = db_session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.action == "google_workspace.admin_role_assignment.principal_resolved"
+        )
+    )
+    assert event is not None
+    serialized = str(event.metadata_json)
+    assert "private-principal-id" not in serialized
+    assert "private-admin@example.test" not in serialized
+    assert "Private Admin" not in serialized
+    assert event.metadata_json["resolution_outcome"] == "verified"
+
+
 @pytest.mark.parametrize(
     "path",
-    ["admin-roles/get", "admin-role-assignments/get"],
+    [
+        "admin-roles/get",
+        "admin-role-assignments/get",
+        "admin-role-assignments/resolve-principal",
+    ],
 )
 def test_detail_endpoints_reject_invalid_identifiers(
     client: TestClient,
@@ -573,7 +883,11 @@ def test_cross_customer_actor_cannot_reach_role_service(
 
 @pytest.mark.parametrize(
     "path",
-    ["admin-roles/get", "admin-role-assignments/get"],
+    [
+        "admin-roles/get",
+        "admin-role-assignments/get",
+        "admin-role-assignments/resolve-principal",
+    ],
 )
 def test_cross_customer_actor_cannot_reach_detail_services(
     client: TestClient, db_session: Session, path: str

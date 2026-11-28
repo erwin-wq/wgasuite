@@ -28,7 +28,7 @@ class GoogleWorkspaceRoleAssignmentRead(BaseModel):
     assignment_id: str
     role_id: str
     assigned_to: str
-    assignee_type: Literal["USER", "GROUP", "UNKNOWN"]
+    assignee_type: Literal["USER", "GROUP", "SERVICE_ACCOUNT", "UNKNOWN"]
     scope_type: Literal["CUSTOMER", "ORG_UNIT", "UNKNOWN"]
     org_unit_id: str | None
     condition: str | None
@@ -53,6 +53,30 @@ class GoogleWorkspaceAdminRoleDetailRead(BaseModel):
 
 class GoogleWorkspaceRoleAssignmentDetailRead(BaseModel):
     assignment: GoogleWorkspaceRoleAssignmentRead
+    direct_assignment: bool = True
+    effective_permissions_included: bool = False
+    read_only: bool = True
+
+
+class GoogleWorkspaceAdminPrincipalRead(BaseModel):
+    outcome: Literal[
+        "verified",
+        "unsupported",
+        "unresolved",
+        "ambiguous",
+        "lookup_unavailable",
+    ]
+    identity_type: Literal["USER", "GROUP", "SERVICE_ACCOUNT", "UNKNOWN"]
+    principal_id: str
+    primary_email: str | None = None
+    display_name: str | None = None
+    account_status: Literal["ACTIVE", "SUSPENDED", "ARCHIVED", "DELETED"] | None = None
+    reason: str | None = None
+
+
+class GoogleWorkspaceRoleAssignmentPrincipalRead(BaseModel):
+    assignment: GoogleWorkspaceRoleAssignmentRead
+    principal: GoogleWorkspaceAdminPrincipalRead
     direct_assignment: bool = True
     effective_permissions_included: bool = False
     read_only: bool = True

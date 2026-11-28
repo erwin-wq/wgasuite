@@ -230,7 +230,10 @@ test("Admin roles expose direct assignments without implying effective access", 
   await expect.poll(() => api.calls.filter((call) => call.path.endsWith("/google-workspace/admin-roles/get")).length).toBe(roleGetsBeforeRefresh + 1);
   await page.getByRole("button", { name: "View assignment" }).click();
   await expect(page.getByRole("heading", { name: "Direct assignment", exact: true })).toBeVisible();
-  await expect(page.getByText("109000000000000000000")).toHaveCount(2);
+  await expect(page.getByText("109000000000000000000")).toHaveCount(1);
+  await expect(page.getByText("Northstar Administrator")).toHaveCount(2);
+  await expect(page.getByText("admin@northstar.example.invalid")).toHaveCount(2);
+  await expect(page.getByText(/^ACTIVE$/)).toBeVisible();
   await expect(page.getByText("id:engineering")).toBeVisible();
   await expect(page.getByText("No expiration returned")).toBeVisible();
   await expect(page.getByText(/not a calculation of effective access/i)).toBeVisible();

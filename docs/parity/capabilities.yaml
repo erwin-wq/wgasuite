@@ -32986,12 +32986,14 @@
         "parity": "partial",
         "backend_or_frontend_paths": [
           "backend/app/services/google_workspace_groups.py",
+          "backend/app/services/google_workspace_admin_roles.py",
+          "frontend/src/features/google-workspace/AdminRolesInventory.tsx",
           "frontend/src/features/google-workspace/GroupManagement.tsx"
         ],
         "evidence_refs": [
           "wgasuite.verify.groups"
         ],
-        "limitations": "Single-target, tenant-scoped web workflow; upstream selector, CSV, external/nested/role-changing, or broad-object behavior is not equivalent."
+        "limitations": "Single-target, tenant-scoped web workflows include customer-proven direct administrator-principal resolution; they do not expand group-derived effective permissions. Upstream selector, CSV, external/nested/role-changing, or broad-object behavior is not equivalent."
       },
       "roadmap": {
         "epic": "DIR-002",
@@ -37914,13 +37916,15 @@
         "status": "verified",
         "parity": "partial",
         "backend_or_frontend_paths": [
+          "backend/app/services/google_workspace_admin_roles.py",
           "backend/app/services/google_workspace_user_lookup.py",
-          "backend/tests/test_google_workspace_user_lookup.py"
+          "backend/tests/test_google_workspace_user_lookup.py",
+          "frontend/src/features/google-workspace/AdminRolesInventory.tsx"
         ],
         "evidence_refs": [
           "wgasuite.verify.connector"
         ],
-        "limitations": "Single-target, tenant-scoped web workflow; upstream selector, CSV, external/nested/role-changing, or broad-object behavior is not equivalent."
+        "limitations": "Single-target, tenant-scoped web workflows include immutable-ID administrator-principal resolution with exact customer matching; they do not calculate effective permissions. Upstream selector, CSV, external/nested/role-changing, or broad-object behavior is not equivalent."
       },
       "roadmap": {
         "epic": "DIR-001",

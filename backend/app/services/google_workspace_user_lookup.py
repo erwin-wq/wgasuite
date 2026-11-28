@@ -25,7 +25,7 @@ USER_LOOKUP_FIELDS = (
     "orgUnitPath,isMailboxSetup,isAdmin,isDelegatedAdmin,isGuestUser,creationTime,lastLoginTime,"
     "suspensionReason,deletionTime"
 )
-MatchType = Literal["primary_email", "alias", "non_editable_alias"]
+MatchType = Literal["primary_email", "alias", "non_editable_alias", "immutable_id"]
 
 
 @dataclass(frozen=True)
@@ -110,8 +110,62 @@ class GoogleWorkspaceUserLookup:
                             organization_id,
                         )
 
+    def lookup_by_id(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        user_id: str,
+    ) -> GoogleWorkspaceUserLookupResult:
+        """Resolve one Directory user by immutable ID and verify the returned identity."""
+        normalized_id = user_id.strip()
+        google_client: Any | None = None
+        try:
+            google_client = self.client_factory.for_directory_users(
+                actor=actor,
+                organization_id=organization_id,
+                scopes=(DIRECTORY_USER_READONLY_SCOPE,),
+            )
+            response = (
+                google_client.users()
+                .get(
+                    userKey=normalized_id,
+                    projection="basic",
+                    viewType="admin_view",
+                    fields=USER_LOOKUP_FIELDS,
+                )
+                .execute(num_retries=0)
+            )
+            result = self._to_result(response, None)
+            if result.id != normalized_id:
+                raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_USER_LOOKUP_MISMATCH)
+            return result
+        except GoogleWorkspaceError:
+            raise
+        except HttpError as error:
+            if error.resp.status == 404:
+                raise GoogleWorkspaceError(
+                    GoogleWorkspaceErrorCode.GOOGLE_USER_NOT_FOUND
+                ) from None
+            raise map_google_api_error(error) from None
+        except Exception as error:
+            raise map_google_api_error(error) from None
+        finally:
+            if google_client is not None:
+                close = getattr(google_client, "close", None)
+                if callable(close):
+                    try:
+                        close()
+                    except Exception:
+                        logger.warning(
+                            "Closing Google user lookup client failed organization_id=%s",
+                            organization_id,
+                        )
+
     @staticmethod
-    def _to_result(response: Any, searched_email: str) -> GoogleWorkspaceUserLookupResult:
+    def _to_result(
+        response: Any, searched_email: str | None
+    ) -> GoogleWorkspaceUserLookupResult:
         if not isinstance(response, dict):
             raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_API_ERROR)
 
@@ -129,12 +183,14 @@ class GoogleWorkspaceUserLookup:
         non_editable_aliases = GoogleWorkspaceUserLookup._string_list(
             response.get("nonEditableAliases")
         )
-        matched_by = GoogleWorkspaceUserLookup._match_type(
-            searched_email,
-            primary_email,
-            aliases,
-            non_editable_aliases,
-        )
+        matched_by: MatchType = "immutable_id"
+        if searched_email is not None:
+            matched_by = GoogleWorkspaceUserLookup._match_type(
+                searched_email,
+                primary_email,
+                aliases,
+                non_editable_aliases,
+            )
 
         name = response.get("name")
         full_name = name.get("fullName") if isinstance(name, dict) else None
