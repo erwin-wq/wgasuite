@@ -13,6 +13,7 @@ from app.connectors.google_workspace_client import GoogleWorkspaceClientFactory
 from app.connectors.google_workspace_credentials import (
     DIRECTORY_GROUP_READONLY_SCOPE,
     DIRECTORY_ROLE_MANAGEMENT_READONLY_SCOPE,
+    DIRECTORY_USER_READONLY_SCOPE,
 )
 from app.connectors.google_workspace_errors import (
     GoogleWorkspaceError,
@@ -45,6 +46,8 @@ MAX_TEXT_LENGTH = 4_096
 RESOURCE_ID_PATTERN = re.compile(r"^[0-9]{1,30}$")
 GROUP_FIELDS = "id,email,name"
 GROUP_LIST_FIELDS = "groups(id,email,name),nextPageToken"
+USER_ID_LIST_FIELDS = "users(id),nextPageToken"
+GROUP_ID_LIST_FIELDS = "groups(id),nextPageToken"
 
 
 @dataclass(frozen=True)
@@ -238,11 +241,12 @@ class GoogleWorkspaceAdminRoles:
                 reason="service_account_resolution_not_available",
             )
         else:
-            principal = WorkspaceAdminPrincipal(
-                outcome="unresolved",
-                identity_type="UNKNOWN",
-                principal_id=assignment.assigned_to,
-                reason="principal_type_not_authoritative",
+            principal = self._resolve_untyped_principal(
+                actor,
+                organization_id,
+                customer_id,
+                assignment.assigned_to,
+                request_timeout_seconds,
             )
         return assignment, principal
 
@@ -416,6 +420,155 @@ class GoogleWorkspaceAdminRoles:
         finally:
             self._close_client(client)
 
+    def _resolve_untyped_principal(
+        self,
+        actor: User,
+        organization_id: UUID,
+        customer_id: str,
+        principal_id: str,
+        request_timeout_seconds: float | None,
+    ) -> WorkspaceAdminPrincipal:
+        """Resolve an untyped ID only through complete customer-scoped identity indexes."""
+        try:
+            user_matches = self._customer_principal_id_matches(
+                actor=actor,
+                organization_id=organization_id,
+                customer_id=customer_id,
+                principal_id=principal_id,
+                identity_type="USER",
+                request_timeout_seconds=request_timeout_seconds,
+            )
+            group_matches = self._customer_principal_id_matches(
+                actor=actor,
+                organization_id=organization_id,
+                customer_id=customer_id,
+                principal_id=principal_id,
+                identity_type="GROUP",
+                request_timeout_seconds=request_timeout_seconds,
+            )
+        except GoogleWorkspaceError as error:
+            return self._unavailable_principal("UNKNOWN", principal_id, error)
+        if user_matches > 1 or group_matches > 1 or (user_matches and group_matches):
+            return WorkspaceAdminPrincipal(
+                outcome="ambiguous",
+                identity_type="UNKNOWN",
+                principal_id=principal_id,
+                reason="conflicting_customer_identity_indexes",
+            )
+        if user_matches == 1:
+            return self._resolve_user_principal(
+                actor, organization_id, customer_id, principal_id
+            )
+        if group_matches == 1:
+            return self._resolve_group_principal(
+                actor,
+                organization_id,
+                customer_id,
+                principal_id,
+                request_timeout_seconds,
+            )
+        return WorkspaceAdminPrincipal(
+            outcome="unresolved",
+            identity_type="UNKNOWN",
+            principal_id=principal_id,
+            reason="principal_not_found_in_customer_indexes",
+        )
+
+    def _customer_principal_id_matches(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        customer_id: str,
+        principal_id: str,
+        identity_type: Literal["USER", "GROUP"],
+        request_timeout_seconds: float | None,
+    ) -> int:
+        arguments: dict[str, Any] = {
+            "actor": actor,
+            "organization_id": organization_id,
+            "scopes": (
+                DIRECTORY_USER_READONLY_SCOPE
+                if identity_type == "USER"
+                else DIRECTORY_GROUP_READONLY_SCOPE,
+            ),
+        }
+        if request_timeout_seconds is not None:
+            arguments["request_timeout_seconds"] = request_timeout_seconds
+        client: Any | None = None
+        try:
+            if identity_type == "USER":
+                client = self.client_factory.for_directory_users(**arguments)
+                resource = client.users()
+                field = "users"
+                fields = USER_ID_LIST_FIELDS
+            else:
+                client = self.client_factory.for_directory_groups(**arguments)
+                resource = client.groups()
+                field = "groups"
+                fields = GROUP_ID_LIST_FIELDS
+            return self._paginate_id_matches(
+                resource,
+                field,
+                customer_id,
+                fields,
+                principal_id,
+            )
+        except GoogleWorkspaceError:
+            raise
+        except Exception as error:
+            raise map_google_api_error(error) from None
+        finally:
+            self._close_client(client)
+
+    @classmethod
+    def _paginate_id_matches(
+        cls,
+        resource: Any,
+        field: str,
+        customer_id: str,
+        fields: str,
+        principal_id: str,
+    ) -> int:
+        matches = 0
+        records = 0
+        page_token: str | None = None
+        seen_tokens: set[str] = set()
+        for _ in range(MAX_PAGES):
+            arguments: dict[str, Any] = {
+                "customer": customer_id,
+                "maxResults": 200,
+                "fields": fields,
+            }
+            if page_token is not None:
+                arguments["pageToken"] = page_token
+            response = resource.list(**arguments).execute(num_retries=0)
+            if not isinstance(response, dict):
+                cls._invalid_response()
+            values = response.get(field, [])
+            if values is None:
+                values = []
+            if not isinstance(values, list):
+                cls._invalid_response()
+            records += len(values)
+            if records > MAX_RECORDS:
+                raise GoogleWorkspaceError(
+                    GoogleWorkspaceErrorCode.GOOGLE_OPERATION_BUDGET_EXCEEDED
+                )
+            for value in values:
+                if not isinstance(value, dict):
+                    cls._invalid_response()
+                if cls._text(value.get("id")) == principal_id:
+                    matches += 1
+            next_token = response.get("nextPageToken")
+            if next_token is None:
+                return matches
+            if not isinstance(next_token, str) or not next_token or next_token in seen_tokens:
+                raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_PAGE_TOKEN_INVALID)
+            seen_tokens.add(next_token)
+            page_token = next_token
+        raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_OPERATION_BUDGET_EXCEEDED)
+
     @classmethod
     def _group_identity(cls, response: Any) -> tuple[str, str, str | None]:
         if not isinstance(response, dict):
@@ -446,7 +599,7 @@ class GoogleWorkspaceAdminRoles:
 
     @staticmethod
     def _unavailable_principal(
-        identity_type: Literal["USER", "GROUP"],
+        identity_type: Literal["USER", "GROUP", "UNKNOWN"],
         principal_id: str,
         error: GoogleWorkspaceError,
     ) -> WorkspaceAdminPrincipal:

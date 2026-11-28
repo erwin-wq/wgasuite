@@ -195,8 +195,10 @@ IDs, customer/OU scope, conditions, and expiration metadata returned by Google. 
 reads use immutable numeric resource IDs and remain tenant-scoped. On demand, a direct assignment's
 authoritative `USER` or `GROUP` type can be resolved with the existing user/group read-only scopes.
 User results must match both immutable ID and customer; group results must match the immutable ID
-and a customer-scoped group inventory. Unknown, unsupported, ambiguous, and unavailable identities
-remain explicit instead of being guessed. The tool does not expand groups or claim to calculate
+and a customer-scoped group inventory. If Google omits the type, bounded complete customer-scoped
+user and group ID inventories must establish one unique match before detail lookup; conflicts,
+unsupported identities, and unavailable lookups remain explicit instead of being guessed. The tool
+does not expand groups or claim to calculate
 inherited, group-derived or otherwise effective administrator permissions. No role or assignment
 mutation is implemented.
 

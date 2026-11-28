@@ -485,32 +485,168 @@ def test_resolves_group_only_with_customer_scoped_inventory_proof(db_session: Se
     assert group_client._http.closed is True
 
 
-def test_unknown_and_service_account_principals_are_never_guessed(db_session: Session) -> None:
-    for assignee_type, expected_outcome in [
-        ("FUTURE", "unresolved"),
-        ("SERVICE_ACCOUNT", "unsupported"),
-    ]:
-        service, factory, connector, actor = role_service(
-            db_session,
-            [],
-            [],
-            assignment_detail={
-                "roleAssignmentId": "2001",
-                "roleId": "1001",
-                "assignedTo": "opaque-principal",
-                "assigneeType": assignee_type,
-                "scopeType": "CUSTOMER",
-            },
+def test_untyped_principal_stays_unresolved_when_customer_indexes_do_not_match(
+    db_session: Session,
+) -> None:
+    service, factory, connector, actor = role_service(
+        db_session,
+        [],
+        [],
+        assignment_detail={
+            "roleAssignmentId": "2001",
+            "roleId": "1001",
+            "assignedTo": "opaque-principal",
+            "assigneeType": "FUTURE",
+            "scopeType": "CUSTOMER",
+        },
+    )
+    user_resource = PagedResource([{"users": []}])
+    group_resource = PagedResource([{"groups": []}])
+    user_client = MagicMock()
+    user_client.users.return_value = user_resource
+    user_client._http = FakeHttp()
+    group_client = MagicMock()
+    group_client.groups.return_value = group_resource
+    group_client._http = FakeHttp()
+    factory.for_directory_users = MagicMock(return_value=user_client)  # type: ignore[attr-defined]
+    factory.for_directory_groups = MagicMock(return_value=group_client)  # type: ignore[attr-defined]
+    service.user_lookup.lookup_by_id = MagicMock()  # type: ignore[attr-defined]
+
+    _, principal = service.get_assignment_principal(
+        actor=actor,
+        organization_id=connector.organization_id,
+        assignment_id="2001",
+    )
+
+    assert principal.outcome == "unresolved"
+    assert principal.identity_type == "UNKNOWN"
+    assert principal.reason == "principal_not_found_in_customer_indexes"
+    service.user_lookup.lookup_by_id.assert_not_called()  # type: ignore[attr-defined]
+    assert user_resource.calls[0]["customer"] == "customer-immutable-1"
+    assert group_resource.calls[0]["customer"] == "customer-immutable-1"
+    assert all(request.execute_kwargs == {"num_retries": 0} for request in user_resource.requests)
+    assert all(request.execute_kwargs == {"num_retries": 0} for request in group_resource.requests)
+
+
+def test_explicit_service_account_is_unsupported_without_directory_probing(
+    db_session: Session,
+) -> None:
+    service, factory, connector, actor = role_service(
+        db_session,
+        [],
+        [],
+        assignment_detail={
+            "roleAssignmentId": "2001",
+            "roleId": "1001",
+            "assignedTo": "opaque-principal",
+            "assigneeType": "SERVICE_ACCOUNT",
+            "scopeType": "CUSTOMER",
+        },
+    )
+    service.user_lookup.lookup_by_id = MagicMock()  # type: ignore[attr-defined]
+    _, principal = service.get_assignment_principal(
+        actor=actor,
+        organization_id=connector.organization_id,
+        assignment_id="2001",
+    )
+    assert principal.outcome == "unsupported"
+    service.user_lookup.lookup_by_id.assert_not_called()  # type: ignore[attr-defined]
+    assert not hasattr(factory, "for_directory_groups")
+    assert not hasattr(factory, "for_directory_users")
+
+
+def test_untyped_principal_resolves_only_after_unique_customer_user_index_match(
+    db_session: Session,
+) -> None:
+    principal_id = "109999999999999999999"
+    service, factory, connector, actor = role_service(
+        db_session,
+        [],
+        [],
+        assignment_detail={
+            "roleAssignmentId": "2001",
+            "roleId": "1001",
+            "assignedTo": principal_id,
+            "scopeType": "CUSTOMER",
+        },
+    )
+    user_resource = PagedResource(
+        [{"users": [], "nextPageToken": "next"}, {"users": [{"id": principal_id}]}]
+    )
+    group_resource = PagedResource([{"groups": []}])
+    user_client = MagicMock()
+    user_client.users.return_value = user_resource
+    user_client._http = FakeHttp()
+    group_client = MagicMock()
+    group_client.groups.return_value = group_resource
+    group_client._http = FakeHttp()
+    factory.for_directory_users = MagicMock(return_value=user_client)  # type: ignore[attr-defined]
+    factory.for_directory_groups = MagicMock(return_value=group_client)  # type: ignore[attr-defined]
+    service.user_lookup.lookup_by_id = MagicMock(  # type: ignore[attr-defined]
+        return_value=GoogleWorkspaceUserLookupResult(
+            id=principal_id,
+            customer_id="customer-immutable-1",
+            full_name="Verified Administrator",
+            primary_email="verified@example.test",
+            aliases=[],
+            non_editable_aliases=[],
+            suspended=False,
+            archived=False,
+            org_unit_path="/",
+            is_mailbox_setup=True,
+            matched_by="immutable_id",
         )
-        service.user_lookup.lookup_by_id = MagicMock()  # type: ignore[attr-defined]
-        _, principal = service.get_assignment_principal(
-            actor=actor,
-            organization_id=connector.organization_id,
-            assignment_id="2001",
-        )
-        assert principal.outcome == expected_outcome
-        service.user_lookup.lookup_by_id.assert_not_called()  # type: ignore[attr-defined]
-        assert not hasattr(factory, "for_directory_groups")
+    )
+
+    _, principal = service.get_assignment_principal(
+        actor=actor,
+        organization_id=connector.organization_id,
+        assignment_id="2001",
+    )
+
+    assert principal.outcome == "verified"
+    assert principal.identity_type == "USER"
+    assert user_resource.calls[1]["pageToken"] == "next"
+    service.user_lookup.lookup_by_id.assert_called_once()  # type: ignore[attr-defined]
+
+
+def test_untyped_principal_conflicting_customer_indexes_are_ambiguous(
+    db_session: Session,
+) -> None:
+    principal_id = "109999999999999999999"
+    service, factory, connector, actor = role_service(
+        db_session,
+        [],
+        [],
+        assignment_detail={
+            "roleAssignmentId": "2001",
+            "roleId": "1001",
+            "assignedTo": principal_id,
+            "scopeType": "CUSTOMER",
+        },
+    )
+    user_resource = PagedResource([{"users": [{"id": principal_id}]}])
+    group_resource = PagedResource([{"groups": [{"id": principal_id}]}])
+    user_client = MagicMock()
+    user_client.users.return_value = user_resource
+    user_client._http = FakeHttp()
+    group_client = MagicMock()
+    group_client.groups.return_value = group_resource
+    group_client._http = FakeHttp()
+    factory.for_directory_users = MagicMock(return_value=user_client)  # type: ignore[attr-defined]
+    factory.for_directory_groups = MagicMock(return_value=group_client)  # type: ignore[attr-defined]
+    service.user_lookup.lookup_by_id = MagicMock()  # type: ignore[attr-defined]
+
+    _, principal = service.get_assignment_principal(
+        actor=actor,
+        organization_id=connector.organization_id,
+        assignment_id="2001",
+    )
+
+    assert principal.outcome == "ambiguous"
+    assert principal.identity_type == "UNKNOWN"
+    assert principal.reason == "conflicting_customer_identity_indexes"
+    service.user_lookup.lookup_by_id.assert_not_called()  # type: ignore[attr-defined]
 
 
 def test_identity_authorization_failure_is_not_reported_as_not_found(db_session: Session) -> None:

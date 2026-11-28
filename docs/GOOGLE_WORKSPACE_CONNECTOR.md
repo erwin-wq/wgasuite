@@ -74,8 +74,11 @@ the existing `admin.directory.user.readonly` or `admin.directory.group.readonly`
 Google's authoritative assignee type. Users must match the immutable ID and selected customer.
 Groups must match the immutable ID and also appear in the selected customer's scoped group
 inventory; `groups.get` alone is not accepted as tenant-ownership proof. Service accounts and
-unknown types remain unresolved because this workflow does not request IAM access. Authentication
-or upstream lookup failures remain distinct from a missing identity. WGASuite does not calculate
+unknown types are never inferred from identifier format. When Google omits the type, WGASuite scans
+bounded, complete customer-scoped user and group ID inventories and proceeds only for one unique
+match. No match remains unresolved, conflicting matches remain ambiguous, and explicit service
+accounts remain unsupported because this workflow does not request IAM access. Authentication or
+upstream lookup failures remain distinct from a missing identity. WGASuite does not calculate
 effective administrator permissions or expand group membership. The standard connection test does
 not prove access to these operation-scoped grants.
 
