@@ -120,6 +120,10 @@
       "title": "DIR-004.4 individual administrator role and assignment details task",
       "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220962200418534"
     },
+    "wgasuite.dir0046.task": {
+      "title": "DIR-004.6 per-user direct and indirect administrator role assignments task",
+      "url": "https://app.asana.com/1/1198172217694356/project/1218820278337058/task/1220966438826190"
+    },
     "google.directory.roles.get": {
       "title": "Admin SDK Directory API roles.get reference",
       "url": "https://developers.google.com/workspace/admin/directory/reference/rest/v1/roles/get"
@@ -36359,9 +36363,10 @@
         "evidence_refs": [
           "wgasuite.source",
           "wgasuite.tests",
-          "wgasuite.dir0043.task"
+          "wgasuite.dir0043.task",
+          "wgasuite.dir0046.task"
         ],
-        "limitations": "Direct tenant-scoped assignments and single-assignment detail were independently verified against the live Google Directory API. An on-demand immutable-user query supports Google's reported indirect results with conservative provenance classification, but group-derived behavior remains mock-tested until observed live. WGASuite does not calculate effective permissions, reconstruct group membership paths, or support upstream bulk/CSV behavior."
+        "limitations": "Direct tenant-scoped assignments, single-assignment detail, and the on-demand immutable-user query were independently verified against the live Google Directory API. The live per-user query returned direct assignments and no indirect assignments; group-derived classification remains mock-tested until observed live. WGASuite does not calculate effective permissions, reconstruct group membership paths, or support upstream bulk/CSV behavior."
       },
       "roadmap": {
         "epic": "DIR-004",
@@ -36373,7 +36378,8 @@
         "live_google": true,
         "evidence_refs": [
           "wgasuite.tests",
-          "wgasuite.dir0043.task"
+          "wgasuite.dir0043.task",
+          "wgasuite.dir0046.task"
         ]
       },
       "evidence_refs": [
