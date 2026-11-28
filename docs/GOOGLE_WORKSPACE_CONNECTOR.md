@@ -4,7 +4,8 @@ WGASuite provides a five-step wizard, a real read-only connection test, a pagina
 Directory, exact user lookup by primary email or user alias, and guarded Gmail mailbox delegate
 management using a service account with Domain-Wide Delegation (DWD). It also provides
 customer-scoped Google Groups discovery, a read-only Domains inventory, a read-only Organizational
-Units tree, a read-only administrator roles and direct-assignments inventory, and guarded
+Units tree, a read-only administrator roles inventory with on-demand per-user assignment queries,
+and guarded
 direct-user membership changes.
 Customer administrators can also perform
 guarded suspension and safe reactivation from the central user detail. The security-check catalog
@@ -78,9 +79,14 @@ unknown types are never inferred from identifier format. When Google omits the t
 bounded, complete customer-scoped user and group ID inventories and proceeds only for one unique
 match. No match remains unresolved, conflicting matches remain ambiguous, and explicit service
 accounts remain unsupported because this workflow does not request IAM access. Authentication or
-upstream lookup failures remain distinct from a missing identity. WGASuite does not calculate
-effective administrator permissions or expand group membership. The standard connection test does
-not prove access to these operation-scoped grants.
+upstream lookup failures remain distinct from a missing identity. For one already verified user,
+WGASuite can call `roleAssignments.list` with that immutable ID and
+`includeIndirectRoleAssignments=true`. It continues through empty pages that carry a next-page
+token, classifies an exact selected-user match as direct, and classifies another principal as
+Google-reported group-derived only after tenant-safe group verification. Other records retain
+unknown provenance. WGASuite does not reconstruct group membership paths or calculate effective
+administrator permissions. The standard connection test does not prove access to these
+operation-scoped grants.
 
 For Google Groups, add both Directory scopes below while preserving the user and Gmail scopes:
 

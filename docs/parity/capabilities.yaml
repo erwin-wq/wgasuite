@@ -36282,7 +36282,8 @@
         "parity": "partial",
         "backend_or_frontend_paths": [
           "backend/app/services/google_workspace_admin_roles.py",
-          "frontend/src/features/google-workspace/AdminRolesInventory.tsx"
+          "frontend/src/features/google-workspace/AdminRolesInventory.tsx",
+          "frontend/src/features/google-workspace/UserAdminRoleAssignments.tsx"
         ],
         "evidence_refs": [
           "wgasuite.source",
@@ -36360,7 +36361,7 @@
           "wgasuite.tests",
           "wgasuite.dir0043.task"
         ],
-        "limitations": "Direct tenant-scoped assignments were independently verified against the live Google Directory API. WGASuite does not calculate effective permissions, resolve opaque assignee IDs, expose single-assignment lookup, or support upstream bulk/CSV behavior."
+        "limitations": "Direct tenant-scoped assignments and single-assignment detail were independently verified against the live Google Directory API. An on-demand immutable-user query supports Google's reported indirect results with conservative provenance classification, but group-derived behavior remains mock-tested until observed live. WGASuite does not calculate effective permissions, reconstruct group membership paths, or support upstream bulk/CSV behavior."
       },
       "roadmap": {
         "epic": "DIR-004",

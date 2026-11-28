@@ -21,7 +21,10 @@ from app.connectors.google_workspace_errors import (
     map_google_api_error,
 )
 from app.models import ConnectorConfig, User
-from app.services.google_workspace_user_lookup import GoogleWorkspaceUserLookup
+from app.services.google_workspace_user_lookup import (
+    GoogleWorkspaceUserLookup,
+    GoogleWorkspaceUserLookupResult,
+)
 
 ROLE_FIELDS = (
     "items(roleId,roleName,roleDescription,isSystemRole,isSuperAdminRole,"
@@ -103,6 +106,20 @@ class WorkspaceAdminPrincipal:
     reason: str | None = None
 
 
+@dataclass(frozen=True)
+class WorkspaceUserRoleAssignment:
+    assignment: WorkspaceRoleAssignment
+    role: WorkspaceAdminRole | None
+    provenance: Literal["DIRECT", "GROUP_DERIVED", "UNKNOWN"]
+    principal: WorkspaceAdminPrincipal
+
+
+@dataclass(frozen=True)
+class WorkspaceUserRoleAssignmentInventory:
+    user: GoogleWorkspaceUserLookupResult
+    assignments: tuple[WorkspaceUserRoleAssignment, ...]
+
+
 class GoogleWorkspaceAdminRoles:
     """Read direct administrator role assignments for one verified customer."""
 
@@ -156,6 +173,157 @@ class GoogleWorkspaceAdminRoles:
             raise map_google_api_error(error) from None
         finally:
             self._close_client(client)
+
+    def list_user_assignments(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        user_id: str,
+        request_timeout_seconds: float | None = None,
+    ) -> WorkspaceUserRoleAssignmentInventory:
+        """List Google's direct and indirect assignment records for one verified user."""
+        requested_user_id = self._resource_id(user_id)
+        customer_id = self._verified_customer_id(actor, organization_id)
+        user = self.user_lookup.lookup_by_id(
+            actor=actor, organization_id=organization_id, user_id=requested_user_id
+        )
+        if user.id != requested_user_id:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_USER_LOOKUP_MISMATCH)
+        if user.customer_id != customer_id:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH)
+
+        client: Any | None = None
+        try:
+            client = self._role_client(actor, organization_id, request_timeout_seconds)
+            raw_roles = self._paginate(
+                client.roles(), "items", customer_id, ROLE_FIELDS, max_results=100
+            )
+            raw_assignments = self._paginate(
+                client.roleAssignments(),
+                "items",
+                customer_id,
+                ASSIGNMENT_FIELDS,
+                max_results=200,
+                extra={
+                    "userKey": requested_user_id,
+                    "includeIndirectRoleAssignments": True,
+                },
+            )
+            roles: dict[str, WorkspaceAdminRole] = {}
+            for raw in raw_roles:
+                role = self._role(raw)
+                if role.role_id in roles:
+                    self._invalid_response()
+                roles[role.role_id] = role
+
+            seen: set[str] = set()
+            principal_cache: dict[str, WorkspaceAdminPrincipal] = {}
+            assignments: list[WorkspaceUserRoleAssignment] = []
+            for raw in raw_assignments:
+                assignment = self._assignment(raw)
+                if assignment.assignment_id in seen:
+                    self._invalid_response()
+                seen.add(assignment.assignment_id)
+                provenance, principal = self._classify_user_assignment(
+                    actor=actor,
+                    organization_id=organization_id,
+                    customer_id=customer_id,
+                    user=user,
+                    assignment=assignment,
+                    request_timeout_seconds=request_timeout_seconds,
+                    principal_cache=principal_cache,
+                )
+                assignments.append(
+                    WorkspaceUserRoleAssignment(
+                        assignment=assignment,
+                        role=roles.get(assignment.role_id),
+                        provenance=provenance,
+                        principal=principal,
+                    )
+                )
+            return WorkspaceUserRoleAssignmentInventory(
+                user=user,
+                assignments=tuple(
+                    sorted(assignments, key=lambda item: item.assignment.assignment_id)
+                ),
+            )
+        except GoogleWorkspaceError:
+            raise
+        except Exception as error:
+            raise map_google_api_error(error) from None
+        finally:
+            self._close_client(client)
+
+    def _classify_user_assignment(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        customer_id: str,
+        user: GoogleWorkspaceUserLookupResult,
+        assignment: WorkspaceRoleAssignment,
+        request_timeout_seconds: float | None,
+        principal_cache: dict[str, WorkspaceAdminPrincipal],
+    ) -> tuple[Literal["DIRECT", "GROUP_DERIVED", "UNKNOWN"], WorkspaceAdminPrincipal]:
+        if assignment.assigned_to == user.id:
+            if assignment.assignee_type in {"USER", "UNKNOWN"}:
+                return "DIRECT", self.user_principal(user)
+            return "UNKNOWN", WorkspaceAdminPrincipal(
+                outcome="ambiguous",
+                identity_type=assignment.assignee_type,
+                principal_id=assignment.assigned_to,
+                reason="selected_user_principal_type_conflict",
+            )
+
+        if assignment.assignee_type == "GROUP":
+            principal = principal_cache.get(assignment.assigned_to)
+            if principal is None:
+                principal = self._resolve_group_principal(
+                    actor,
+                    organization_id,
+                    customer_id,
+                    assignment.assigned_to,
+                    request_timeout_seconds,
+                )
+                principal_cache[assignment.assigned_to] = principal
+            return (
+                "GROUP_DERIVED" if principal.outcome == "verified" else "UNKNOWN",
+                principal,
+            )
+
+        if assignment.assignee_type == "UNKNOWN":
+            return "UNKNOWN", WorkspaceAdminPrincipal(
+                outcome="unresolved",
+                identity_type="UNKNOWN",
+                principal_id=assignment.assigned_to,
+                reason="google_did_not_identify_indirect_principal_type",
+            )
+
+        return "UNKNOWN", WorkspaceAdminPrincipal(
+            outcome="unresolved",
+            identity_type=assignment.assignee_type,
+            principal_id=assignment.assigned_to,
+            reason="assigned_principal_does_not_match_selected_user",
+        )
+
+    @staticmethod
+    def user_principal(user: GoogleWorkspaceUserLookupResult) -> WorkspaceAdminPrincipal:
+        status: Literal["ACTIVE", "SUSPENDED", "ARCHIVED", "DELETED"] = "ACTIVE"
+        if user.deletion_time is not None:
+            status = "DELETED"
+        elif user.archived is True:
+            status = "ARCHIVED"
+        elif user.suspended:
+            status = "SUSPENDED"
+        return WorkspaceAdminPrincipal(
+            outcome="verified",
+            identity_type="USER",
+            principal_id=user.id,
+            primary_email=user.primary_email,
+            display_name=user.full_name,
+            account_status=status,
+        )
 
     def get_role(
         self,
@@ -650,6 +818,7 @@ class GoogleWorkspaceAdminRoles:
         fields: str,
         *,
         max_results: int,
+        extra: dict[str, Any] | None = None,
     ) -> list[Any]:
         values: list[Any] = []
         page_token: str | None = None
@@ -660,6 +829,8 @@ class GoogleWorkspaceAdminRoles:
                 "maxResults": max_results,
                 "fields": fields,
             }
+            if extra:
+                request.update(extra)
             if page_token is not None:
                 request["pageToken"] = page_token
             response = resource.list(**request).execute(num_retries=0)

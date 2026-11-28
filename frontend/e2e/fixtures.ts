@@ -201,6 +201,37 @@ export async function installApiHarness(
       return respond({ users: [user], next_page_token: null });
     }
     if (path.endsWith("/google-workspace/users/lookup")) return respond(directoryUser);
+    if (path.endsWith("/google-workspace/users/admin-role-assignments/list")) {
+      return respond({
+        user: {
+          id: directoryUser.id,
+          primary_email: directoryUser.primary_email,
+          display_name: directoryUser.full_name,
+          account_status: "ACTIVE"
+        },
+        assignments: [{
+          assignment: { ...adminRoleInventory.assignments[0], assigned_to: directoryUser.id },
+          role: adminRoleInventory.roles[0],
+          provenance: "DIRECT",
+          principal: {
+            outcome: "verified",
+            identity_type: "USER",
+            principal_id: directoryUser.id,
+            primary_email: directoryUser.primary_email,
+            display_name: directoryUser.full_name,
+            account_status: "ACTIVE",
+            reason: null
+          }
+        }],
+        assignment_count: 1,
+        direct_count: 1,
+        group_derived_count: 0,
+        unknown_count: 0,
+        google_reported_indirect_included: true,
+        effective_permissions_included: false,
+        read_only: true
+      });
+    }
     if (path.endsWith("/google-workspace/users/group-memberships")) return respond({ memberships: [], next_page_token: null, omissions: [], verified_customer_id: "C00000000" });
     if (path.endsWith("/google-workspace/groups/search")) return respond({ groups: [group], next_page_token: null });
     if (path.endsWith("/google-workspace/groups/get")) return respond(group);

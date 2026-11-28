@@ -10,6 +10,10 @@ class GoogleWorkspaceAdminResourceReferenceRequest(BaseModel):
     id: str = Field(min_length=1, max_length=30, pattern=r"^[0-9]+$")
 
 
+class GoogleWorkspaceUserAdminRoleRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=30, pattern=r"^[0-9]+$")
+
+
 class GoogleWorkspaceRolePrivilegeRead(BaseModel):
     service_id: str
     privilege_name: str
@@ -78,5 +82,31 @@ class GoogleWorkspaceRoleAssignmentPrincipalRead(BaseModel):
     assignment: GoogleWorkspaceRoleAssignmentRead
     principal: GoogleWorkspaceAdminPrincipalRead
     direct_assignment: bool = True
+    effective_permissions_included: bool = False
+    read_only: bool = True
+
+
+class GoogleWorkspaceAdminAssignmentUserRead(BaseModel):
+    id: str
+    primary_email: str
+    display_name: str | None = None
+    account_status: Literal["ACTIVE", "SUSPENDED", "ARCHIVED", "DELETED"]
+
+
+class GoogleWorkspaceUserRoleAssignmentRead(BaseModel):
+    assignment: GoogleWorkspaceRoleAssignmentRead
+    role: GoogleWorkspaceAdminRoleRead | None = None
+    provenance: Literal["DIRECT", "GROUP_DERIVED", "UNKNOWN"]
+    principal: GoogleWorkspaceAdminPrincipalRead
+
+
+class GoogleWorkspaceUserRoleAssignmentInventoryRead(BaseModel):
+    user: GoogleWorkspaceAdminAssignmentUserRead
+    assignments: list[GoogleWorkspaceUserRoleAssignmentRead]
+    assignment_count: int
+    direct_count: int
+    group_derived_count: int
+    unknown_count: int
+    google_reported_indirect_included: bool = True
     effective_permissions_included: bool = False
     read_only: bool = True

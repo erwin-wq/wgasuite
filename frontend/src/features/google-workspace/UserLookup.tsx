@@ -19,6 +19,7 @@ import { Badge } from "../../components/ui/Feedback";
 import { Input } from "../../components/ui/FormControls";
 import type { ConnectorConfig, GoogleWorkspaceUser } from "../../types";
 import { MailboxDelegates } from "./MailboxDelegates";
+import { UserAdminRoleAssignments } from "./UserAdminRoleAssignments";
 import { UserGroupMemberships } from "./UserGroupMemberships";
 import { UserOrgUnitMove } from "./UserOrgUnitMove";
 import { UserStatusManagement } from "./UserStatusManagement";
@@ -282,6 +283,7 @@ export function UserLookup({
                   </section>
 
                   <UserGroupMemberships organizationId={organizationId} user={result} onOpenGroup={onOpenGroup} />
+                  <UserAdminRoleAssignments organizationId={organizationId} user={result} />
                 </div>
 
                 <aside className="user-administration-actions" aria-labelledby="user-actions-heading">

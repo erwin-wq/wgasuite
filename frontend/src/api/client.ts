@@ -24,6 +24,7 @@ import type {
   GoogleWorkspaceAdminRoleDetail,
   GoogleWorkspaceRoleAssignmentDetail,
   GoogleWorkspaceRoleAssignmentPrincipal,
+  GoogleWorkspaceUserRoleAssignmentInventory,
   GoogleWorkspaceDomainDetail,
   GoogleWorkspaceDomainAliasDetail,
   GoogleWorkspaceOrganizationalUnit,
@@ -472,6 +473,17 @@ export function resolveGoogleWorkspaceRoleAssignmentPrincipal(
   return request<GoogleWorkspaceRoleAssignmentPrincipal>(
     `/api/v1/organizations/${organizationId}/google-workspace/admin-role-assignments/resolve-principal`,
     { method: "POST", body: JSON.stringify({ id: assignmentId }), signal }
+  );
+}
+
+export function listGoogleWorkspaceUserAdminRoleAssignments(
+  organizationId: string,
+  userId: string,
+  signal?: AbortSignal
+): Promise<GoogleWorkspaceUserRoleAssignmentInventory> {
+  return request<GoogleWorkspaceUserRoleAssignmentInventory>(
+    `/api/v1/organizations/${organizationId}/google-workspace/users/admin-role-assignments/list`,
+    { method: "POST", body: JSON.stringify({ user_id: userId }), signal }
   );
 }
 
