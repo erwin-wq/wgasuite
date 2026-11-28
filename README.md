@@ -198,9 +198,12 @@ User results must match both immutable ID and customer; group results must match
 and a customer-scoped group inventory. If Google omits the type, bounded complete customer-scoped
 user and group ID inventories must establish one unique match before detail lookup; conflicts,
 unsupported identities, and unavailable lookups remain explicit instead of being guessed. The tool
-does not expand groups or claim to calculate
-inherited, group-derived or otherwise effective administrator permissions. No role or assignment
-mutation is implemented.
+also offers an on-demand view for one already verified user. That request uses the immutable user
+ID with `includeIndirectRoleAssignments=true`, continues through empty pages with continuation
+tokens, and distinguishes exact direct matches from independently verified group principals and
+unknown provenance. It displays Google-reported indirect records without reconstructing membership
+paths or claiming to calculate effective administrator permissions. No role or assignment mutation
+is implemented.
 
 See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup, scope,
 security and live-verification instructions, and [mutation safety](docs/MUTATION_SAFETY.md) for the

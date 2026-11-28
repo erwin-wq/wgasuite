@@ -476,6 +476,32 @@ export interface GoogleWorkspaceRoleAssignmentPrincipal {
   read_only: true;
 }
 
+export interface GoogleWorkspaceAdminAssignmentUser {
+  id: string;
+  primary_email: string;
+  display_name: string | null;
+  account_status: "ACTIVE" | "SUSPENDED" | "ARCHIVED" | "DELETED";
+}
+
+export interface GoogleWorkspaceUserRoleAssignment {
+  assignment: GoogleWorkspaceRoleAssignment;
+  role: GoogleWorkspaceAdminRole | null;
+  provenance: "DIRECT" | "GROUP_DERIVED" | "UNKNOWN";
+  principal: GoogleWorkspaceAdminPrincipal;
+}
+
+export interface GoogleWorkspaceUserRoleAssignmentInventory {
+  user: GoogleWorkspaceAdminAssignmentUser;
+  assignments: GoogleWorkspaceUserRoleAssignment[];
+  assignment_count: number;
+  direct_count: number;
+  group_derived_count: number;
+  unknown_count: number;
+  google_reported_indirect_included: true;
+  effective_permissions_included: false;
+  read_only: true;
+}
+
 export interface GoogleWorkspaceOrganizationalUnitCreatePreview {
   parent_org_unit_id: string;
   parent_path: string;

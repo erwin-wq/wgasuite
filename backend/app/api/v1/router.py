@@ -58,6 +58,7 @@ from app.schemas.customer_membership import (
 )
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
 from app.schemas.google_workspace_admin_role import (
+    GoogleWorkspaceAdminAssignmentUserRead,
     GoogleWorkspaceAdminPrincipalRead,
     GoogleWorkspaceAdminResourceReferenceRequest,
     GoogleWorkspaceAdminRoleDetailRead,
@@ -67,6 +68,9 @@ from app.schemas.google_workspace_admin_role import (
     GoogleWorkspaceRoleAssignmentPrincipalRead,
     GoogleWorkspaceRoleAssignmentRead,
     GoogleWorkspaceRolePrivilegeRead,
+    GoogleWorkspaceUserAdminRoleRequest,
+    GoogleWorkspaceUserRoleAssignmentInventoryRead,
+    GoogleWorkspaceUserRoleAssignmentRead,
 )
 from app.schemas.google_workspace_check import GoogleWorkspaceCheckRead
 from app.schemas.google_workspace_delegate import (
@@ -1680,7 +1684,12 @@ def require_domain_read(
 
 
 def require_admin_role_read(
-    *, db: Session, current_user: User, organization: Organization, action: str
+    *,
+    db: Session,
+    current_user: User,
+    organization: Organization,
+    action: str,
+    google_reported_indirect: bool = False,
 ) -> None:
     try:
         require_customer_connector_operation_access(current_user, organization.customer_id)
@@ -1694,7 +1703,16 @@ def require_admin_role_read(
             customer_id=organization.customer_id,
             outcome="rejected",
             reason="organization_access_denied",
-            metadata={"read_only": True, "direct_assignments_only": True},
+            metadata=(
+                {
+                    "read_only": True,
+                    "direct_assignments_only": False,
+                    "google_reported_indirect_requested": True,
+                    "effective_permissions_included": False,
+                }
+                if google_reported_indirect
+                else {"read_only": True, "direct_assignments_only": True}
+            ),
         )
         raise
 
@@ -1822,6 +1840,106 @@ def list_google_workspace_admin_roles(
         assignments=[role_assignment_read(assignment) for assignment in result.assignments],
         role_count=len(result.roles),
         assignment_count=len(result.assignments),
+    )
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/users/admin-role-assignments/list",
+    response_model=GoogleWorkspaceUserRoleAssignmentInventoryRead,
+    tags=["google-workspace"],
+)
+def list_google_workspace_user_admin_role_assignments(
+    organization_id: UUID,
+    payload: GoogleWorkspaceUserAdminRoleRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GoogleWorkspaceUserRoleAssignmentInventoryRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.user_admin_role_assignments.listed"
+    require_admin_role_read(
+        db=db,
+        current_user=current_user,
+        organization=organization,
+        action=action,
+        google_reported_indirect=True,
+    )
+    try:
+        result = GoogleWorkspaceAdminRoles.from_settings(db).list_user_assignments(
+            actor=current_user,
+            organization_id=organization.id,
+            user_id=payload.user_id,
+        )
+    except GoogleWorkspaceError as error:
+        record_audit_event(
+            db=db,
+            actor=current_user,
+            action=action,
+            object_type="google_workspace_user_admin_role_assignments",
+            object_id=organization.id,
+            customer_id=organization.customer_id,
+            outcome="failure",
+            reason=error.code.value,
+            metadata={
+                "read_only": True,
+                "google_reported_indirect_requested": True,
+                "effective_permissions_included": False,
+                **({"google_reason": error.google_reason} if error.google_reason else {}),
+            },
+        )
+        raise HTTPException(
+            status_code=GOOGLE_USER_LOOKUP_HTTP_STATUS.get(error.code, status.HTTP_502_BAD_GATEWAY),
+            detail={"code": error.code.value, "message": str(error)},
+        ) from None
+
+    direct_count = sum(item.provenance == "DIRECT" for item in result.assignments)
+    indirect_count = sum(item.provenance == "GROUP_DERIVED" for item in result.assignments)
+    unknown_count = sum(item.provenance == "UNKNOWN" for item in result.assignments)
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_user_admin_role_assignments",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "read_only": True,
+            "assignment_count": len(result.assignments),
+            "direct_count": direct_count,
+            "group_derived_count": indirect_count,
+            "unknown_count": unknown_count,
+            "google_reported_indirect_requested": True,
+            "effective_permissions_included": False,
+        },
+    )
+    user_principal = GoogleWorkspaceAdminRoles.user_principal(result.user)
+    return GoogleWorkspaceUserRoleAssignmentInventoryRead(
+        user=GoogleWorkspaceAdminAssignmentUserRead(
+            id=result.user.id,
+            primary_email=result.user.primary_email,
+            display_name=result.user.full_name,
+            account_status=user_principal.account_status or "ACTIVE",
+        ),
+        assignments=[
+            GoogleWorkspaceUserRoleAssignmentRead(
+                assignment=role_assignment_read(item.assignment),
+                role=admin_role_read(item.role) if item.role is not None else None,
+                provenance=item.provenance,
+                principal=GoogleWorkspaceAdminPrincipalRead(
+                    outcome=item.principal.outcome,
+                    identity_type=item.principal.identity_type,
+                    principal_id=item.principal.principal_id,
+                    primary_email=item.principal.primary_email,
+                    display_name=item.principal.display_name,
+                    account_status=item.principal.account_status,
+                    reason=item.principal.reason,
+                ),
+            )
+            for item in result.assignments
+        ],
+        assignment_count=len(result.assignments),
+        direct_count=direct_count,
+        group_derived_count=indirect_count,
+        unknown_count=unknown_count,
     )
 
 

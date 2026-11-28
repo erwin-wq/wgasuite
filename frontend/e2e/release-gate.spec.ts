@@ -171,6 +171,32 @@ test("user alias, Groups, Gmail and connector workflows render authoritative rea
   expect(api.rejectedWrites).toEqual([]);
 });
 
+test("per-user administrator assignments load on demand without effective-access claims", async ({ page }, testInfo) => {
+  test.skip(!["desktop", "mobile"].includes(testInfo.project.name), "Desktop and mobile cover the per-user detail.");
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  await authenticate(page);
+  const api = await installApiHarness(page);
+  await page.goto("/directory/users/lookup");
+  await page.getByLabel("Primary email or user alias").fill("alias@northstar.example.invalid");
+  await page.getByRole("button", { name: "Look up user" }).click();
+  await expect(page.getByRole("heading", { name: "Administrator role assignments" })).toBeVisible();
+  expect(api.calls.some((call) => call.path.endsWith("/users/admin-role-assignments/list"))).toBe(false);
+
+  await page.getByRole("button", { name: "Load assignments" }).click();
+
+  await expect(page.getByText("Help Desk", { exact: true })).toBeVisible();
+  await expect(page.getByText("Direct assignment", { exact: true })).toBeVisible();
+  await expect(page.getByText(/does not calculate effective administrator permissions/i)).toBeVisible();
+  await expect.poll(() => api.calls.filter((call) => call.path.endsWith("/users/admin-role-assignments/list")).length).toBe(1);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow).toBe(false);
+  expect(consoleErrors).toEqual([]);
+  expect(api.rejectedWrites).toEqual([]);
+});
+
 test("Domains inventory details, search and refresh remain read-only", async ({ page }, testInfo) => {
   test.skip(!["desktop", "mobile"].includes(testInfo.project.name), "Desktop and mobile cover domain interactions.");
   const consoleErrors: string[] = [];
