@@ -58,11 +58,13 @@ from app.schemas.customer_membership import (
 )
 from app.schemas.finding import FindingCreate, FindingRead, FindingUpdate
 from app.schemas.google_workspace_admin_role import (
+    GoogleWorkspaceAdminPrincipalRead,
     GoogleWorkspaceAdminResourceReferenceRequest,
     GoogleWorkspaceAdminRoleDetailRead,
     GoogleWorkspaceAdminRoleInventoryRead,
     GoogleWorkspaceAdminRoleRead,
     GoogleWorkspaceRoleAssignmentDetailRead,
+    GoogleWorkspaceRoleAssignmentPrincipalRead,
     GoogleWorkspaceRoleAssignmentRead,
     GoogleWorkspaceRolePrivilegeRead,
 )
@@ -1921,6 +1923,71 @@ def get_google_workspace_role_assignment(
         },
     )
     return GoogleWorkspaceRoleAssignmentDetailRead(assignment=read)
+
+
+@api_router.post(
+    "/organizations/{organization_id}/google-workspace/admin-role-assignments/resolve-principal",
+    response_model=GoogleWorkspaceRoleAssignmentPrincipalRead,
+    tags=["google-workspace"],
+)
+def resolve_google_workspace_role_assignment_principal(
+    organization_id: UUID,
+    payload: GoogleWorkspaceAdminResourceReferenceRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> GoogleWorkspaceRoleAssignmentPrincipalRead:
+    organization = get_organization_or_404(db, organization_id)
+    action = "google_workspace.admin_role_assignment.principal_resolved"
+    require_admin_role_read(
+        db=db, current_user=current_user, organization=organization, action=action
+    )
+    try:
+        assignment, principal = GoogleWorkspaceAdminRoles.from_settings(
+            db
+        ).get_assignment_principal(
+            actor=current_user,
+            organization_id=organization.id,
+            assignment_id=payload.id,
+        )
+    except GoogleWorkspaceError as error:
+        raise admin_role_detail_failure(
+            db=db,
+            current_user=current_user,
+            organization=organization,
+            action=action,
+            object_type="google_workspace_admin_principal",
+            error=error,
+        ) from None
+    read = role_assignment_read(assignment)
+    record_audit_event(
+        db=db,
+        actor=current_user,
+        action=action,
+        object_type="google_workspace_admin_principal",
+        object_id=organization.id,
+        customer_id=organization.customer_id,
+        metadata={
+            "read_only": True,
+            "direct_assignment": True,
+            "identity_type": principal.identity_type,
+            "resolution_outcome": principal.outcome,
+            "account_status": principal.account_status,
+            "reason": principal.reason,
+            "effective_permissions_included": False,
+        },
+    )
+    return GoogleWorkspaceRoleAssignmentPrincipalRead(
+        assignment=read,
+        principal=GoogleWorkspaceAdminPrincipalRead(
+            outcome=principal.outcome,
+            identity_type=principal.identity_type,
+            principal_id=principal.principal_id,
+            primary_email=principal.primary_email,
+            display_name=principal.display_name,
+            account_status=principal.account_status,
+            reason=principal.reason,
+        ),
+    )
 
 
 @api_router.post(

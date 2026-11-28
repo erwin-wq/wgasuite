@@ -102,6 +102,56 @@ def test_lookup_by_primary_email_uses_exact_read_only_directory_request(
     assert client.closed is True
 
 
+def test_lookup_by_immutable_id_verifies_returned_id_and_disables_retries(
+    db_session: Session,
+) -> None:
+    connector, actor = create_connector(db_session)
+    user_id = "109999999999999999999"
+    client = FakeGoogleClient(lookup_response(id=user_id))
+    factory = FakeClientFactory(client)
+    factory.for_directory_users = factory.for_organization  # type: ignore[attr-defined]
+
+    result = GoogleWorkspaceUserLookup(factory).lookup_by_id(  # type: ignore[arg-type]
+        actor=actor,
+        organization_id=connector.organization_id,
+        user_id=user_id,
+    )
+
+    assert result.id == user_id
+    assert result.matched_by == "immutable_id"
+    assert factory.calls == [
+        {
+            "actor": actor,
+            "organization_id": connector.organization_id,
+            "scopes": (DIRECTORY_USER_READONLY_SCOPE,),
+        }
+    ]
+    assert client.users_resource.get_kwargs == {
+        "userKey": user_id,
+        "projection": "basic",
+        "viewType": "admin_view",
+        "fields": USER_LOOKUP_FIELDS,
+    }
+    assert client.request.execute_kwargs == {"num_retries": 0}
+    assert client.closed is True
+
+
+def test_lookup_by_immutable_id_rejects_mismatched_google_identity(
+    db_session: Session,
+) -> None:
+    connector, actor = create_connector(db_session)
+    factory = FakeClientFactory(FakeGoogleClient(lookup_response(id="different-id")))
+    factory.for_directory_users = factory.for_organization  # type: ignore[attr-defined]
+
+    with pytest.raises(GoogleWorkspaceError) as error:
+        GoogleWorkspaceUserLookup(factory).lookup_by_id(  # type: ignore[arg-type]
+            actor=actor,
+            organization_id=connector.organization_id,
+            user_id="109999999999999999999",
+        )
+    assert error.value.code == GoogleWorkspaceErrorCode.GOOGLE_USER_LOOKUP_MISMATCH
+
+
 @pytest.mark.parametrize(
     ("searched_email", "expected_match"),
     [

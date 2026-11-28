@@ -428,7 +428,7 @@ export interface GoogleWorkspaceRoleAssignment {
   assignment_id: string;
   role_id: string;
   assigned_to: string;
-  assignee_type: "USER" | "GROUP" | "UNKNOWN";
+  assignee_type: "USER" | "GROUP" | "SERVICE_ACCOUNT" | "UNKNOWN";
   scope_type: "CUSTOMER" | "ORG_UNIT" | "UNKNOWN";
   org_unit_id: string | null;
   condition: string | null;
@@ -453,6 +453,24 @@ export interface GoogleWorkspaceAdminRoleDetail {
 
 export interface GoogleWorkspaceRoleAssignmentDetail {
   assignment: GoogleWorkspaceRoleAssignment;
+  direct_assignment: true;
+  effective_permissions_included: false;
+  read_only: true;
+}
+
+export interface GoogleWorkspaceAdminPrincipal {
+  outcome: "verified" | "unsupported" | "unresolved" | "ambiguous" | "lookup_unavailable";
+  identity_type: "USER" | "GROUP" | "SERVICE_ACCOUNT" | "UNKNOWN";
+  principal_id: string;
+  primary_email: string | null;
+  display_name: string | null;
+  account_status: "ACTIVE" | "SUSPENDED" | "ARCHIVED" | "DELETED" | null;
+  reason: string | null;
+}
+
+export interface GoogleWorkspaceRoleAssignmentPrincipal {
+  assignment: GoogleWorkspaceRoleAssignment;
+  principal: GoogleWorkspaceAdminPrincipal;
   direct_assignment: true;
   effective_permissions_included: false;
   read_only: true;

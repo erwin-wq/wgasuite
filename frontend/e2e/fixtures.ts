@@ -213,6 +213,26 @@ export async function installApiHarness(
       if (!role) return respond({ detail: { code: "google_admin_role_not_found", message: "Role not found." } }, 404);
       return respond({ role, read_only: true });
     }
+    if (path.endsWith("/google-workspace/admin-role-assignments/resolve-principal")) {
+      const id = String(request.postDataJSON()?.id ?? "");
+      const assignment = adminRoleInventory.assignments.find((item) => item.assignment_id === id);
+      if (!assignment) return respond({ detail: { code: "google_role_assignment_not_found", message: "Assignment not found." } }, 404);
+      return respond({
+        assignment,
+        principal: {
+          outcome: "verified",
+          identity_type: "USER",
+          principal_id: assignment.assigned_to,
+          primary_email: "admin@northstar.example.invalid",
+          display_name: "Northstar Administrator",
+          account_status: "ACTIVE",
+          reason: null
+        },
+        direct_assignment: true,
+        effective_permissions_included: false,
+        read_only: true
+      });
+    }
     if (path.endsWith("/google-workspace/admin-role-assignments/get")) {
       const id = String(request.postDataJSON()?.id ?? "");
       const assignment = adminRoleInventory.assignments.find((item) => item.assignment_id === id);

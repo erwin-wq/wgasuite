@@ -12,7 +12,8 @@ import {
   ApiError,
   getGoogleWorkspaceAdminRole,
   getGoogleWorkspaceRoleAssignment,
-  listGoogleWorkspaceAdminRoles
+  listGoogleWorkspaceAdminRoles,
+  resolveGoogleWorkspaceRoleAssignmentPrincipal
 } from "../../api/client";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -24,6 +25,7 @@ import type {
   GoogleWorkspaceAdminRole,
   GoogleWorkspaceAdminRoleDetail,
   GoogleWorkspaceAdminRoleInventory,
+  GoogleWorkspaceAdminPrincipal,
   GoogleWorkspaceRoleAssignment,
   GoogleWorkspaceRoleAssignmentDetail
 } from "../../types";
@@ -76,6 +78,10 @@ function assignmentScope(assignment: GoogleWorkspaceRoleAssignment) {
   return <Badge variant="warning">Unknown scope</Badge>;
 }
 
+function principalKey(assignment: GoogleWorkspaceRoleAssignment): string {
+  return `${assignment.assignee_type}:${assignment.assigned_to}`;
+}
+
 export function AdminRolesInventory({
   organizationId,
   organizationName,
@@ -95,14 +101,20 @@ export function AdminRolesInventory({
   const [assignmentDetail, setAssignmentDetail] = useState<GoogleWorkspaceRoleAssignmentDetail | null>(null);
   const [assignmentDetailLoading, setAssignmentDetailLoading] = useState(false);
   const [assignmentDetailError, setAssignmentDetailError] = useState<string | null>(null);
+  const [principal, setPrincipal] = useState<GoogleWorkspaceAdminPrincipal | null>(null);
+  const [resolvedPrincipals, setResolvedPrincipals] = useState(
+    new Map<string, GoogleWorkspaceAdminPrincipal>()
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sequence = useRef(0);
+  const inventoryRef = useRef<GoogleWorkspaceAdminRoleInventory | null>(null);
   const controller = useRef<AbortController | null>(null);
   const roleDetailSequence = useRef(0);
   const roleDetailController = useRef<AbortController | null>(null);
   const assignmentDetailSequence = useRef(0);
   const assignmentDetailController = useRef<AbortController | null>(null);
+  const principalCache = useRef(new Map<string, GoogleWorkspaceAdminPrincipal>());
   const connectorReady = connectorConfig?.status === "connected";
 
   const load = useCallback(async () => {
@@ -117,6 +129,7 @@ export function AdminRolesInventory({
       const result = await listGoogleWorkspaceAdminRoles(organizationId, nextController.signal);
       if (request !== sequence.current || nextController.signal.aborted) return;
       setInventory(result);
+      inventoryRef.current = result;
       setSelectedRoleId((current) =>
         current && result.roles.some((role) => role.role_id === current) ? current : null
       );
@@ -159,16 +172,44 @@ export function AdminRolesInventory({
     const nextController = new AbortController();
     assignmentDetailController.current = nextController;
     setAssignmentDetail(null);
+    setPrincipal(null);
     setAssignmentDetailError(null);
     setAssignmentDetailLoading(true);
     try {
-      const result = await getGoogleWorkspaceRoleAssignment(
+      const assignment = inventoryRef.current?.assignments.find(
+        (item) => item.assignment_id === assignmentId
+      );
+      const cacheKey = assignment ? principalKey(assignment) : null;
+      const cachedPrincipal = cacheKey ? principalCache.current.get(cacheKey) : undefined;
+      if (cachedPrincipal) {
+        const result = await getGoogleWorkspaceRoleAssignment(
+          organizationId,
+          assignmentId,
+          nextController.signal
+        );
+        if (request !== assignmentDetailSequence.current || nextController.signal.aborted) return;
+        setAssignmentDetail(result);
+        setPrincipal(cachedPrincipal);
+        return;
+      }
+      const result = await resolveGoogleWorkspaceRoleAssignmentPrincipal(
         organizationId,
         assignmentId,
         nextController.signal
       );
       if (request !== assignmentDetailSequence.current || nextController.signal.aborted) return;
-      setAssignmentDetail(result);
+      setAssignmentDetail({
+        assignment: result.assignment,
+        direct_assignment: result.direct_assignment,
+        effective_permissions_included: result.effective_permissions_included,
+        read_only: result.read_only
+      });
+      setPrincipal(result.principal);
+      principalCache.current.set(
+        principalKey(result.assignment),
+        result.principal
+      );
+      setResolvedPrincipals(new Map(principalCache.current));
     } catch (caught) {
       if (request !== assignmentDetailSequence.current || nextController.signal.aborted) return;
       setAssignmentDetailError(detailErrorMessage(caught, "assignment"));
@@ -181,6 +222,7 @@ export function AdminRolesInventory({
     setSelectedRoleId(roleId);
     setSelectedAssignmentId(null);
     setAssignmentDetail(null);
+    setPrincipal(null);
     setAssignmentDetailError(null);
     assignmentDetailSequence.current += 1;
     assignmentDetailController.current?.abort();
@@ -200,6 +242,7 @@ export function AdminRolesInventory({
     assignmentDetailSequence.current += 1;
     assignmentDetailController.current?.abort();
     setInventory(null);
+    inventoryRef.current = null;
     setSelectedRoleId(null);
     setRoleDetail(null);
     setRoleDetailError(null);
@@ -208,6 +251,8 @@ export function AdminRolesInventory({
     setAssignmentDetail(null);
     setAssignmentDetailError(null);
     setAssignmentDetailLoading(false);
+    principalCache.current.clear();
+    setResolvedPrincipals(new Map());
     setSearch("");
     setRoleType("all");
     setAssignmentFilter("all");
@@ -286,7 +331,7 @@ export function AdminRolesInventory({
         <Button variant="secondary" disabled={loading} onClick={() => void load()}><RefreshCw className={loading ? "spin" : ""} aria-hidden="true" /> Refresh</Button>
       </div>
       <Alert variant="info" title="Direct assignments, not effective permissions">
-        Group-derived, inherited, and otherwise effective administrator access is not calculated here. Assignee identifiers are immutable Google IDs, not resolved account names.
+        Verified identities describe only the principal directly referenced by each assignment. Group membership, inherited access, and otherwise effective administrator permissions are not calculated here.
       </Alert>
       <div className="admin-role-summary" aria-label="Administrator role inventory summary">
         <Card padding="sm"><ShieldCheck aria-hidden="true" /><span><strong>{inventory?.role_count ?? 0}</strong> Roles</span></Card>
@@ -347,7 +392,10 @@ export function AdminRolesInventory({
           ) : null}
           <section aria-labelledby="direct-assignments-heading">
             <h4 id="direct-assignments-heading">Direct assignments</h4>
-            {selectedAssignments.length ? <ul className="admin-role-assignments">{selectedAssignments.map((assignment) => <li key={assignment.assignment_id}><div><Badge variant="neutral">{assignment.assignee_type}</Badge>{assignmentScope(assignment)}</div><code>{assignment.assigned_to}</code><Button variant="secondary" size="sm" aria-pressed={assignment.assignment_id === selectedAssignmentId} onClick={() => selectAssignment(assignment.assignment_id)}>{assignment.assignment_id === selectedAssignmentId ? "Selected assignment" : "View assignment"}</Button></li>)}</ul> : <p>No direct assignments were returned for this role.</p>}
+            {selectedAssignments.length ? <ul className="admin-role-assignments">{selectedAssignments.map((assignment) => {
+              const resolved = resolvedPrincipals.get(principalKey(assignment));
+              return <li key={assignment.assignment_id}><div><Badge variant="neutral">{assignment.assignee_type}</Badge>{assignmentScope(assignment)}</div>{resolved?.outcome === "verified" ? <span className="admin-principal-summary"><strong>{resolved.display_name ?? resolved.primary_email}</strong>{resolved.display_name && resolved.primary_email ? <small>{resolved.primary_email}</small> : null}</span> : <code>{assignment.assigned_to}</code>}<Button variant="secondary" size="sm" aria-pressed={assignment.assignment_id === selectedAssignmentId} onClick={() => selectAssignment(assignment.assignment_id)}>{assignment.assignment_id === selectedAssignmentId ? "Selected assignment" : "View assignment"}</Button></li>;
+            })}</ul> : <p>No direct assignments were returned for this role.</p>}
           </section>
         </aside>
       ) : null}
@@ -366,6 +414,9 @@ export function AdminRolesInventory({
             <div className="admin-assignment-detail-body">
               <div className="admin-role-detail-grid"><div><span>Principal type</span><Badge variant="neutral">{assignmentDetail.assignment.assignee_type}</Badge></div><div><span>Assignment scope</span>{assignmentScope(assignmentDetail.assignment)}</div><div><span>Status</span>{assignmentDetail.assignment.expired ? <Badge variant="warning">Expired</Badge> : <Badge variant="success">Current record</Badge>}</div></div>
               <dl className="admin-assignment-metadata">
+                <div><dt>Resolved identity</dt><dd>{principal?.outcome === "verified" ? <><strong>{principal.display_name ?? principal.primary_email}</strong>{principal.display_name && principal.primary_email ? <small>{principal.primary_email}</small> : null}</> : "Identity not authoritatively resolved"}</dd></div>
+                <div><dt>Resolution</dt><dd><Badge variant={principal?.outcome === "verified" ? "success" : principal?.outcome === "lookup_unavailable" ? "warning" : "neutral"}>{principal?.outcome.replace(/_/g, " ") ?? "Loading"}</Badge>{principal?.reason ? <small>{principal.reason.replace(/_/g, " ")}</small> : null}</dd></div>
+                <div><dt>Account status</dt><dd>{principal?.account_status ? <Badge variant={principal.account_status === "ACTIVE" ? "success" : "warning"}>{principal.account_status}</Badge> : "Not available"}</dd></div>
                 <div><dt>Assigned principal ID</dt><dd><code>{assignmentDetail.assignment.assigned_to}</code></dd></div>
                 <div><dt>Referenced role</dt><dd>{selectedRole?.name ?? "Role not present in current inventory"} <code>{assignmentDetail.assignment.role_id}</code></dd></div>
                 <div><dt>Organizational unit ID</dt><dd>{assignmentDetail.assignment.org_unit_id ? <code>{assignmentDetail.assignment.org_unit_id}</code> : "Not OU-scoped"}</dd></div>

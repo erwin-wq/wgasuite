@@ -69,9 +69,15 @@ the verified immutable customer ID. Detail requests accept only immutable numeri
 send no request body to Google, and use `num_retries=0`. Role details preserve Google's privilege
 names and opaque service IDs. Assignment details preserve principal type and immutable ID, scope,
 OU ID, condition, and timezone-aware expiration metadata when returned. The resulting assignments
-are direct assignments only. WGASuite does not calculate effective
-administrator permissions, expand group membership, or resolve opaque assignee IDs to account
-identities. The standard connection test does not prove access to this operation-scoped grant.
+are direct assignments only. When an operator opens an assignment, WGASuite can additionally use
+the existing `admin.directory.user.readonly` or `admin.directory.group.readonly` grant according to
+Google's authoritative assignee type. Users must match the immutable ID and selected customer.
+Groups must match the immutable ID and also appear in the selected customer's scoped group
+inventory; `groups.get` alone is not accepted as tenant-ownership proof. Service accounts and
+unknown types remain unresolved because this workflow does not request IAM access. Authentication
+or upstream lookup failures remain distinct from a missing identity. WGASuite does not calculate
+effective administrator permissions or expand group membership. The standard connection test does
+not prove access to these operation-scoped grants.
 
 For Google Groups, add both Directory scopes below while preserving the user and Gmail scopes:
 

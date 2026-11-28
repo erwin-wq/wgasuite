@@ -3288,6 +3288,17 @@ h4 {
   justify-self: start;
 }
 
+.admin-principal-summary {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.admin-principal-summary small {
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
 .admin-assignment-detail-body {
   display: grid;
   gap: var(--density-section-gap);
@@ -3318,6 +3329,12 @@ h4 {
   color: var(--color-text-primary);
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.admin-assignment-metadata dd small {
+  color: var(--color-text-secondary);
+  display: block;
+  margin-top: var(--space-1);
 }
 
 @media (max-width: 600px) {

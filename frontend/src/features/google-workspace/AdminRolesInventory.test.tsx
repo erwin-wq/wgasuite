@@ -6,7 +6,8 @@ import {
   ApiError,
   getGoogleWorkspaceAdminRole,
   getGoogleWorkspaceRoleAssignment,
-  listGoogleWorkspaceAdminRoles
+  listGoogleWorkspaceAdminRoles,
+  resolveGoogleWorkspaceRoleAssignmentPrincipal
 } from "../../api/client";
 import type { ConnectorConfig, GoogleWorkspaceAdminRoleInventory } from "../../types";
 import { AdminRolesInventory } from "./AdminRolesInventory";
@@ -18,7 +19,8 @@ vi.mock("../../api/client", async (importOriginal) => {
     ...actual,
     getGoogleWorkspaceAdminRole: vi.fn(),
     getGoogleWorkspaceRoleAssignment: vi.fn(),
-    listGoogleWorkspaceAdminRoles: vi.fn()
+    listGoogleWorkspaceAdminRoles: vi.fn(),
+    resolveGoogleWorkspaceRoleAssignmentPrincipal: vi.fn()
   };
 });
 
@@ -108,6 +110,21 @@ describe("AdminRolesInventory", () => {
       effective_permissions_included: false,
       read_only: true
     });
+    vi.mocked(resolveGoogleWorkspaceRoleAssignmentPrincipal).mockResolvedValue({
+      assignment: inventory.assignments[0],
+      principal: {
+        outcome: "verified",
+        identity_type: "USER",
+        principal_id: inventory.assignments[0].assigned_to,
+        primary_email: "admin@example.test",
+        display_name: "Workspace Administrator",
+        account_status: "ACTIVE",
+        reason: null
+      },
+      direct_assignment: true,
+      effective_permissions_included: false,
+      read_only: true
+    });
   });
 
   it("renders direct-only roles without claiming effective permissions", async () => {
@@ -141,21 +158,23 @@ describe("AdminRolesInventory", () => {
     );
     await user.click(screen.getByRole("button", { name: "View assignment" }));
     expect(await screen.findByRole("heading", { name: "Direct assignment" })).toBeVisible();
-    expect(screen.getAllByText("109999999999999999999")).toHaveLength(2);
+    expect(screen.getByText("109999999999999999999")).toBeVisible();
     expect(screen.getByText("id:ou-1")).toBeVisible();
     expect(screen.getByText("securityGroup")).toBeVisible();
     expect(screen.getByText("Expired")).toBeVisible();
-    expect(getGoogleWorkspaceRoleAssignment).toHaveBeenCalledWith(
+    expect(resolveGoogleWorkspaceRoleAssignmentPrincipal).toHaveBeenCalledWith(
       "organization-1",
       "2001",
       expect.any(AbortSignal)
     );
-    expect(screen.queryByText(/@example/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("Workspace Administrator")).toHaveLength(2);
+    expect(screen.getAllByText("admin@example.test")).toHaveLength(2);
+    expect(screen.getByText("ACTIVE")).toBeVisible();
   });
 
   it("renders absent optional assignment metadata without inferring effective access", async () => {
     const user = userEvent.setup();
-    vi.mocked(getGoogleWorkspaceRoleAssignment).mockResolvedValue({
+    vi.mocked(resolveGoogleWorkspaceRoleAssignmentPrincipal).mockResolvedValue({
       assignment: {
         ...inventory.assignments[0],
         assignee_type: "UNKNOWN",
@@ -164,6 +183,15 @@ describe("AdminRolesInventory", () => {
         condition: null,
         expires_at: null,
         expired: false
+      },
+      principal: {
+        outcome: "unresolved",
+        identity_type: "UNKNOWN",
+        principal_id: inventory.assignments[0].assigned_to,
+        primary_email: null,
+        display_name: null,
+        account_status: null,
+        reason: "principal_type_not_authoritative"
       },
       direct_assignment: true,
       effective_permissions_included: false,
@@ -178,6 +206,60 @@ describe("AdminRolesInventory", () => {
     expect(screen.getByText("Not OU-scoped")).toBeVisible();
     expect(screen.getByText("Unknown scope")).toBeVisible();
     expect(screen.getByText(/not a calculation of effective access/i)).toBeVisible();
+  });
+
+  it("distinguishes unavailable identity lookup from an absent principal", async () => {
+    const user = userEvent.setup();
+    vi.mocked(resolveGoogleWorkspaceRoleAssignmentPrincipal).mockResolvedValue({
+      assignment: inventory.assignments[0],
+      principal: {
+        outcome: "lookup_unavailable",
+        identity_type: "USER",
+        principal_id: inventory.assignments[0].assigned_to,
+        primary_email: null,
+        display_name: null,
+        account_status: null,
+        reason: "identity_lookup_permission_unavailable"
+      },
+      direct_assignment: true,
+      effective_permissions_included: false,
+      read_only: true
+    });
+    renderInventory();
+    await screen.findByText("Help Desk");
+    await user.click(screen.getByRole("button", { name: "View details for Help Desk" }));
+    await user.click(await screen.findByRole("button", { name: "View assignment" }));
+    expect(await screen.findByText("lookup unavailable")).toBeVisible();
+    expect(screen.getByText("identity lookup permission unavailable")).toBeVisible();
+    expect(screen.getByText("Identity not authoritatively resolved")).toBeVisible();
+  });
+
+  it("deduplicates principal resolution for duplicate direct assignees", async () => {
+    const user = userEvent.setup();
+    const duplicateInventory: GoogleWorkspaceAdminRoleInventory = {
+      ...inventory,
+      assignments: [
+        inventory.assignments[0],
+        { ...inventory.assignments[0], assignment_id: "2002" }
+      ],
+      assignment_count: 2
+    };
+    vi.mocked(listGoogleWorkspaceAdminRoles).mockResolvedValue(duplicateInventory);
+    vi.mocked(getGoogleWorkspaceRoleAssignment).mockResolvedValue({
+      assignment: duplicateInventory.assignments[1],
+      direct_assignment: true,
+      effective_permissions_included: false,
+      read_only: true
+    });
+    renderInventory();
+    await screen.findByText("Help Desk");
+    await user.click(screen.getByRole("button", { name: "View details for Help Desk" }));
+    const buttons = await screen.findAllByRole("button", { name: "View assignment" });
+    await user.click(buttons[0]);
+    expect(await screen.findAllByText("Workspace Administrator")).toHaveLength(3);
+    await user.click(screen.getByRole("button", { name: "View assignment" }));
+    await waitFor(() => expect(getGoogleWorkspaceRoleAssignment).toHaveBeenCalledTimes(1));
+    expect(resolveGoogleWorkspaceRoleAssignmentPrincipal).toHaveBeenCalledTimes(1);
   });
 
   it("renders detail loading, deletion and retry errors", async () => {

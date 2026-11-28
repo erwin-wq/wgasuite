@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.connectors.google_workspace_client import GoogleWorkspaceClientFactory
 from app.connectors.google_workspace_credentials import (
+    DIRECTORY_GROUP_READONLY_SCOPE,
     DIRECTORY_ROLE_MANAGEMENT_READONLY_SCOPE,
 )
 from app.connectors.google_workspace_errors import (
@@ -42,6 +43,8 @@ MAX_PAGES = 100
 MAX_RECORDS = 10_000
 MAX_TEXT_LENGTH = 4_096
 RESOURCE_ID_PATTERN = re.compile(r"^[0-9]{1,30}$")
+GROUP_FIELDS = "id,email,name"
+GROUP_LIST_FIELDS = "groups(id,email,name),nextPageToken"
 
 
 @dataclass(frozen=True)
@@ -66,7 +69,7 @@ class WorkspaceRoleAssignment:
     assignment_id: str
     role_id: str
     assigned_to: str
-    assignee_type: Literal["USER", "GROUP", "UNKNOWN"]
+    assignee_type: Literal["USER", "GROUP", "SERVICE_ACCOUNT", "UNKNOWN"]
     scope_type: Literal["CUSTOMER", "ORG_UNIT", "UNKNOWN"]
     org_unit_id: str | None
     condition: str | None
@@ -78,6 +81,23 @@ class WorkspaceRoleAssignment:
 class WorkspaceAdminRoleInventory:
     roles: tuple[WorkspaceAdminRole, ...]
     assignments: tuple[WorkspaceRoleAssignment, ...]
+
+
+@dataclass(frozen=True)
+class WorkspaceAdminPrincipal:
+    outcome: Literal[
+        "verified",
+        "unsupported",
+        "unresolved",
+        "ambiguous",
+        "lookup_unavailable",
+    ]
+    identity_type: Literal["USER", "GROUP", "SERVICE_ACCOUNT", "UNKNOWN"]
+    principal_id: str
+    primary_email: str | None = None
+    display_name: str | None = None
+    account_status: Literal["ACTIVE", "SUSPENDED", "ARCHIVED", "DELETED"] | None = None
+    reason: str | None = None
 
 
 class GoogleWorkspaceAdminRoles:
@@ -175,6 +195,66 @@ class GoogleWorkspaceAdminRoles:
     ) -> WorkspaceRoleAssignment:
         requested_id = self._resource_id(assignment_id)
         customer_id = self._verified_customer_id(actor, organization_id)
+        return self._get_assignment(
+            actor=actor,
+            organization_id=organization_id,
+            customer_id=customer_id,
+            assignment_id=requested_id,
+            request_timeout_seconds=request_timeout_seconds,
+        )
+
+    def get_assignment_principal(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        assignment_id: str,
+        request_timeout_seconds: float | None = None,
+    ) -> tuple[WorkspaceRoleAssignment, WorkspaceAdminPrincipal]:
+        """Re-read an assignment, then resolve only its authoritative principal type."""
+        requested_id = self._resource_id(assignment_id)
+        customer_id = self._verified_customer_id(actor, organization_id)
+        assignment = self._get_assignment(
+            actor=actor,
+            organization_id=organization_id,
+            customer_id=customer_id,
+            assignment_id=requested_id,
+            request_timeout_seconds=request_timeout_seconds,
+        )
+        if assignment.assignee_type == "USER":
+            principal = self._resolve_user_principal(
+                actor, organization_id, customer_id, assignment.assigned_to
+            )
+        elif assignment.assignee_type == "GROUP":
+            principal = self._resolve_group_principal(
+                actor, organization_id, customer_id, assignment.assigned_to,
+                request_timeout_seconds,
+            )
+        elif assignment.assignee_type == "SERVICE_ACCOUNT":
+            principal = WorkspaceAdminPrincipal(
+                outcome="unsupported",
+                identity_type="SERVICE_ACCOUNT",
+                principal_id=assignment.assigned_to,
+                reason="service_account_resolution_not_available",
+            )
+        else:
+            principal = WorkspaceAdminPrincipal(
+                outcome="unresolved",
+                identity_type="UNKNOWN",
+                principal_id=assignment.assigned_to,
+                reason="principal_type_not_authoritative",
+            )
+        return assignment, principal
+
+    def _get_assignment(
+        self,
+        *,
+        actor: User,
+        organization_id: UUID,
+        customer_id: str,
+        assignment_id: str,
+        request_timeout_seconds: float | None,
+    ) -> WorkspaceRoleAssignment:
         client: Any | None = None
         try:
             client = self._role_client(actor, organization_id, request_timeout_seconds)
@@ -182,13 +262,13 @@ class GoogleWorkspaceAdminRoles:
                 client.roleAssignments()
                 .get(
                     customer=customer_id,
-                    roleAssignmentId=requested_id,
+                    roleAssignmentId=assignment_id,
                     fields=ASSIGNMENT_DETAIL_FIELDS,
                 )
                 .execute(num_retries=0)
             )
             assignment = self._assignment(response)
-            if assignment.assignment_id != requested_id:
+            if assignment.assignment_id != assignment_id:
                 self._invalid_response()
             return assignment
         except GoogleWorkspaceError:
@@ -199,6 +279,199 @@ class GoogleWorkspaceAdminRoles:
             ) from None
         finally:
             self._close_client(client)
+
+    def _resolve_user_principal(
+        self,
+        actor: User,
+        organization_id: UUID,
+        customer_id: str,
+        principal_id: str,
+    ) -> WorkspaceAdminPrincipal:
+        try:
+            user = self.user_lookup.lookup_by_id(
+                actor=actor,
+                organization_id=organization_id,
+                user_id=principal_id,
+            )
+            if user.customer_id != customer_id:
+                raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH)
+            if user.id != principal_id:
+                return WorkspaceAdminPrincipal(
+                    outcome="ambiguous",
+                    identity_type="USER",
+                    principal_id=principal_id,
+                    reason="immutable_id_mismatch",
+                )
+            status: Literal["ACTIVE", "SUSPENDED", "ARCHIVED", "DELETED"] = "ACTIVE"
+            if user.deletion_time is not None:
+                status = "DELETED"
+            elif user.archived is True:
+                status = "ARCHIVED"
+            elif user.suspended:
+                status = "SUSPENDED"
+            return WorkspaceAdminPrincipal(
+                outcome="verified",
+                identity_type="USER",
+                principal_id=principal_id,
+                primary_email=user.primary_email,
+                display_name=user.full_name,
+                account_status=status,
+            )
+        except GoogleWorkspaceError as error:
+            if error.code == GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH:
+                raise
+            if error.code == GoogleWorkspaceErrorCode.GOOGLE_USER_NOT_FOUND:
+                return WorkspaceAdminPrincipal(
+                    outcome="unresolved",
+                    identity_type="USER",
+                    principal_id=principal_id,
+                    reason="directory_user_not_found",
+                )
+            if error.code == GoogleWorkspaceErrorCode.GOOGLE_USER_LOOKUP_MISMATCH:
+                return WorkspaceAdminPrincipal(
+                    outcome="ambiguous",
+                    identity_type="USER",
+                    principal_id=principal_id,
+                    reason="immutable_id_mismatch",
+                )
+            return self._unavailable_principal("USER", principal_id, error)
+
+    def _resolve_group_principal(
+        self,
+        actor: User,
+        organization_id: UUID,
+        customer_id: str,
+        principal_id: str,
+        request_timeout_seconds: float | None,
+    ) -> WorkspaceAdminPrincipal:
+        client: Any | None = None
+        try:
+            arguments: dict[str, Any] = {
+                "actor": actor,
+                "organization_id": organization_id,
+                "scopes": (DIRECTORY_GROUP_READONLY_SCOPE,),
+            }
+            if request_timeout_seconds is not None:
+                arguments["request_timeout_seconds"] = request_timeout_seconds
+            client = self.client_factory.for_directory_groups(**arguments)
+            response = (
+                client.groups()
+                .get(groupKey=principal_id, fields=GROUP_FIELDS)
+                .execute(num_retries=0)
+            )
+            group_id, email, name = self._group_identity(response)
+            if group_id != principal_id:
+                return WorkspaceAdminPrincipal(
+                    outcome="ambiguous",
+                    identity_type="GROUP",
+                    principal_id=principal_id,
+                    reason="immutable_id_mismatch",
+                )
+            verification = (
+                client.groups()
+                .list(
+                    customer=customer_id,
+                    query=f"email='{email.replace(chr(39), chr(92) + chr(39))}'",
+                    maxResults=10,
+                    fields=GROUP_LIST_FIELDS,
+                )
+                .execute(num_retries=0)
+            )
+            matches = self._verified_group_matches(verification, group_id, email)
+            if matches != 1:
+                if matches == 0:
+                    return WorkspaceAdminPrincipal(
+                        outcome="unresolved",
+                        identity_type="GROUP",
+                        principal_id=principal_id,
+                        reason="tenant_ownership_not_verified",
+                    )
+                return WorkspaceAdminPrincipal(
+                    outcome="ambiguous",
+                    identity_type="GROUP",
+                    principal_id=principal_id,
+                    reason="conflicting_customer_inventory",
+                )
+            return WorkspaceAdminPrincipal(
+                outcome="verified",
+                identity_type="GROUP",
+                principal_id=principal_id,
+                primary_email=email,
+                display_name=name,
+            )
+        except GoogleWorkspaceError as error:
+            if error.code == GoogleWorkspaceErrorCode.GOOGLE_TENANT_MISMATCH:
+                raise
+            return self._unavailable_principal("GROUP", principal_id, error)
+        except Exception as error:
+            mapped = map_google_api_error(error)
+            if mapped.code == GoogleWorkspaceErrorCode.GOOGLE_SUBJECT_NOT_FOUND:
+                return WorkspaceAdminPrincipal(
+                    outcome="unresolved",
+                    identity_type="GROUP",
+                    principal_id=principal_id,
+                    reason="directory_group_not_found",
+                )
+            return self._unavailable_principal("GROUP", principal_id, mapped)
+        finally:
+            self._close_client(client)
+
+    @classmethod
+    def _group_identity(cls, response: Any) -> tuple[str, str, str | None]:
+        if not isinstance(response, dict):
+            cls._invalid_response()
+        group_id = cls._text(response.get("id"))
+        email = cls._text(response.get("email")).casefold()
+        name = cls._optional_text(response.get("name"))
+        return group_id, email, name
+
+    @classmethod
+    def _verified_group_matches(cls, response: Any, group_id: str, email: str) -> int:
+        if not isinstance(response, dict):
+            cls._invalid_response()
+        groups = response.get("groups", [])
+        if groups is None:
+            groups = []
+        if not isinstance(groups, list):
+            cls._invalid_response()
+        next_page = response.get("nextPageToken")
+        if next_page is not None:
+            raise GoogleWorkspaceError(GoogleWorkspaceErrorCode.GOOGLE_OPERATION_BUDGET_EXCEEDED)
+        matches = 0
+        for raw in groups:
+            candidate_id, candidate_email, _ = cls._group_identity(raw)
+            if candidate_id == group_id and candidate_email == email:
+                matches += 1
+        return matches
+
+    @staticmethod
+    def _unavailable_principal(
+        identity_type: Literal["USER", "GROUP"],
+        principal_id: str,
+        error: GoogleWorkspaceError,
+    ) -> WorkspaceAdminPrincipal:
+        authentication = {
+            GoogleWorkspaceErrorCode.DELEGATION_FAILED,
+            GoogleWorkspaceErrorCode.DELEGATION_REJECTED,
+            GoogleWorkspaceErrorCode.GOOGLE_AUTHENTICATION_REJECTED,
+            GoogleWorkspaceErrorCode.GOOGLE_UNAUTHORIZED,
+        }
+        authorization = {
+            GoogleWorkspaceErrorCode.MISSING_SCOPE_OR_PERMISSION,
+            GoogleWorkspaceErrorCode.GOOGLE_FORBIDDEN,
+        }
+        if error.code in authentication:
+            reason = "identity_lookup_authentication_unavailable"
+        elif error.code in authorization:
+            reason = "identity_lookup_permission_unavailable"
+        else:
+            reason = "identity_lookup_upstream_unavailable"
+        return WorkspaceAdminPrincipal(
+            outcome="lookup_unavailable",
+            identity_type=identity_type,
+            principal_id=principal_id,
+            reason=reason,
+        )
 
     def _role_client(
         self,
@@ -318,7 +591,7 @@ class GoogleWorkspaceAdminRoles:
         if not isinstance(raw, dict):
             cls._invalid_response()
         assignee_type = raw.get("assigneeType", "UNKNOWN")
-        if assignee_type not in {"USER", "GROUP"}:
+        if assignee_type not in {"USER", "GROUP", "SERVICE_ACCOUNT"}:
             assignee_type = "UNKNOWN"
         scope_type = raw.get("scopeType", "UNKNOWN")
         if scope_type not in {"CUSTOMER", "ORG_UNIT"}:

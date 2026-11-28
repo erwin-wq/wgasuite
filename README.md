@@ -192,9 +192,13 @@ independently verified immutable customer ID with only the
 budgets, disables automatic retries, and never substitutes `my_customer`. The interface shows
 system, custom and super-administrator roles, safe privilege summaries, opaque assignee types and
 IDs, customer/OU scope, conditions, and expiration metadata returned by Google. Individual detail
-reads use immutable numeric resource IDs and remain tenant-scoped. It intentionally does not resolve
-assignee identities or claim to calculate inherited, group-derived or otherwise effective
-administrator permissions. No role or assignment mutation is implemented.
+reads use immutable numeric resource IDs and remain tenant-scoped. On demand, a direct assignment's
+authoritative `USER` or `GROUP` type can be resolved with the existing user/group read-only scopes.
+User results must match both immutable ID and customer; group results must match the immutable ID
+and a customer-scoped group inventory. Unknown, unsupported, ambiguous, and unavailable identities
+remain explicit instead of being guessed. The tool does not expand groups or claim to calculate
+inherited, group-derived or otherwise effective administrator permissions. No role or assignment
+mutation is implemented.
 
 See [Google Workspace connector](docs/GOOGLE_WORKSPACE_CONNECTOR.md) for setup, scope,
 security and live-verification instructions, and [mutation safety](docs/MUTATION_SAFETY.md) for the
